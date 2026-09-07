@@ -34,7 +34,7 @@ RAIZ = Path(__file__).resolve().parent.parent
 if str(RAIZ) not in sys.path:
     sys.path.insert(0, str(RAIZ))
 
-from tests.nombres_heredados import por_nombre_heredado
+from tests.nombres_heredados import por_nombre_heredado, starts_del_medido
 from shmir_design import presentation, spliceai  # noqa: E402
 from shmir_design.anatomy import Anatomy, RegionSource  # noqa: E402
 from shmir_design.errors import ShmirDesignError  # noqa: E402
@@ -75,6 +75,25 @@ def _casete() -> str:
 
 
 def _panel(corrida, intrones=("mvm_actual",)):
+    # EL PANEL SE RECONSTRUYE DESDE EL FICHERO MEDIDO, no desde la seleccion de hoy.
+    # La corrida del 2026-09-05 es la del panel de ENTONCES, y el 2026-09-07 se retiro
+    # `3utr:10` y entro `3utr:359`: con el panel de hoy, las diez construcciones no
+    # cruzarian con las diez filas del fichero y el analisis saldria VACIO — que se lee
+    # como «limpio». Los inicios se derivan del propio fichero (principio nº 13); el
+    # fichero medido no se reescribe nunca.
+    return spliceai.build_panel(
+        corrida.selection, intron_names=intrones, scaffold=SGEP_SCAFFOLD,
+        starts=starts_del_medido(MEDIDO),
+        cassette=_casete(), context_nt=5000,
+    )
+
+
+def _panel_de_hoy(corrida, intrones=("mvm_actual",)):
+    """El panel de HOY, sin reconstruir el de la corrida medida.
+
+    Lo usa lo que no lee `data/medido/`: qué panel declara el FASTA en su cabecera es
+    una propiedad de la corrida que se está emitiendo, no de la de aquel día.
+    """
     return spliceai.build_panel(
         corrida.selection, intron_names=intrones, scaffold=SGEP_SCAFFOLD,
         cassette=_casete(), context_nt=5000,
@@ -159,8 +178,8 @@ class TestElESTADO_viaja_DENTRO_del_fichero(unittest.TestCase):
     @classmethod
     def setUpClass(cls):
         cls.corrida = _corrida()
-        cls.parcial = _panel(cls.corrida, intrones=PARCIAL)
-        cls.entero = _panel(cls.corrida)
+        cls.parcial = _panel_de_hoy(cls.corrida, intrones=PARCIAL)
+        cls.entero = _panel_de_hoy(cls.corrida)
 
     def _fasta(self, panel, intrones):
         resumen = presentation.splice_panel_summary(

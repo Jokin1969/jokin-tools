@@ -66,7 +66,21 @@ DEFAULT_CANDIDATES = 11
 #: hay de donde rebalancear. Cuatro es lo que cabe con el espaciado de 50 nt, medido, no
 #: elegido. Ver la entrada de `CLAUDE.md` sobre por que el espaciado no se baja para
 #: meter un quinto.
-DEFAULT_IMMUNE_QUOTA = 4
+#: CUOTA DE INMUNES AL APA. Bajó de 4 a 3 el 2026-09-07 POR GEOMETRÍA, no por criterio:
+#: ver `WHY_THE_IMMUNE_QUOTA_IS_THREE`. No se ha renunciado a la reserva — no cabe.
+DEFAULT_IMMUNE_QUOTA = 3
+
+WHY_THE_IMMUNE_QUOTA_IS_THREE = (
+    "La cuota de inmunes al APA bajó de CUATRO a TRES el 2026-09-07 por GEOMETRÍA, no "
+    "por criterio, y queda escrito para que nadie lo lea como que se renunció a la "
+    "reserva. Al retirar `3utr:10` por el frente de empalme, su plaza tenía que ocuparla "
+    "otro inmune — y no hay: los 16 sitios inmunes se apelotonan entre `3utr:10` y "
+    "`3utr:200`, así que con `3utr:60`, `143` y `200` puestos ninguno de los trece "
+    "restantes queda a 50 nt de todo el panel. El espaciado NO se baja para que quepa "
+    "uno: compra independencia entre apuestas, no número de apuestas. Con tres inmunes "
+    "el panel sigue sin depender de un solo supuesto, que es lo que la reserva "
+    "compraba."
+)
 
 #: Cuantos candidatos tienen que EMPEZAR en el tercio distal. Decidido por el responsable
 #: del proyecto el 2026-09-06, con la cuenta delante: el tramo son 414 nt y colgaban de
@@ -143,6 +157,20 @@ class SelectionConfig:
     #: limites del 3'UTR: aqui llega en tercios y baja a `start_window_quota` en
     #: coordenadas. El nucleo sigue trabajando con datos minimos.
     tercio_quota_by_start: tuple[tuple[Tercio, int], ...] | None = None
+    #: Inicios (en el marco de LO TILADO) cuyo SITIO queda FUERA DE LA SELECCION por una
+    #: decision declarada — no por un filtro. Ver `data/candidatos_retirados.toml`.
+    #:
+    #: FUERA DE LA SELECCION, NO FUERA DE LOS ELEGIBLES, y la diferencia es el fallo que
+    #: costo cazar: quitarlos de `eligible_choices` los borraba tambien de la piscina, de
+    #: la tabla de sitios y del alcance de los modales — o sea que un candidato retirado
+    #: del PANEL dejaba de poder consultarse, y sus veredictos desaparecian con el. Lo
+    #: que se decidio es que no va en el panel; todo lo demas sigue igual.
+    #:
+    #: Se retira el SITIO ENTERO, no la ventana: bajo el espaciado de 50 nt una ventana
+    #: corrida 1 nt es el MISMO sitio (`spacing.same_site`), asi que dejarla elegible
+    #: seria dejar que la retirada se esquive con un vecino que lleva practicamente la
+    #: misma guia.
+    retired_starts: tuple[int, ...] = ()
 
     def __post_init__(self) -> None:
         if self.n_candidates < 1:
@@ -299,6 +327,13 @@ class Selection:
     config: SelectionConfig
     quota_unfilled: tuple[str, ...] = field(default=())
     notes: tuple[str, ...] = field(default=())
+    #: DECISIONES REGISTRADAS, que no son avisos. `notes` dice lo que se PIDIO y no se
+    #: pudo dar —«se pedian 50 y salen 13»—, o sea algo que quien lee puede querer
+    #: cambiar. Esto dice lo que alguien DECIDIO, con su motivo: una retirada del panel.
+    #: Van aparte porque una decision tomada sale en TODAS las corridas de esa secuencia,
+    #: y un aviso que sale siempre deja de leerse — el control adversario del aviso del
+    #: espaciado lo exigia vacio y con la retirada dentro nunca volvia a estarlo.
+    decisions: tuple[str, ...] = field(default=())
     _ranked: tuple[int, ...] = field(default=())
 
     def rank_of(self, start: int) -> int:
@@ -422,7 +457,19 @@ def choose(sites: list[Site], config: SelectionConfig) -> Selection:
     rellenan con candidatos de otra region, porque el reparto es una decision de diseño
     y no un cupo que se pueda mover solo.
     """
-    ordenados = sorted(sites, key=lambda s: (-s.best.asymmetry, s.best.start))
+    # LAS RETIRADAS DECLARADAS SALEN DE LA SELECCION, y sale el SITIO entero: bajo el
+    # espaciado una ventana corrida 1 nt es el MISMO sitio, asi que quitar solo la
+    # ventana dejaria que la retirada se esquive con un vecino que lleva practicamente
+    # la misma guia. Siguen siendo elegibles y siguen en la tabla con sus veredictos —
+    # lo que se decidio es que no van en el panel.
+    elegibles = sites
+    if config.retired_starts:
+        retirados = set(config.retired_starts)
+        elegibles = [
+            s for s in sites
+            if not any(c.start in retirados for c in s.choices)
+        ]
+    ordenados = sorted(elegibles, key=lambda s: (-s.best.asymmetry, s.best.start))
     chosen: list[Choice] = []
     usados: set[int] = set()
     quota_unfilled: list[str] = []
@@ -830,6 +877,29 @@ def _ventanas_de_tercio(
     )
 
 
+def _retiradas(report, choices):
+    """Qué inicios retira la tabla declarada sobre ESTE informe, y qué se dice de ellos.
+
+    El md5 del 3'UTR y el desfase salen del informe, no de quien llama: una retirada
+    aplicada sobre la secuencia equivocada quitaría una ventana que nadie ha mirado, y un
+    desfase supuesto la quitaría en el sitio equivocado (errata nº 133).
+    """
+    from . import retirados
+
+    if not report.utr3_md5:
+        # Sin md5 del 3'UTR no hay con qué comparar, así que no se aplica nada — y no se
+        # aplica «por si acaso», que es como una retirada acaba cayendo sobre la ventana
+        # de otra secuencia.
+        return set(), ()
+    entradas = retirados.para(report.utr3_md5)
+    if not entradas:
+        return set(), ()
+    return retirados.aplicar(
+        [c.start for c in choices], entradas=entradas,
+        offset=report.utr3_offset, md5_utr3=report.utr3_md5,
+    )
+
+
 def select_from_report(
     report: TilingReport,
     config: SelectionConfig | None = None,
@@ -883,8 +953,22 @@ def select_from_report(
             ),
         )
     choices = eligible_choices(report, config)
+    # LAS RETIRADAS DECLARADAS. Un candidato que sale del panel por una DECISIÓN —no por
+    # un filtro— tiene que dejar rastro: quitarlo a mano no deja más huella que una
+    # piscina más pequeña. Se aplican por el md5 del 3'UTR, así que sobre otra secuencia
+    # no retiran nada.
+    #
+    # Y salen de la SELECCIÓN, no de los ELEGIBLES: la ventana sigue en la piscina, en
+    # la tabla de sitios y en el alcance de los modales, con sus veredictos. Quitarla de
+    # `choices` la borraba de todo eso, y entonces un candidato retirado del panel
+    # dejaba de poder consultarse — que es más de lo que se decidió.
+    fuera, notas_retirados = _retiradas(report, choices)
+    if fuera:
+        config = replace(config, retired_starts=tuple(sorted(fuera)))
     sites = group_choices(choices)
     selection = choose(sites, config)
+    if notas_retirados:
+        selection = replace(selection, decisions=notas_retirados + selection.decisions)
     if sin_corte:
         selection = replace(selection, notes=(sin_corte,) + selection.notes)
     return ReportSelection(
@@ -1897,6 +1981,11 @@ class TercioCoverage:
     #: decidir si la cobertura del tramo está limitada por la geometría o por la cuota:
     #: si hay de sobra a ≥ espaciado de su propio vecino, lo que falta son plazas.
     next_free_of_reference: tuple[NextInTercio, ...] = ()
+    #: Los sitios del tramo que están RETIRADOS por decisión declarada. No aparecen en
+    #: ninguna de las dos listas de «el siguiente que cabe» —proponer el que alguien
+    #: retiró es lo que esto impide— y salen nombrados, porque un hueco que se quita en
+    #: silencio no se distingue de uno que nunca estuvo.
+    retired: tuple[int, ...] = ()
 
     @property
     def quota_met(self) -> bool:
@@ -1940,6 +2029,13 @@ class TercioCoverage:
                 + ", ".join(label(p, Frame.UTR3) for p in self.borderline)
                 + f" cuenta(n) en este tercio por punto medio y empieza(n) en el "
                 f"anterior. Cubre(n) el primer nucleótido del tramo, no el tramo."
+            )
+        if self.retired:
+            lineas.append(
+                "  RETIRADO(S) por decisión declarada, fuera de las listas de abajo: "
+                + ", ".join(label(p, Frame.UTR3) for p in self.retired)
+                + ". Siguen siendo sitios elegibles y siguen en la tabla con sus "
+                "veredictos; lo que no vuelven a hacer es proponerse para una plaza."
             )
         if self.reference is not None:
             lineas.append(
@@ -2001,8 +2097,16 @@ def tercio_coverage(
 
     `selection` es lo que devuelve `select_from_report` o el propio `Selection`: de él
     salen los candidatos elegidos, que son contra los que se mide el espaciado.
+
+    **Y de él sale también la CONFIGURACIÓN, si no la pasa el llamador.** Antes se
+    fabricaba un `SelectionConfig()` pelado, así que una selección hecha con otro
+    espaciado —o con una retirada aplicada— se describía con los valores por defecto: el
+    informe decía «espaciado 50 nt» de un panel elegido con 30, con la forma correcta y
+    sin dar ningún error. La configuración que produjo la selección la lleva la propia
+    selección; pedírsela es derivar en vez de suponer (principio nº 13).
     """
-    ajustes = config or SelectionConfig()
+    elegida_para_config = getattr(selection, "selection", selection)
+    ajustes = config or getattr(elegida_para_config, "config", None) or SelectionConfig()
     cuenta = tercio_counts(report, ajustes)
     nombres = ("proximal", "medio", "distal")
     limites = cuenta.bounds
@@ -2022,6 +2126,15 @@ def tercio_coverage(
     def al_utr3(posicion: int) -> int | None:
         return report.utr3_of(int(posicion))
 
+    # UN CANDIDATO RETIRADO NO SE VUELVE A PROPONER. Sigue siendo un sitio elegible —la
+    # retirada sale de la SELECCIÓN, no de la piscina— así que sin esto aparecería como
+    # «el siguiente que cabe» en su tercio: la app recomendaría ocupar la plaza con
+    # exactamente el candidato que alguien retiró, y el motivo escrito no se vería por
+    # ninguna parte. Se excluye y se CUENTA, porque un hueco que se quita en silencio no
+    # se distingue de uno que nunca estuvo.
+    retirados_utr3 = {
+        p for p in (al_utr3(x) for x in ajustes.retired_starts) if p is not None
+    }
     panel_bruto = sorted(int(c.start) for c in elegida.chosen)
     panel = [p for p in (al_utr3(x) for x in panel_bruto) if p is not None]
     fuera_del_utr3 = len(panel_bruto) - len(panel)
@@ -2061,6 +2174,7 @@ def tercio_coverage(
             [
                 (s, a, b) for (s, a, b) in del_tercio_medio
                 if a not in panel
+                and a not in retirados_utr3
                 and respects_spacing(a, referencia, spacing=ajustes.min_spacing)
             ]
             if referencia is not None
@@ -2070,6 +2184,7 @@ def tercio_coverage(
         caben = [
             (s, a, b) for (s, a, b) in del_tercio_medio
             if a not in panel
+            and a not in retirados_utr3
             and all(
                 respects_spacing(a, p, spacing=ajustes.min_spacing) for p in panel
             )
@@ -2089,6 +2204,9 @@ def tercio_coverage(
                 free_of_reference=libres_referencia,
                 free_of_panel=len(caben),
                 reference=referencia,
+                retired=tuple(
+                    sorted(p for p in retirados_utr3 if por_inicio(p) == nombre)
+                ),
                 next_free=tuple(
                     NextInTercio(start=a, end=b, asymmetry=s.best.asymmetry)
                     for (s, a, b) in caben[:top]

@@ -3897,9 +3897,17 @@ def selection_notes(selection) -> list[dict[str, object]]:
     con razón, que la app no le hacía caso. Un parámetro que no hace lo que dice y no lo
     dice es un parámetro que miente. Principio nº 23: dos artefactos leen el mismo estado
     y sólo uno lo cuenta.
+
+    Y **una decisión registrada NO es un aviso**: una retirada del panel sale en TODAS
+    las corridas de esa secuencia, así que pintarla en rojo dejaría el rojo puesto para
+    siempre — y a partir de ahí el aviso del espaciado, que sí es accionable, no se
+    distingue del fondo. Salen las dos; lo que cambia es `avisa`, y el aviso va PRIMERO
+    porque es lo único de las dos que quien lee puede cambiar.
     """
     return [
         {"texto": nota, "avisa": True} for nota in selection.selection.notes
+    ] + [
+        {"texto": nota, "avisa": False} for nota in selection.selection.decisions
     ]
 
 
@@ -5045,12 +5053,20 @@ def immune_replacements(tiling, selection, *, retire: int):
     from .selection import derive_immune_cut, respects_spacing
 
     panel = [c.start for c in selection.selection.chosen]
-    if retire not in panel:
+    # LA PLAZA EXISTE POR DOS CAMINOS, y los dos son la misma vacante: el candidato está
+    # en el panel y se pregunta qué pasaría si se retira, o YA está retirado por una
+    # decisión declarada y se pregunta quién podría haberla ocupado. Aceptar sólo el
+    # primero dejaba sin poder consultar justo el caso que motivó esto: en cuanto la
+    # retirada de `3utr:10` se aplicó, el plan que la justifica abortaba. Lo que se
+    # sigue rechazando es lo que la comprobación protege — un plan para una vacante que
+    # nadie ha abierto.
+    ya_retirados = set(selection.selection.config.retired_starts)
+    if retire not in panel and retire not in ya_retirados:
         raise ShmirDesignError(
             f"{retire} no está en el panel de esta corrida "
-            f"({', '.join(str(s) for s in sorted(panel))}), así que no deja ninguna "
-            f"plaza que ocupar. Se aborta en vez de emitir un plan para una vacante que "
-            f"nadie ha abierto."
+            f"({', '.join(str(s) for s in sorted(panel))}) ni entre las retiradas "
+            f"declaradas, así que no deja ninguna plaza que ocupar. Se aborta en vez de "
+            f"emitir un plan para una vacante que nadie ha abierto."
         )
     corte = derive_immune_cut(tiling)
     if corte is None:
@@ -5084,6 +5100,10 @@ def immune_replacements(tiling, selection, *, retire: int):
          else descartados).append(fila)
 
     en_el_panel = sorted(s for s in resto if s < corte)
+    # LA CUOTA SE PIDE A LA CONFIGURACION, no se teclea. Aquí ponía «de los 4 inmunes de
+    # la cuota» y la cuota bajó a 3 el 2026-09-07: un número escrito habría seguido
+    # diciendo cuatro sobre un panel que pide tres (principio nº 13).
+    cuota = selection.selection.config.apa_immune_quota
     if disponibles:
         texto = (
             f"{len(disponibles)} inmune(s) pueden ocupar la plaza con espaciado "
@@ -5098,9 +5118,9 @@ def immune_replacements(tiling, selection, *, retire: int):
             f"siguen en el panel. No es que no se haya mirado — es un hecho geométrico "
             f"de este 3'UTR, donde los sitios elegibles por delante del corte se "
             f"apelotonan en el tramo proximal. La consecuencia es que el panel se queda "
-            f"con {len(en_el_panel)} de los 4 inmunes de la cuota, y eso es lo que hay "
-            f"que decidir: bajar la cuota, o no retirar. El espaciado NO se baja para "
-            f"que quepa uno — compra independencia entre apuestas, no número de "
+            f"con {len(en_el_panel)} inmunes frente a la cuota de {cuota}, y eso es lo "
+            f"que hay que decidir: bajar la cuota, o no retirar. El espaciado NO se baja "
+            f"para que quepa uno — compra independencia entre apuestas, no número de "
             f"apuestas."
         )
     return {
@@ -5109,6 +5129,7 @@ def immune_replacements(tiling, selection, *, retire: int):
         "panel": resto,
         "inmunes": len(inmunes),
         "inmunes_en_el_panel": en_el_panel,
+        "cuota": cuota,
         "disponibles": disponibles,
         "descartados": descartados,
         "texto": texto,

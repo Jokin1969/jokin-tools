@@ -1,0 +1,32 @@
+# CANDIDATOS RETIRADOS DEL PANEL, con su motivo y por qué frente.
+#
+# Un candidato que sale del panel por una DECISIÓN —no por un filtro— tiene que dejar
+# rastro. Si se quita a mano y no se apunta, dentro de un año la única huella es una
+# piscina más pequeña: exactamente la forma que tiene un candidato de desaparecer sin
+# que nadie lo vea, que es lo que `measured_promotion_cost` existe para impedir un nivel
+# más abajo.
+#
+# CÓMO SE APLICA, y por qué NO por el nombre del gen:
+#
+#   - `md5_utr3` es el md5 canónico del 3'UTR, igual que en el manifiesto y que en
+#     `apa.resolve_measured`. Sobre cualquier otra secuencia esta entrada NO se aplica:
+#     retirar «3utr:10» de otro gen sería quitar una ventana que nadie ha mirado, y es
+#     el mismo agujero que `rmsk_mouse.out` conectado por su rol;
+#   - `posicion` va en el marco del 3'UTR, que es donde se toman las decisiones. Se
+#     convierte al marco de lo tilado al aplicarla. Ver la errata nº 133: una posición
+#     sin marco declarado es válida en dos sitios y sólo en uno es la ventana que se
+#     quiso;
+#   - una entrada que no case con NINGUNA ventana elegible de una corrida cuyo md5 SÍ
+#     coincide aborta: una retirada que no retira nada es una decisión que se ha
+#     perdido, y darla por aplicada es peor que no tenerla.
+#
+# LA RETIRADA NO ES SILENCIOSA: sale en las notas de la selección y en el informe, con
+# su motivo y su frente. Un panel que ya no lleva a alguien tiene que decir por qué.
+
+[[retirado]]
+md5_utr3 = "19f5fa2a77a87892770e2affdc90e0e4"
+posicion = 10
+fecha = "2026-09-07"
+quien = "Joaquín Castilla"
+frente = "empalme_sitios"
+motivo = "Es la única de las once que introduce sitios crípticos que sus hermanas no tienen —un aceptor al 12 % y un donante al 6 % del donante legítimo, sólo con `mvm_actual`— y ése es exactamente el hallazgo que el frente de empalme existe para producir. Con 88 sitios elegibles y su asimetría en +4,33, novena de once, no compensa llevarlo."

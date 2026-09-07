@@ -19,11 +19,69 @@ salida — es el control de la regla, no su violación.
 """
 
 #: La forma de entonces. `3utr` sin dos puntos y pegado al número, que es justo lo que
-#: se lee como una coordenada sin serlo.
+#: se lee como una coordenada sin serlo. Vive en una constante porque la LEE quien
+#: reconstruye el panel de aquel día: escrita dos veces, la lectura y la escritura se
+#: separarían y el fichero dejaría de cruzar sin dar ningún error.
+PREFIJO_HEREDADO = "3utr"
+
+
 def nombre_heredado(construccion) -> str:
-    return f"{construccion.intron}__3utr{construccion.candidate_start}"
+    return f"{construccion.intron}__{PREFIJO_HEREDADO}{construccion.candidate_start}"
 
 
 def por_nombre_heredado(construcciones) -> dict:
     """`{nombre de entonces: construcción}`, para releer un fichero de `data/medido/`."""
     return {nombre_heredado(c): c for c in construcciones}
+
+
+def starts_del_medido(ruta) -> tuple[int, ...]:
+    """Los inicios de candidato que nombra un fichero de `data/medido/`.
+
+    Una corrida guardada es la de UN PANEL, el de aquel día, y el panel de hoy puede ser
+    otro: el 2026-09-07 se retiró `3utr:10` y entró `3utr:359`. Reconstruir el panel de
+    entonces desde el fichero —y no desde la selección de hoy— es lo que permite seguir
+    leyendo la evidencia sin reescribirla ni volver a correr SpliceAI.
+
+    Se derivan del propio fichero: transcribirlos aquí sería la lista del panel escrita
+    en un sitio más, y la primera que se despistara daría cero filas.
+    """
+    inicios: list[int] = []
+    with open(ruta, encoding="utf-8") as f:
+        next(f)
+        for fila in f:
+            if not fila.strip() or fila.startswith("#"):
+                continue
+            nombre = fila.split("\t")[0]
+            inicio = start_del_nombre_heredado(nombre)
+            if inicio not in inicios:
+                inicios.append(inicio)
+    if not inicios:
+        raise ValueError(
+            f"{ruta} no nombra ninguna construccion con la forma de entonces "
+            f"(`<intron>__{PREFIJO_HEREDADO}<inicio>`); se aborta la reconstruccion del "
+            f"panel de aquel dia."
+        )
+    return tuple(sorted(inicios))
+
+
+def start_del_nombre_heredado(nombre: str) -> int:
+    """El inicio que lleva dentro un nombre de entonces.
+
+    **No se sacan «los digitos del nombre»**: `mvm_actual__3utr959` los tiene tambien en
+    el propio prefijo, asi que juntarlos da `3959` — un numero con la forma correcta, en
+    rango, y que no cruza con nada. Se exige la forma entera y se lee lo que va DETRAS
+    del prefijo.
+    """
+    cola = nombre.split("__")[-1]
+    if not cola.startswith(PREFIJO_HEREDADO):
+        raise ValueError(
+            f"{nombre!r} no lleva el prefijo {PREFIJO_HEREDADO!r} de los nombres de "
+            f"entonces; no se adivina de que candidato es."
+        )
+    resto = cola[len(PREFIJO_HEREDADO):]
+    if not resto.isdigit():
+        raise ValueError(
+            f"{nombre!r} no termina en un inicio de candidato: detras de "
+            f"{PREFIJO_HEREDADO!r} hay {resto!r}."
+        )
+    return int(resto)

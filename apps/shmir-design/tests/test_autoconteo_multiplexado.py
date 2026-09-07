@@ -83,7 +83,8 @@ class TestLaClaseDeCadaSegundoSitio(unittest.TestCase):
         )
 
     def test_los_otros_seis_tienen_un_solo_sitio(self):
-        for inicio in (10, 60, 143, 359, 652, 735):
+        # `3utr:10` está retirado desde el 2026-09-07; entra `3utr:1071` en su lugar.
+        for inicio in (60, 143, 359, 652, 735, 1071):
             self.assertEqual(len(self._sitios(inicio)), 1, inicio)
 
     def test_sin_ventana_no_se_marca_NINGUNO_como_propio(self):

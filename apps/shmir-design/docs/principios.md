@@ -2844,3 +2844,53 @@ Ante una lista de exclusión con dos consumidores, la pregunta no es «¿los dos
 mismo?» sino **«¿los dos excluyen POR LO MISMO?»**. Si los motivos que se escribirían son
 distintos, son dos listas aunque hoy tengan el mismo contenido — y la coincidencia de hoy
 es justo lo que impide ver la divergencia de mañana.
+
+## 54 — Una excepción declarada es una HIPÓTESIS, y el uso puede refutarla
+
+Formulado por Joaquín Castilla el 2026-09-07, con el caso delante y en forma de pregunta
+para las demás: **¿esta excepción afirma algo sobre cómo se va a leer algo fuera del
+código?**
+
+### EL CASO (errata nº 133)
+
+`tools/auditar_marcos.py` prohíbe teclear el prefijo del espacio de coordenadas fuera de
+`coords`, y llevaba una excepción **escrita, argumentada y con su motivo**:
+
+> un `3utr` **sin dos puntos** —el `mvm_actual__3utr959` de un nombre de construcción—,
+> que es un identificador y no una etiqueta de posición. No lo mira: […] como no lleva
+> número pegado con prefijo **no se lee como una coordenada**.
+
+Ese nombre salió de la app dentro de un FASTA. **Se leyó como una coordenada la primera
+vez**: se retiró un candidato del panel citándolo como «3utr:959», cuando la construcción
+era la de `3utr:10` —`tx:959`— y `3utr:959` es una ventana distal, con otro veredicto,
+otro techo de APA y ninguna inmunidad. La decisión se salvó por las OTRAS cifras
+—asimetría, puesto, inmunidad—, que sólo cuadraban con la buena.
+
+### La regla
+
+Una excepción declarada no es una constatación: es una **predicción**. Y hay dos clases,
+que se distinguen por si algo puede comprobarlas:
+
+- **sobre el CÓDIGO** —«esta truncación es a propósito», «este literal no cuenta porque
+  abrir el fichero por su nombre es correcto», «este guardia no aborta porque informa»—.
+  Un test puede sostenerlas, y de hecho las sostiene: son verificables;
+- **sobre la LECTURA de algo que sale de la app** —un nombre en un FASTA, una columna de
+  un TSV, el nombre de un fichero descargado, una frase de un informe—. **Ningún test las
+  puede comprobar**, porque hablan de una persona. Sólo el uso las confirma o las
+  refuta, y cuando las refuta ya ha costado algo.
+
+La segunda clase no se prohíbe —a veces es la única forma de acotar un guardia— pero se
+**declara como hipótesis**, no como hecho, y **se revisa cuando el artefacto llegue a
+manos de alguien**. La pregunta que hay que hacerle a cada excepción nueva es la de
+arriba, literal.
+
+### El barrido (2026-09-07)
+
+Se pasó la pregunta por las trece tablas de excepciones (`data/*.toml`) y por los
+docstrings de los quince auditores, buscando justificaciones que predijeran una lectura.
+**La única de la segunda clase era la refutada**, y queda retirada. Las demás afirman
+sobre el código —truncación deliberada, un literal que no cuenta, un guardia que informa
+en vez de abortar— y ésas sí las sostiene un test.
+
+Lo que queda del barrido no es una lista: es que la pregunta pasa a hacerse **al declarar
+la excepción**, que es cuando cuesta cero.

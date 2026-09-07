@@ -519,8 +519,11 @@ def bloque_especie(nombre, transcrito, secuencia, anat, umbrales, config, seeds,
     # en la barra lateral veia la MISMA tabla y concluia, con razon, que la app no le
     # hacia caso. Un parametro que no hace lo que dice y no lo dice es un parametro que
     # miente (principio nº 23).
+    # Y una DECISION registrada —un candidato retirado del panel— no se pinta en rojo:
+    # sale en todas las corridas de esa secuencia, y un aviso permanente deja de leerse.
+    # Quien decide cual es cual es `presentation` (regla 6), no esta linea.
     for nota in selection_notes(seleccion):
-        st.warning(nota["texto"])
+        (st.warning if nota["avisa"] else st.info)(nota["texto"])
 
     # EL SEMAFORO TAMBIEN LEE LOS ALMACENES. Contaba los filtros de la ventana, que no
     # saben nada del registro del proyecto: decia «6 de 10» con una corrida de BLAST
@@ -2230,6 +2233,16 @@ def _guardar_corrida(proyecto, nombre: str, *, construir, guardar, clave: str,
     ranura = f"{clave}_guardada_{nombre}"
     hecho = st.session_state.pop(ranura, None)
     if hecho is not None:
+        # EL AVISO FLOTANTE ES LO QUE HACE VISIBLE EL GUARDADO, y no es un adorno.
+        # Guardar repinta la página entera —hace falta: la tabla, el semáforo y las
+        # tarjetas se pintan ARRIBA de este formulario—, y el repintado deja al usuario
+        # al principio de la página mientras la confirmación se pinta aquí, al final del
+        # modal, donde ya no está mirando. Reportado el 2026-09-07 como «se reinicia
+        # todo y hay que empezar de nuevo»: la corrida SÍ se había guardado, y la única
+        # señal de que había pasado algo quedaba fuera de la pantalla. El `toast` flota
+        # sobre la página y se ve caiga donde caiga el scroll; el banner se queda porque
+        # es el que se lee al volver.
+        st.toast(hecho["texto"], icon="✅" if hecho["verde"] else "⚠️")
         (st.success if hecho["verde"] else st.warning)(hecho["texto"])
     columnas = st.columns([2, 2, 3])
     with columnas[0]:

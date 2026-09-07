@@ -26,6 +26,7 @@ from pathlib import Path
 
 from shmir_design.selection import (
     DEFAULT_MIN_SPACING,
+    default_config,
     select_from_report,
     tercio_coverage,
 )
@@ -47,7 +48,14 @@ class TestLaCoberturaPorTercios(unittest.TestCase):
     @classmethod
     def setUpClass(cls):
         cls.tiling = _tiling()
-        cls.seleccion = select_from_report(cls.tiling)
+        # LA CONFIGURACION POR DEFECTO, que es la que corren la pagina y el CLI. Aqui
+        # habia un `select_from_report(tiling)` pelado, o sea `SelectionConfig()` — una
+        # configuracion que no usa nadie, con la cuota de inmunes apagada. Es el
+        # principio nº 18 por el otro lado: no un parametro tecleado de mas, sino la
+        # decision del proyecto ausente. Se vio al retirar `3utr:10`: con la cuota
+        # apagada la plaza libre se la llevaba `3utr:900` y el tercio distal pasaba a
+        # tener tres, que es un panel que la app no produce.
+        cls.seleccion = select_from_report(cls.tiling, default_config())
         cls.cobertura = tercio_coverage(cls.tiling, cls.seleccion)
         cls.por_nombre = {c.tercio: c for c in cls.cobertura}
 

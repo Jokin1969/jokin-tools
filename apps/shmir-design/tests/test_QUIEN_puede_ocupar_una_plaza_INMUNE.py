@@ -60,8 +60,15 @@ class TestElCasoReal(unittest.TestCase):
         )
 
     def test_el_retirado_sale_del_panel_y_los_demas_se_quedan(self):
+        # Ya no está: la retirada está APLICADA desde el 2026-09-07, así que el panel de
+        # esta corrida son los once que quedan y `tx:959` no es uno de ellos. La plaza
+        # existe igual —la dejó él— y ese es el segundo camino que `immune_replacements`
+        # acepta: la vacante es real, sólo que ya cobrada.
         self.assertNotIn(self.retirado, self.plan["panel"])
-        self.assertEqual(len(self.plan["panel"]), 10)
+        self.assertEqual(len(self.plan["panel"]), 11)
+        self.assertIn(
+            self.retirado, self.corrida.selection.selection.config.retired_starts
+        )
 
     def test_NO_HAY_NINGUNO_y_se_dice_POR_QUE(self):
         """La respuesta es un hecho geométrico del 3'UTR, no un fallo del código."""
@@ -73,9 +80,16 @@ class TestElCasoReal(unittest.TestCase):
         self.assertIn("16", self.plan["texto"])
 
     def test_y_dice_CUANTOS_inmunes_QUEDAN_en_el_panel(self):
-        """Lo que se pierde es la cuota de cuatro, y eso hay que verlo al decidir."""
+        """Lo que se perdió fue el cuarto inmune, y eso hay que verlo al decidir.
+
+        La cuota se PIDE a la configuración de la corrida en vez de escribirse: bajó de
+        cuatro a tres el mismo día, y un número transcrito aquí habría seguido diciendo
+        cuatro sobre un panel que pide tres.
+        """
         self.assertEqual(len(self.plan["inmunes_en_el_panel"]), 3)
-        self.assertIn("3 de los 4", self.plan["texto"])
+        cuota = self.corrida.selection.selection.config.apa_immune_quota
+        self.assertEqual(self.plan["cuota"], cuota)
+        self.assertIn(f"3 inmunes frente a la cuota de {cuota}", self.plan["texto"])
 
     def test_las_posiciones_LLEVAN_SU_MARCO(self):
         for fila in self.plan["descartados"]:

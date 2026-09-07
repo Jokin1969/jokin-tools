@@ -34,7 +34,7 @@ RAIZ = Path(__file__).resolve().parent.parent
 if str(RAIZ) not in sys.path:
     sys.path.insert(0, str(RAIZ))
 
-from tests.nombres_heredados import por_nombre_heredado
+from tests.nombres_heredados import por_nombre_heredado, starts_del_medido
 from shmir_design import presentation, spliceai  # noqa: E402
 from shmir_design.anatomy import Anatomy, RegionSource  # noqa: E402
 from shmir_design.reference import (  # noqa: E402
@@ -58,8 +58,12 @@ def _scan():
         l.strip() for l in CASETE.read_text("utf-8").splitlines()
         if not l.startswith(">")
     )
+    # EL PANEL SE RECONSTRUYE DESDE EL FICHERO MEDIDO. La corrida es la del panel de
+    # ENTONCES, y el 2026-09-07 se retiro `3utr:10` y entro `3utr:359`: con el de hoy,
+    # las construcciones no cruzarian con las filas y el hallazgo saldria vacio.
     panel = spliceai.build_panel(
         corrida.selection, intron_names=("mvm_actual",), scaffold=SGEP_SCAFFOLD,
+        starts=starts_del_medido(MEDIDO),
         cassette=casete, context_nt=5000,
     )
     # EL FICHERO MEDIDO TRAE LOS NOMBRES DE ENTONCES y no se reescribe: es la

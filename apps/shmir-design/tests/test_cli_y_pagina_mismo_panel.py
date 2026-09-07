@@ -47,7 +47,14 @@ HAY = fixture_available(RATON)
 #: `tests/test_promocion_por_defecto.py`. Si algo lo mueve, lo mueve a propósito.
 # ONCE desde el 2026-09-06: la plaza once es el segundo distal, `3utr:1071`, y
 # entra por `tercio_quota_by_start` — no por asimetria, que seria coincidencia.
-PANEL = (10, 60, 143, 200, 449, 553, 652, 735, 819, 1018, 1071)
+#
+# EL 2026-09-07 SE RETIRA `3utr:10` por el frente de empalme y entra `3utr:359`, que es
+# el mejor disponible con la cuota de inmunes en TRES. La plaza NO se clava con
+# `start_window_quota`: la selección la elige sola, que es lo que mantiene el panel
+# derivado. La cuota baja de cuatro a tres por GEOMETRIA (`WHY_THE_IMMUNE_QUOTA_IS_THREE`)
+# y ese es justo el desplazamiento que este fichero describe arriba — con la diferencia
+# de que ahora es la decisión y no una divergencia entre frontales.
+PANEL = (60, 143, 200, 359, 449, 553, 652, 735, 819, 1018, 1071)
 
 
 def _sitios(seleccion) -> tuple[int, ...]:

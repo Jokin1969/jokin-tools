@@ -177,7 +177,10 @@ class TestElAutoconteoSobrePrnp(unittest.TestCase):
             inicio for inicio, propio in self._autoconteos().items()
             if not propio.anomalous
         }
-        self.assertEqual(limpios, {10, 60, 143, 359, 652, 735})
+        # SEIS, y ya no son los mismos: `3utr:10` está retirado desde el 2026-09-07
+        # y su plaza en un panel sin cuota de inmunes la ocupa `3utr:1071`. El
+        # hallazgo —CUATRO con segundo sitio— no se mueve: los cuatro siguen dentro.
+        self.assertEqual(limpios, {60, 143, 359, 652, 735, 1071})
 
     def test_el_aviso_dice_que_son_MULTIPLES_DIANAS_en_el_mismo_mensajero(self):
         texto = self._autoconteos()[819].describe()

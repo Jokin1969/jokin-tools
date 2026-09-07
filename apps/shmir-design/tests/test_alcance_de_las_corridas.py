@@ -172,21 +172,33 @@ class TestElPARAMETRO_que_MENTIA(unittest.TestCase):
     """
 
     def test_el_nucleo_lo_apunta(self):
+        # TRECE desde el 2026-09-07: eran catorce y `3utr:10` está retirado. La cifra no
+        # se transcribe en el aviso — la emite el núcleo contando lo que salió.
         sel = _seleccion(n_candidates=50)
-        self.assertEqual(len(sel.selection.chosen), 14)
+        self.assertEqual(len(sel.selection.chosen), 13)
         self.assertTrue(sel.selection.notes)
 
     def test_y_presentation_lo_saca_en_una_FILA_que_avisa(self):
         filas = presentation.selection_notes(_seleccion(n_candidates=50))
-        self.assertTrue(filas)
-        self.assertTrue(filas[0]["avisa"])
-        texto = filas[0]["texto"]
+        avisos = [f for f in filas if f["avisa"]]
+        self.assertTrue(avisos)
+        texto = avisos[0]["texto"]
         self.assertIn("50", texto)
-        self.assertIn("14", texto)
+        self.assertIn("13", texto)
 
     def test_cuando_SI_caben_no_avisa_de_nada(self):
-        # Control adversario: un aviso que sale siempre deja de leerse.
-        self.assertEqual(presentation.selection_notes(_seleccion()), [])
+        # Control adversario: un aviso que sale siempre deja de leerse. Y por eso mismo
+        # la RETIRADA no cuenta como aviso — es una decisión registrada, sale en todas
+        # las corridas de esta secuencia, y en rojo dejaría el rojo puesto para siempre.
+        filas = presentation.selection_notes(_seleccion())
+        self.assertEqual([f for f in filas if f["avisa"]], [])
+
+    def test_y_la_decision_SI_sale_pero_sin_avisar(self):
+        """Las dos mitades: la retirada se lee, y no se lee como una alarma."""
+        filas = presentation.selection_notes(_seleccion())
+        decisiones = [f for f in filas if not f["avisa"]]
+        self.assertTrue(decisiones)
+        self.assertIn("empalme_sitios", " ".join(f["texto"] for f in decisiones))
 
 
 class TestLaPAGINA(unittest.TestCase):

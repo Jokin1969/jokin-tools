@@ -63,3 +63,8 @@ por_que = "El aborto por `measured_apa=None` cita `3utr:221`, que es el candidat
 fichero = "tools/auditar_marcos.py"
 simbolo = "WHY_NOT_THE_TESTS"
 por_que = "El propio guardia explica por qué los tests SÍ pueden escribir el literal, y para eso lo escribe: «un test que exige `3utr:449` en la salida es el control adversario de esta regla». Que el guardia se declare a sí mismo es lo correcto — la alternativa es una excepción que no se ve."
+
+[[mencion]]
+fichero = "shmir_design/selection.py"
+simbolo = "WHY_THE_IMMUNE_QUOTA_IS_THREE"
+por_que = "Nombra `3utr:10` —el retirado— y `3utr:60`, `143` y `200` —los tres que se quedan— para decir POR QUÉ la cuota bajó a tres: son las cuatro posiciones concretas cuya geometría lo obliga. Sin ellas la frase diría «no cabe otro» sin poder comprobarse, y el motivo se lee justamente para volver a mirarlo si la piscina cambia. Las cuatro salen de la corrida murina real y las fija `tests/test_un_candidato_RETIRADO_deja_rastro.py`."

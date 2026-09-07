@@ -100,8 +100,15 @@ class TestLaPlazaExtraEnElTramoDistal(unittest.TestCase):
             with self.subTest((a, b)):
                 self.assertGreaterEqual(b - a, 50)
 
-    def test_los_cuatro_inmunes_siguen(self):
-        self.assertEqual(sorted(p for p in self.inicios if p <= 303), [10, 60, 143, 200])
+    def test_los_inmunes_que_QUEDAN_siguen(self):
+        """La plaza distal no se paga con un inmune, que es lo que este test protege.
+
+        Eran cuatro; desde el 2026-09-07 son TRES porque `3utr:10` está retirado por el
+        frente de empalme — una decisión, no un efecto de la cuota distal. Lo que se
+        sigue exigiendo es que la cuota del tramo no se lleve por delante a ninguno de
+        los que quedan.
+        """
+        self.assertEqual(sorted(p for p in self.inicios if p <= 303), [60, 143, 200])
 
     def test_una_cuota_de_tramo_invertida_aborta(self):
         with self.assertRaises(ValueError):

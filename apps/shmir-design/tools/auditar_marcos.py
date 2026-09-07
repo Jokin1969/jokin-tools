@@ -42,6 +42,12 @@ una se perdone: es que una se arregla y la otra se explica.
   interpolacion fabrica una etiqueta igual. Se exige el separador delante (`__3utr`,
   `_tx`) para no morder una palabra que acabe en `tx`, como `ctx`.
 
+**LA PREGUNTA QUE HAY QUE HACERLE A CADA EXENCION NUEVA** (principio nº 54): ¿afirma
+algo sobre como se va a LEER algo fuera del codigo? Si si, no la puede comprobar ningun
+test —habla de una persona— y se declara como HIPOTESIS, no como hecho. La de arriba
+decia que un identificador no se lee como una coordenada; se leyo como una coordenada la
+primera vez que salio de la app.
+
 Python 3.11+, solo biblioteca estandar (regla 6).
 """
 

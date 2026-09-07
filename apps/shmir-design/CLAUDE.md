@@ -432,17 +432,25 @@ Pásalos antes de cada commit que toque `apps/shmir-design/`.
     que la murina se use. **NO LA DESCARTA**: puede ser diferencia real de especie. Las
     dos cláusulas van juntas y ninguna sobra — el informe termina con «rebaja, no
     descarta».
-  - **PANEL CONFIRMADO (2026-08-27, AMPLIADO A ONCE EL 2026-09-06)**: con la promoción
-    por medida aplicada siempre, la corrida real por defecto da `3utr:` **10, 60, 143,
-    200, 449, 553, 652, 735, 819, 1018, 1071** — con los **cuatro inmunes**. Los diez
-    primeros coincidían con el panel del responsable, así que la app reprodujo lo que se
-    sabía antes de construirla y esa validación quedó **cerrada**; la plaza once es el
-    **segundo distal**, decidida después y con la cuenta delante (ver el bloque de la
-    cobertura por tercios). Fijado en `tests/test_promocion_por_defecto.py`.
+  - **PANEL CONFIRMADO (2026-08-27, AMPLIADO A ONCE EL 2026-09-06, `3utr:10` RETIRADO
+    Y SUSTITUIDO POR `3utr:359` EL 2026-09-07)**: con la promoción por medida aplicada
+    siempre, la corrida real por defecto da `3utr:` **60, 143, 200, 359, 449, 553, 652,
+    735, 819, 1018, 1071** — con **tres inmunes**, que es la cuota desde ese día. Los diez
+    primeros del panel original coincidían con el del responsable, así que la app
+    reprodujo lo que se sabía antes de construirla y esa validación quedó **cerrada**; la
+    plaza once es el **segundo distal**, decidida después y con la cuenta delante (ver el
+    bloque de la cobertura por tercios). Fijado en
+    `tests/test_promocion_por_defecto.py`.
+    **`3utr:10` no se ha ido de la piscina**: sigue siendo un sitio elegible, con sus
+    veredictos, en la tabla y en el alcance de los modales. Lo que se retiró es su plaza
+    en el panel, y por eso `tercio_coverage` lo excluye de «el siguiente que cabe» —
+    volver a proponer al que alguien retiró es exactamente lo que la decisión impide.
   - **Inmunes: 60, 143 y 200**, no solo 60. 60 es el único que salía por asimetría, pero
     la piscina de elegibles tiene 15 sitios más por delante del corte y el informe saca los
     mejores — `3utr:143` (+5,08) y `3utr:200` (+3,80) entre ellos. Con un solo inmune el
-    panel entero depende de un supuesto; con tres, no.
+    panel entero depende de un supuesto; con tres, no. **Eran cuatro con `3utr:10`, y
+    desde su retirada son estos tres: la cuota bajó POR GEOMETRÍA, no por criterio**
+    (`selection.WHY_THE_IMMUNE_QUOTA_IS_THREE`).
     **`3utr:221` era el tercero y ya no está**: el `AATATA` de `3utr:236` pasó a
     `APA_POSIBLE` por medida y la ventana `221-242` lo **solapa**, así que cae por riesgo
     ESTÉRICO. Su inmunidad al TRUNCAMIENTO no se ha tocado — empieza por delante del corte.
@@ -554,6 +562,11 @@ Pásalos antes de cada commit que toque `apps/shmir-design/`.
     subió el `AATATA` de 236). Es un hecho geométrico del 3'UTR —los sitios elegibles por
     delante del corte se apelotonan—, no una limitación del código, y hay un test que lo
     fija. La cuota de cuatro se cumple igual: lo que cambia es quién la ocupa.
+    **Y el 2026-09-07 la cuota BAJA A TRES**: `3utr:10` se retira por el frente de
+    empalme y su plaza no la puede ocupar otro inmune — este mismo hecho geométrico,
+    visto desde el otro lado. Que cuatro QUEPAN y que el panel LLEVE tres son dos
+    cantidades distintas y las dos siguen siendo ciertas: la primera se mide sobre los
+    sitios elegibles, que no cambian al retirar un candidato del panel.
   - **El espaciado NO se baja para meter un quinto inmune.** El espaciado compra
     **independencia entre apuestas, no número de apuestas**: las causas de fallo son
     regionales y dos candidatos a 30 nt fallan juntos, así que un quinto inmune pegado a
@@ -3666,15 +3679,54 @@ Pásalos antes de cada commit que toque `apps/shmir-design/`.
     `3utr:200`, así que con `3utr:60`, `143` y `200` puestos **ninguno** queda a 50 nt o
     más de los diez que siguen. No es que no se haya mirado: es el mismo hecho
     geométrico ya registrado —«caben CUATRO inmunes, no cinco»— visto desde el otro
-    lado. El panel se queda con **3 de los 4** de la cuota.
+    lado. El panel se queda con **tres inmunes**, y la cuota baja a tres con él.
     - **El espaciado NO se baja para que quepa uno**: compra independencia entre
       apuestas, no número de apuestas, y eso ya está decidido.
-    - Lo que queda por decidir es **la plaza once**, con los tres inmunes restantes
-      delante: bajar la cuota y darla al mejor disponible (`3utr:359` +4,82, `3utr:329`
-      +4,39, `3utr:900` +4,15 — ninguno inmune), o no retirar.
     - **Cero de cero y cero de dieciséis no son la misma noticia**, así que la emisión
       saca los 16 con su asimetría y con qué choca cada uno: sin esa cifra, «ninguno»
       se lee como que no se ha mirado.
+  - **LA PLAZA ONCE ES `3utr:359` (+4,82). DECIDIDO (2026-09-07)**, con el motivo de
+    quien decide y anotado por si sirve dentro de un año: *«es el de mejor asimetría de
+    los tres, y además proximal — aunque no sea inmune, está en el tramo donde el techo
+    de APA es menor. `3utr:900` habría metido un tercer candidato en el tercio distal,
+    que ya tiene dos con techo; `3utr:329` es peor en asimetría sin nada que lo
+    compense»*.
+  - **Y `3utr:359` ENTRA DERIVADO, no pinchado**: medido, con la cuota en tres y la
+    retirada aplicada, la selección lo elige sola como el mejor disponible. El panel
+    queda `3utr:` **60, 143, 200, 359, 449, 553, 652, 735, 819, 1018, 1071**. Que la
+    plaza NO haya hecho falta clavarla con `start_window_quota` es lo que mantiene el
+    panel derivado: una plaza pinchada a mano habría que revisarla cada vez que cambie
+    cualquier otra cosa.
+  - **CÓMO SE APLICA LA RETIRADA** (`data/candidatos_retirados.toml`, `retirados.py`):
+    declarada con motivo, frente, fecha y quién, y aplicada **por el md5 del 3'UTR** —
+    sobre otra secuencia no retira nada, que es el agujero de `rmsk_mouse.out`
+    conectado por su rol. La posición va **en el marco del 3'UTR** y se convierte al de
+    lo tilado al aplicarla (errata nº 133). **No es silenciosa**: la retirada sale en las
+    DECISIONES de la selección con el motivo ENTERO, que es lo que se lee dentro de un
+    año. Y una entrada que no case con ninguna ventana elegible de una corrida cuyo md5
+    SÍ coincide **aborta**: una retirada que no retira nada es una decisión perdida, y
+    aplicarla a medias dejaría el candidato dentro y la decisión escrita a la vez.
+  - **UNA DECISIÓN REGISTRADA NO ES UN AVISO** (`Selection.decisions`, aparte de
+    `Selection.notes`). Las dos salen y en el mismo sitio; lo que cambia es el color y el
+    orden. `notes` dice lo que se PIDIÓ y no se pudo dar —«se pedían 50 candidatos y
+    salen 13»—, o sea algo que quien lee puede cambiar; `decisions` dice lo que alguien
+    DECIDIÓ. Una retirada sale en TODAS las corridas de esa secuencia, así que en rojo
+    dejaría el rojo puesto para siempre y a partir de ahí el aviso del espaciado no se
+    distinguiría del fondo — que es la misma regla por la que un frente CERRADO no se
+    pinta como pendiente. Lo cazó el control adversario del aviso del espaciado, que lo
+    exige VACÍO y con la retirada dentro no volvía a estarlo.
+  - **Y UN RETIRADO NO SE VUELVE A PROPONER** (`TercioCoverage.retired`). Sigue siendo
+    un sitio elegible, así que sin esto aparecía como «el siguiente que cabe» en su
+    tercio: la app recomendaría ocupar la plaza con exactamente el candidato que alguien
+    retiró, y el motivo escrito no se vería por ninguna parte. Se excluye de las dos
+    listas y **se nombra**, porque un hueco que se quita en silencio no se distingue de
+    uno que nunca estuvo.
+    - **Y al escribirlo salió que `tercio_coverage` se fabricaba un `SelectionConfig()`
+      pelado** cuando el llamador no le pasaba ninguno, en vez de pedírselo a la
+      selección — que lo lleva dentro. Una selección hecha con otro espaciado se
+      describía con el de por defecto: «espaciado 50 nt» de un panel elegido con 30, con
+      la forma correcta y sin dar ningún error. Principio nº 13, y ahora la
+      configuración se DERIVA de la selección.
 
 - **LA MATRIZ DEJA DE SER «UNO GANA»: VAN LAS DOS A SÍNTESIS. DECIDIDO (2026-09-07)**
   (`introns.BOTH_ARCHITECTURES_GO`), con las palabras del responsable del proyecto: *«dos
@@ -4456,6 +4508,24 @@ Pásalos antes de cada commit que toque `apps/shmir-design/`.
   - **El marco viaja también al disco** (`candidate_frame` en el registro de empalme). Sin
     eso, una corrida sobre el transcrito se relee como si fuera del 3'UTR — el mismo fallo,
     esta vez desde un fichero y semanas después.
+
+- **GUARDAR REPINTA LA PÁGINA, Y EL REPINTADO DEJABA LA CONFIRMACIÓN FUERA DE VISTA
+  (2026-09-07)**, errata nº 134. Reportado con dos capturas: *«en vez de guardar, es como
+  si se reiniciara todo y sube arriba la página. Y hay que empezar de nuevo»*.
+  - **LA CORRIDA SÍ SE HABÍA GUARDADO**, y lo demostró el segundo intento: la app rechazó
+    el mismo fichero por ser **byte a byte** el de una corrida ya registrada, nombrándola
+    con su id y su fecha. O sea que el guardado funcionaba y lo que fallaba era saberlo.
+  - **El repintado hace falta** y no se quita: la tabla, el semáforo y las tarjetas se
+    pintan ARRIBA del formulario, así que sin `st.rerun()` quien acaba de guardar ve
+    «guardada» y la página sin cambiar (errata nº 54). Lo que no se había visto es lo que
+    el repintado se lleva por delante: **la posición en la página**. La confirmación se
+    pinta al final del modal y el usuario acaba al principio.
+  - **La señal tiene que ser INDEPENDIENTE de dónde caiga el scroll**: un aviso flotante
+    (`st.toast`) además del banner. El banner se queda — es el que se lee al volver al
+    sitio; el flotante es el que dice que ha pasado algo.
+  - **Y la lección es de la familia del principio nº 46**: el estado era correcto y la
+    acción se había ejecutado; lo que se leyó como «no ha hecho nada» era una
+    confirmación fuera de la pantalla. Un mensaje que nadie puede ver no es un mensaje.
 
 - **EL NOMBRE DE LA CONSTRUCCIÓN ETIQUETABA COMO 3'UTR UNA COORDENADA DEL TRANSCRITO
   (2026-09-07)**, errata nº 133. Se montaba con `f"{intron}__3utr{start}"` —el prefijo

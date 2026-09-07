@@ -294,6 +294,12 @@ class TilingReport:
     #: contra las coordenadas declaradas.
     sequence_length: int = 0
     sequence_md5: str = ""
+    #: md5 CANONICO del 3'UTR de esta corrida. Es la clave con la que se aplican las
+    #: tablas que hablan de un 3'UTR concreto —el APA medido, las retiradas de panel— y
+    #: por eso viaja en el informe: derivarlo en cada consumidor seria tener el mismo
+    #: numero calculado en varios sitios. Vacio cuando no hay anatomia resuelta, que es
+    #: la verdad y no un cero.
+    utr3_md5: str = ""
 
     @property
     def frame(self) -> Frame:
@@ -306,6 +312,19 @@ class TilingReport:
         el techo. Quien pinte posiciones de este informe pide el marco aqui.
         """
         return tiled_frame(self.anatomy)
+
+    @property
+    def utr3_offset(self) -> int:
+        """Cuanto hay que sumarle a una posicion del 3'UTR para llevarla a LO TILADO.
+
+        Cero cuando lo tilado YA es el 3'UTR — y ahi el desfase inerte es justo lo que
+        hace que un fallo de marco no se vea (errata nº 122). Por eso se pide, no se
+        supone: quien convierte una posicion declarada en 3'UTR necesita este numero y
+        no puede sacarlo de mirar la secuencia.
+        """
+        if self.anatomy is None or not getattr(self.anatomy, "utr3", None):
+            return 0
+        return self.anatomy.utr3[0] - 1
 
     def utr3_of(self, position: int) -> int | None:
         """`position` (en el marco de lo tilado) llevada al 3'UTR, o `None` si no cae.
@@ -835,4 +854,9 @@ def tile_utr(
         polya_mode=polya_mode,
         sequence_length=len(original),
         sequence_md5=sequence_md5(original),
+        utr3_md5=(
+            sequence_md5(original[anatomy.utr3[0] - 1:anatomy.utr3[1]])
+            if anatomy is not None and getattr(anatomy, "utr3", None)
+            else sequence_md5(original)
+        ),
     )

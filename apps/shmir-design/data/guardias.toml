@@ -75,6 +75,15 @@ degrada_como = "No se degrada: se recalcula de la secuencia cargada."
 revalida = "Se revalida a sí mismo en cada carga."
 
 [[guardia]]
+guardia = "Una retirada declarada se aplica al 3'UTR que dice, y retira ALGO"
+implementa = ["retirados.aplicar"]
+protege = "Las dos mitades de una decisión escrita en `data/candidatos_retirados.toml`. Que caiga sobre la secuencia que nombra —se compara el `md5_utr3` declarado con el del informe, así que sobre otro 3'UTR no retira nada—, y que UNA VEZ que esa secuencia coincide, la posición nombrada exista entre las ventanas elegibles: una retirada que no retira nada es una decisión perdida, y dejaría al candidato dentro del panel con el motivo escrito al lado."
+momento = "CADA_CORRIDA"
+puede_degradar = false
+degrada_como = "No se degrada: la tabla es un fichero VERSIONADO —no vive en el volumen— y el md5 del 3'UTR se recalcula del informe de cada corrida, no se guarda."
+revalida = "Se comprueba en cada selección: la tabla se relee del fichero versionado y se cruza contra los inicios elegibles de ESA corrida."
+
+[[guardia]]
 guardia = "El md5 del 3'UTR decide si la tabla de APA medido aplica"
 implementa = ["apa.resolve_measured"]
 protege = "Que unas coordenadas de un gen no se anclen sobre OTRO 3'UTR. El ruido ancla si se le deja sitio."

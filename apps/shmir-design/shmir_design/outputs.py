@@ -1288,6 +1288,15 @@ def text_report(
         for fila in triple_motive:
             lines.extend(f"    {l}" for l in _envolver(fila.describe(), 84))
 
+    # UNA DECISION REGISTRADA NO ES UN AVISO, y por eso tiene bloque propio y va ANTES.
+    # Un candidato retirado del panel sale en todas las corridas de esa secuencia: bajo
+    # «Avisos» dejaria un ⚠ permanente, y a partir de ahi los avisos de verdad —los que
+    # dicen que algo pedido no se pudo dar— se leen como fondo.
+    if selection.selection.decisions:
+        lines.extend(["", "── Decisiones sobre la selección ──"])
+        for decision in selection.selection.decisions:
+            lines.extend(f"  {l}" for l in _envolver(decision, 84))
+
     lines.extend(["", "── Avisos ──"])
     avisos: list[str] = []
     for aviso in tiling.avisos:

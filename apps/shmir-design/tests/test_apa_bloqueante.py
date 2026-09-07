@@ -112,7 +112,10 @@ class TestElAPAEsUnFrenteBloqueante(unittest.TestCase):
 
     def test_el_frente_del_APA_trae_la_cuenta_que_lo_justifica(self):
         apa = [f for f in self.frentes if f.name == "fraccion_isoforma_larga"][0]
-        self.assertIn("6 de 10", apa.reason)
+        # SIETE desde el 2026-09-07: `3utr:10` era inmune y está retirado, así que su
+        # plaza la ocupa un candidato con techo. La cuenta se DERIVA del panel; lo que
+        # este test fija es que el motivo la lleve.
+        self.assertIn("7 de 10", apa.reason)
         # 16/0/0, no 20/0/0: la promoción por medida entra siempre y el corte de la
         # inmunidad se adelanta de `3utr:303` a `3utr:251`.
         self.assertIn("16/0/0", apa.reason)
@@ -161,11 +164,15 @@ class TestElAPAEsUnFrenteBloqueante(unittest.TestCase):
         from shmir_design.reference import REFERENCES, load_3utr
         from shmir_design.tiling import tile_utr
 
+        # TRES, no cuatro: `3utr:10` está retirado desde el 2026-09-07 y ningún otro
+        # inmune cabe a 50 nt de los que quedan, así que un panel de cuatro se llevaría
+        # uno con techo y el frente existiría — que es justo lo que este control
+        # adversario no puede tener dentro.
         tiling = tile_utr(load_3utr(REFERENCES["NM_011170.3"]))
         solo_inmunes = select_from_report(
             tiling,
             SelectionConfig(
-                n_candidates=4, apa_immune_quota=4, apa_immune_before=303,
+                n_candidates=3, apa_immune_quota=3, apa_immune_before=303,
                 require_one_per_tercio=False,
             ),
         )
@@ -196,7 +203,7 @@ class TestLoQueDiceElInforme(unittest.TestCase):
 
     def test_y_el_APA_esta_entre_ellos_con_su_cifra(self):
         self.assertIn("fraccion_isoforma_larga", self.texto)
-        self.assertIn("6 de 10", self.texto)
+        self.assertIn("7 de 10", self.texto)
 
     def test_no_se_pide_oligo_hasta_que_TODOS_tengan_veredicto(self):
         self.assertIn("NO SE PIDE OLIGO", self.texto)
