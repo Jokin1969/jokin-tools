@@ -3648,6 +3648,34 @@ Pásalos antes de cada commit que toque `apps/shmir-design/`.
     **exige que la prosa las cite**. Si el plegado cambia, la suite falla en vez de que el
     texto envejezca en silencio (principio nº 13).
 
+- **EL PRIMER CANDIDATO RETIRADO POR EL FRENTE DE EMPALME. DECIDIDO (2026-09-07)**, y es
+  el frente el que lo demuestra: hasta hoy `empalme_sitios` no había quitado a nadie.
+  - **Quién**: `3utr:10` —el más proximal del panel de once—, con las palabras del
+    responsable del proyecto: *«es la única de las once que introduce crípticos que sus
+    hermanas no tienen —aceptor al 12 % y donante al 6 %, sólo en `mvm_actual`— y ése es
+    exactamente el hallazgo que el frente de empalme existe para producir. Con 88
+    elegibles y su asimetría en +4,33, novena de once, no compensa llevarlo»*.
+  - **Retirado por EMPALME, no por especificidad ni por seed**, y eso es lo que va al
+    registro: el único candidato que había caído por un motivo real hasta ahora fue
+    `tx:1746` contra ADAR, por ESPECIFICIDAD, y no estaba en el panel. **Éste es el
+    primero que el frente de empalme quita**, y con él ese frente deja de ser una
+    columna que siempre dice lo mismo: DISCRIMINA.
+  - **NO SE PUEDE SUSTITUIR POR OTRO INMUNE, y está medido**
+    (`presentation.immune_replacements`, en la página bajo «¿Y si retiro un candidato
+    inmune al APA?»). Los **16** sitios inmunes se apelotonan entre `3utr:10` y
+    `3utr:200`, así que con `3utr:60`, `143` y `200` puestos **ninguno** queda a 50 nt o
+    más de los diez que siguen. No es que no se haya mirado: es el mismo hecho
+    geométrico ya registrado —«caben CUATRO inmunes, no cinco»— visto desde el otro
+    lado. El panel se queda con **3 de los 4** de la cuota.
+    - **El espaciado NO se baja para que quepa uno**: compra independencia entre
+      apuestas, no número de apuestas, y eso ya está decidido.
+    - Lo que queda por decidir es **la plaza once**, con los tres inmunes restantes
+      delante: bajar la cuota y darla al mejor disponible (`3utr:359` +4,82, `3utr:329`
+      +4,39, `3utr:900` +4,15 — ninguno inmune), o no retirar.
+    - **Cero de cero y cero de dieciséis no son la misma noticia**, así que la emisión
+      saca los 16 con su asimetría y con qué choca cada uno: sin esa cifra, «ninguno»
+      se lee como que no se ha mirado.
+
 - **LA MATRIZ DEJA DE SER «UNO GANA»: VAN LAS DOS A SÍNTESIS. DECIDIDO (2026-09-07)**
   (`introns.BOTH_ARCHITECTURES_GO`), con las palabras del responsable del proyecto: *«dos
   arquitecturas que hay que probar las dos, porque ninguna medida las separa de forma
@@ -4428,6 +4456,35 @@ Pásalos antes de cada commit que toque `apps/shmir-design/`.
   - **El marco viaja también al disco** (`candidate_frame` en el registro de empalme). Sin
     eso, una corrida sobre el transcrito se relee como si fuera del 3'UTR — el mismo fallo,
     esta vez desde un fichero y semanas después.
+
+- **EL NOMBRE DE LA CONSTRUCCIÓN ETIQUETABA COMO 3'UTR UNA COORDENADA DEL TRANSCRITO
+  (2026-09-07)**, errata nº 133. Se montaba con `f"{intron}__3utr{start}"` —el prefijo
+  **tecleado**— y `start` va en el marco de LO TILADO, que en la página y en el CLI es el
+  **transcrito**. Así que la construcción del candidato `3utr:10` salía del FASTA
+  llamándose `mvm_actual__3utr959`, y `tx:959` **es** `3utr:10`. El invariante de rango no
+  puede cazarlo: 959 existe en los dos marcos — caza lo imposible, no lo equivocado.
+  - **NO ES COSMÉTICO, y así se vio**: el 2026-09-07 se retiró un candidato del panel
+    **citándolo como «3utr:959»**. `3utr:959` es una ventana distal, con otro veredicto,
+    otro techo de APA y ninguna inmunidad. Lo que salvó la decisión fueron las OTRAS
+    cifras —asimetría +4,33, novena de once, inmune al APA—, que sólo cuadran con
+    `3utr:10`. Sin ellas, la retirada habría caído sobre el candidato equivocado.
+  - **LO QUE MÁS ENSEÑA: el guardia tenía este caso EXENTO POR ESCRITO.**
+    `tools/auditar_marcos.py` decía que un `3utr` sin dos puntos «es un identificador y no
+    una etiqueta de posición… no se lee como una coordenada». **Se leyó como una
+    coordenada la primera vez que salió de la app.** Una excepción declarada es una
+    HIPÓTESIS, y ésta la refutó el uso. El guardia mira ahora también el literal de
+    f-string que TERMINA en el valor del marco y va pegado a una interpolación, con el
+    separador delante exigido para no morder `ctx` — calibrado, con control adversario.
+  - **Y EL FICHERO QUE YA ESTÁ FUERA NO SE INVALIDA.** La identidad de una construcción es
+    su **md5**, no su nombre: un resultado con el nombre viejo entra si el md5 cuadra, y
+    `legacy_name_note` **lo dice**. Rechazarlo habría obligado a repetir una corrida de
+    SpliceAI por una etiqueta nuestra. El md5 que no cuadra se sigue rechazando igual, y
+    el sitio entra al análisis con el nombre CANÓNICO — guardarlo con el heredado dejaría
+    una construcción sin sitios, que se lee como «limpia».
+  - Los ficheros de `data/medido/` **no se reescriben**: son la evidencia de corridas que
+    este proyecto no ejecuta. Se leen con la forma que tienen desde un solo sitio
+    (`tests/nombres_heredados.py`), y ese literal vive en `tests/` porque la app no puede
+    volver a emitirlo.
 
 - **EL CASETE SE COMPRUEBA AL EMITIR, no al validar (2026-09-06)**
   (`presentation.cassette_deposit_check`, `Construction.cassette_check`), errata nº 129.

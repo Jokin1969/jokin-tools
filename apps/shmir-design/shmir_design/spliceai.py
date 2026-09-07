@@ -559,7 +559,14 @@ def build_constructions(
             criptico = montado.find(CRYPTIC_DONOR)
             construcciones.append(
                 Construction(
-                    name=f"{nombre}__3utr{elegido.start}",
+                    # EL MARCO SE RECIBE, NO SE TECLEA. Esto ponía `3utr` a pelo y
+                    # `elegido.start` va en el marco de LO TILADO, que en la página y en
+                    # el CLI es el TRANSCRITO: la construcción del candidato `3utr:10`
+                    # salía llamándose `..._3utr959`, y `3utr:959` existe y es OTRA
+                    # ventana. El invariante de rango no puede cazarlo —caza lo
+                    # imposible, no lo equivocado— y el 2026-09-07 costó una decisión de
+                    # panel tomada sobre el nombre equivocado.
+                    name=f"{nombre}__{label(elegido.start, marco_candidato)}",
                     candidate_start=elegido.start,
                     intron=nombre,
                     sequence=secuencia,
@@ -884,6 +891,7 @@ def parse_result(text: str, *, constructions) -> tuple[SiteScore, ...]:
 
     sitios: list[SiteScore] = []
     saltadas: list[tuple[int, int, str]] = []
+    heredados: list[tuple[int, str, str]] = []
     for numero, fila in numeradas[1:]:
         campos = fila.split("\t")
         if len(campos) != len(RESULT_COLUMNS):
@@ -894,9 +902,29 @@ def parse_result(text: str, *, constructions) -> tuple[SiteScore, ...]:
         nombre, md5, posicion, tipo, puntuacion = (c.strip() for c in campos)
         construccion = por_nombre.get(nombre)
         if construccion is None:
+            # LO QUE IDENTIFICA UNA CONSTRUCCIÓN ES SU md5, NO SU NOMBRE. El nombre
+            # llevaba el prefijo del marco TECLEADO (`..._3utr959` para una coordenada de
+            # transcrito) y al arreglarlo cambia; un fichero que ya estaba fuera no puede
+            # quedarse inservible por una etiqueta NUESTRA — eso obligaría a repetir una
+            # corrida de SpliceAI que no depende de nosotros. Se admite el nombre viejo
+            # SÓLO si el md5 lo confirma, y `legacy_names` lo DICE: aceptarlo en silencio
+            # sería aceptar cualquier cosa que cuadre de md5 sin que nadie lo sepa.
+            por_md5 = [c for c in constructions if c.md5 == md5]
+            if len(por_md5) == 1:
+                construccion = por_md5[0]
+                heredados.append((numero, nombre, construccion.name))
+            elif len(por_md5) > 1:
+                raise ShmirDesignError(
+                    f"línea {numero}: el md5 {md5!r} lo tienen "
+                    f"{len(por_md5)} construcciones de esta corrida, así que un nombre "
+                    f"que no está entre las suyas no identifica ninguna. Se aborta en "
+                    f"vez de elegir una."
+                )
+        if construccion is None:
             raise ShmirDesignError(
                 f"línea {numero}: la construcción {nombre!r} no es ninguna de las que "
-                f"genero esta corrida ({', '.join(sorted(por_nombre))}). Se rechaza el "
+                f"genero esta corrida ({', '.join(sorted(por_nombre))}), y su md5 "
+                f"tampoco es el de ninguna. Se rechaza el "
                 f"fichero entero: es el fallo del CSV de miRarchitect —un fichero de "
                 f"OTRA CORRIDA pegado por error, que entra, cuadra de forma y produce un "
                 f"análisis entero sobre el dato equivocado."
@@ -952,7 +980,13 @@ def parse_result(text: str, *, constructions) -> tuple[SiteScore, ...]:
                 f"corrida, que es lo que este fichero no puede traer."
             )
         sitios.append(
-            SiteScore(construction=nombre, position=entero, kind=tipo, score=valor)
+            # EL NOMBRE QUE ENTRA ES EL CANÓNICO, no el que traiga el fichero. El
+            # análisis agrupa por `construccion.name`, así que un sitio guardado con el
+            # nombre heredado no lo encontraría nadie — y sin dar ningún error: saldría
+            # una construcción sin sitios, que se lee como «limpia».
+            SiteScore(
+                construction=construccion.name, position=entero, kind=tipo, score=valor,
+            )
         )
     if not sitios:
         raise ShmirDesignError(
@@ -963,6 +997,8 @@ def parse_result(text: str, *, constructions) -> tuple[SiteScore, ...]:
         )
     _ULTIMAS_SALTADAS.clear()
     _ULTIMAS_SALTADAS.extend(saltadas)
+    _ULTIMOS_HEREDADOS.clear()
+    _ULTIMOS_HEREDADOS.extend(heredados)
     return tuple(sitios)
 
 
@@ -972,6 +1008,34 @@ def parse_result(text: str, *, constructions) -> tuple[SiteScore, ...]:
 #: saber que su resultado no entro entero. Van aparte y no dentro de `SiteScore` porque
 #: no son sitios — son filas que no apuntan a ningun sitio de esta construccion.
 _ULTIMAS_SALTADAS: list[tuple[int, int, str]] = []
+
+
+#: Las filas del ultimo `parse_result` que llegaron con el NOMBRE VIEJO y se aceptaron
+#: por su md5. Mismo patron que las saltadas y por el mismo motivo: aceptarlas en
+#: silencio dejaria sin ver que el fichero viene de antes del arreglo del marco.
+_ULTIMOS_HEREDADOS: list[tuple[int, str, str]] = []
+
+
+def legacy_name_note(text: str, *, constructions) -> str:
+    """Qué filas llegaron con el nombre de antes, y a qué construcción son. Vacío si ninguna.
+
+    Se pide con el MISMO texto y las MISMAS construcciones que `parse_result`, como
+    `edge_note`: así no hay forma de enseñar un aviso que no corresponda al fichero que
+    se leyó.
+    """
+    parse_result(text, constructions=constructions)
+    if not _ULTIMOS_HEREDADOS:
+        return ""
+    detalle = "; ".join(
+        f"línea {n}: {viejo} → {nuevo}" for n, viejo, nuevo in _ULTIMOS_HEREDADOS
+    )
+    return (
+        f"{len(_ULTIMOS_HEREDADOS)} fila(s) traen el NOMBRE VIEJO de la construcción y "
+        f"se han aceptado porque su md5 cuadra — que es lo que identifica una "
+        f"construcción, no su nombre. El nombre cambió al arreglar el marco: llevaba "
+        f"`3utr` tecleado sobre una coordenada del transcrito. {detalle}. El resultado "
+        f"es válido y no hace falta repetir la corrida."
+    )
 
 
 def edge_note(text: str, *, constructions) -> str | None:

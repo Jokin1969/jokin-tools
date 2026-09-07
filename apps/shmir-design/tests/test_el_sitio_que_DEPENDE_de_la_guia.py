@@ -34,6 +34,7 @@ RAIZ = Path(__file__).resolve().parent.parent
 if str(RAIZ) not in sys.path:
     sys.path.insert(0, str(RAIZ))
 
+from tests.nombres_heredados import por_nombre_heredado
 from shmir_design import presentation, spliceai  # noqa: E402
 from shmir_design.anatomy import Anatomy, RegionSource  # noqa: E402
 from shmir_design.reference import (  # noqa: E402
@@ -61,7 +62,10 @@ def _scan():
         corrida.selection, intron_names=("mvm_actual",), scaffold=SGEP_SCAFFOLD,
         cassette=casete, context_nt=5000,
     )
-    por_nombre = {c.name: c for c in panel.constructions}
+    # EL FICHERO MEDIDO TRAE LOS NOMBRES DE ENTONCES y no se reescribe: es la
+    # evidencia de una corrida que este proyecto no ejecuta. Se lee con la forma
+    # que tiene, desde un solo sitio (errata nº 133).
+    por_nombre = por_nombre_heredado(panel.constructions)
     lineas = ["# convencion: spliceai"]
     with MEDIDO.open("r", encoding="utf-8") as f:
         lineas.append(next(f).rstrip("\n"))
@@ -94,7 +98,7 @@ class TestElSitioQueVARIA_con_la_guia(unittest.TestCase):
         self.assertEqual(len(sitio.scores), 10)
         self.assertAlmostEqual(sitio.maximum, 0.0751, places=3)
         self.assertAlmostEqual(
-            sitio.scores["mvm_actual__3utr959"], 0.0751, places=3,
+            sitio.scores["mvm_actual__tx:959"], 0.0751, places=3,
         )
 
     def test_cae_DENTRO_del_intron_no_en_el_contexto(self):

@@ -4995,6 +4995,144 @@ def shared_branch_risk(rows=None):
     }
 
 
+def immune_panel_members(tiling, selection):
+    """Qué candidatos DEL PANEL son inmunes al APA, con su etiqueta ya montada.
+
+    Es lo que hace falta para poder preguntar «¿y si retiro éste?»: la pregunta sólo
+    tiene sentido sobre un inmune, porque su plaza no la puede ocupar el siguiente de la
+    lista. La frontera se DERIVA del informe, como en todas partes.
+    """
+    from .coords import label, tiled_frame
+    from .selection import derive_immune_cut
+
+    corte = derive_immune_cut(tiling)
+    if corte is None:
+        return []
+    marco = tiled_frame(getattr(selection, "anatomy", None))
+    return [
+        {
+            "inicio": c.start,
+            # LAS DOS FORMAS DEL NÚMERO, JUNTAS. Es lo que impide leer `tx:959` como
+            # `3utr:959`, que son dos ventanas distintas (errata nº 133).
+            "etiqueta": f"{_en_utr3(c.start, tiling)} ({label(c.start, marco)})",
+            "asimetria": c.asymmetry,
+        }
+        for c in selection.selection.chosen if c.start < corte
+    ]
+
+
+def immune_replacements(tiling, selection, *, retire: int):
+    """Quién puede ocupar la plaza de un INMUNE que se retira. Y si no puede nadie, por qué.
+
+    Retirar un candidato inmune al APA no es retirar uno cualquiera: los inmunes son la
+    ÚNICA reserva si el APA proximal resulta funcional, así que su plaza la tiene que
+    ocupar otro inmune o la cuota baja — y eso es una decisión, no un detalle de la
+    ordenación. Esto emite los que hay, con el espaciado ya comprobado contra el panel
+    QUE QUEDA, y ordenados por asimetría.
+
+    **La respuesta puede ser NINGUNO, y eso es un resultado.** Los sitios elegibles por
+    delante del corte se apelotonan en el tramo proximal, así que con tres inmunes
+    puestos puede no quedar ninguno a la distancia mínima de todos ellos. Por eso salen
+    también los DESCARTADOS por espaciado y cuántos inmunes hay en total: cero de cero y
+    cero de dieciséis no son la misma noticia, y sin la segunda cifra «ninguno» se lee
+    como que no se ha mirado.
+
+    El corte y el espaciado se DERIVAN —del informe y de la configuración de la
+    selección—; teclear cualquiera de los dos es lo que ya hizo que `--inmunes-antes`
+    siguiera apuntando a `3utr:303` cuando la frontera se había adelantado a `3utr:251`.
+    """
+    from .coords import label, tiled_frame
+    from .selection import derive_immune_cut, respects_spacing
+
+    panel = [c.start for c in selection.selection.chosen]
+    if retire not in panel:
+        raise ShmirDesignError(
+            f"{retire} no está en el panel de esta corrida "
+            f"({', '.join(str(s) for s in sorted(panel))}), así que no deja ninguna "
+            f"plaza que ocupar. Se aborta en vez de emitir un plan para una vacante que "
+            f"nadie ha abierto."
+        )
+    corte = derive_immune_cut(tiling)
+    if corte is None:
+        raise ShmirDesignError(
+            "No hay ninguna señal APA_POSIBLE en este informe, así que no hay frontera "
+            "de inmunidad que derivar y «inmune» no significa nada aquí. Se aborta: "
+            "poner una frontera a mano es lo que ya dejó `--inmunes-antes` apuntando a "
+            "un corte viejo sin dar ningún error."
+        )
+    espaciado = selection.selection.config.min_spacing
+    marco = tiled_frame(getattr(selection, "anatomy", None))
+    resto = [s for s in panel if s != retire]
+
+    inmunes = [s for s in selection.selection.sites if s.best.start < corte]
+    disponibles, descartados = [], []
+    for sitio in sorted(inmunes, key=lambda s: (-s.best.asymmetry, s.best.start)):
+        mejor = sitio.best
+        if mejor.start in resto:
+            continue
+        fila = {
+            "tx": label(mejor.start, marco),
+            "utr3": _en_utr3(mejor.start, tiling),
+            "asimetria": mejor.asymmetry,
+            "espaciado_ok": all(
+                respects_spacing(mejor.start, otro, spacing=espaciado)
+                for otro in resto
+            ),
+            "es_el_retirado": mejor.start == retire,
+        }
+        (disponibles if fila["espaciado_ok"] and not fila["es_el_retirado"]
+         else descartados).append(fila)
+
+    en_el_panel = sorted(s for s in resto if s < corte)
+    if disponibles:
+        texto = (
+            f"{len(disponibles)} inmune(s) pueden ocupar la plaza con espaciado "
+            f"≥ {espaciado} nt respecto de los {len(resto)} que quedan, de "
+            f"{len(inmunes)} sitios inmunes en total. Van ordenados por asimetría; la "
+            f"elección no la hace la app."
+        )
+    else:
+        texto = (
+            f"NINGUNO de los {len(inmunes)} sitios inmunes puede ocupar la plaza: "
+            f"ninguno queda a {espaciado} nt o más de los {len(resto)} candidatos que "
+            f"siguen en el panel. No es que no se haya mirado — es un hecho geométrico "
+            f"de este 3'UTR, donde los sitios elegibles por delante del corte se "
+            f"apelotonan en el tramo proximal. La consecuencia es que el panel se queda "
+            f"con {len(en_el_panel)} de los 4 inmunes de la cuota, y eso es lo que hay "
+            f"que decidir: bajar la cuota, o no retirar. El espaciado NO se baja para "
+            f"que quepa uno — compra independencia entre apuestas, no número de "
+            f"apuestas."
+        )
+    return {
+        "corte": corte,
+        "espaciado": espaciado,
+        "panel": resto,
+        "inmunes": len(inmunes),
+        "inmunes_en_el_panel": en_el_panel,
+        "disponibles": disponibles,
+        "descartados": descartados,
+        "texto": texto,
+    }
+
+
+def _en_utr3(posicion: int, tiling) -> str:
+    """La misma posición en el marco del 3'UTR, para poder hablar de ella.
+
+    Las dos formas del número conviven en este proyecto —lo tilado es el transcrito y las
+    decisiones se toman en 3'UTR— y tenerlas juntas es lo que impide leer `tx:959` como
+    `3utr:959`, que son dos ventanas distintas (errata nº 133).
+    """
+    from .coords import Frame, label as etiqueta
+
+    # `utr3_of` devuelve `None` para una posición que NO cae en el 3'UTR —las del CDS y
+    # las del 5'UTR—, y eso no es un fallo: es la verdad. Se dice, en vez de convertirla
+    # a un número que no significa nada.
+    en_utr3 = tiling.utr3_of(posicion)
+    if en_utr3 is None:
+        return "fuera del 3'UTR"
+    return etiqueta(en_utr3, Frame.UTR3, limit=tiling.utr3_length)
+
+
 def intron_architecture_note() -> str:
     """La comparación de las dos arquitecturas, para el INFORME y no sólo para la página.
 
@@ -5252,6 +5390,18 @@ def splice_edge_note(raw, *, constructions) -> str | None:
     from .spliceai import edge_note
 
     return edge_note(raw, constructions=constructions)
+
+
+def splice_legacy_name_note(raw, *, constructions) -> str:
+    """Qué filas llegaron con el NOMBRE VIEJO de la construcción, o cadena vacía.
+
+    Mismo criterio que `splice_edge_note`: la página lo pinta y no decide nada. Existe
+    porque un resultado de antes del arreglo del marco entra —lo identifica su md5, no su
+    nombre— y aceptarlo callando dejaría sin ver de qué corrida viene el fichero.
+    """
+    from .spliceai import legacy_name_note
+
+    return legacy_name_note(raw, constructions=constructions)
 
 
 def splice_scan_from_result(raw, *, constructions):

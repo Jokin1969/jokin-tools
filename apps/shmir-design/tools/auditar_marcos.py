@@ -31,10 +31,16 @@ una se perdone: es que una se arregla y la otra se explica.
   comprueba que sale `3utr:449` es el control adversario de esta misma regla, y
   prohibirselo dejaria la regla sin quien la verifique;
 - `coords.py`, que es quien lo emite;
-- un `3utr` **sin dos puntos** —el `mvm_actual__3utr959` de un nombre de construccion—,
-  que es un identificador y no una etiqueta de posicion. No lo mira: cambiarlo romperia
-  claves ya guardadas, y como no lleva numero pegado con prefijo no se lee como una
-  coordenada.
+- ~~un `3utr` **sin dos puntos** —el `mvm_actual__3utr959` de un nombre de
+  construccion—, que es un identificador y no una etiqueta de posicion~~. **EXENCION
+  RETIRADA (2026-09-07): la refuto el uso.** Ese nombre salio de la app en un FASTA, se
+  leyo como `3utr:959` y se retiro un candidato del panel citandolo asi — cuando la
+  construccion era la de `3utr:10`, que es `tx:959`. Una excepcion declarada es una
+  HIPOTESIS; esta decia que un identificador no se lee como una coordenada, y se leyo
+  como una coordenada la primera vez que salio. Ahora se mira: un literal de f-string
+  que TERMINA en el valor del marco —sin los dos puntos— y va seguido de una
+  interpolacion fabrica una etiqueta igual. Se exige el separador delante (`__3utr`,
+  `_tx`) para no morder una palabra que acabe en `tx`, como `ctx`.
 
 Python 3.11+, solo biblioteca estandar (regla 6).
 """
@@ -138,13 +144,62 @@ def _simbolo(arbol: ast.AST, linea: int) -> str:
     return "<modulo>"
 
 
+#: Lo que puede ir DELANTE del valor del marco para que sea un token y no el final de
+#: una palabra. Sin esto, `f"ctx{n}"` saldria como fabricacion de `tx` — y un guardia con
+#: falsos positivos se acaba apagando.
+SEPARADORES = "_-/.:| ("
+
+
+def _fabrica_sin_dos_puntos(arbol: ast.AST, valores: tuple[str, ...]) -> list[int]:
+    """Lineas de un f-string cuyo literal ACABA en el marco y sigue una interpolacion.
+
+    Es la forma exacta del fallo: `f"{intron}__3utr{start}"`. Se mira sobre el `JoinedStr`
+    y no sobre el literal suelto porque lo que fabrica la etiqueta es la PAREJA —el
+    trozo de texto y lo que se interpola justo detras—; un literal que acabe en `3utr` y
+    no lleve nada pegado no etiqueta nada.
+
+    LO QUE NO CUBRE, declarado: una concatenacion (`"3utr" + str(x)`) o un `.join`. La
+    forma con dos puntos SI las cubre —ahi basta con que el literal termine en el
+    prefijo—; aqui se acota a los f-strings porque es donde estan los casos reales y
+    porque ensancharlo empieza a morder texto que no etiqueta nada.
+    """
+    lineas: list[int] = []
+    for nodo in ast.walk(arbol):
+        if not isinstance(nodo, ast.JoinedStr):
+            continue
+        for anterior, siguiente in zip(nodo.values, nodo.values[1:]):
+            if not isinstance(anterior, ast.Constant):
+                continue
+            if not isinstance(anterior.value, str):
+                continue
+            if not isinstance(siguiente, ast.FormattedValue):
+                continue
+            for valor in valores:
+                if not anterior.value.endswith(valor):
+                    continue
+                delante = anterior.value[: -len(valor)]
+                if delante and delante[-1] not in SEPARADORES:
+                    continue
+                lineas.append(nodo.lineno)
+                break
+    return lineas
+
+
 def analizar_fuentes(fuentes: dict[str, str], declaradas: list[dict]) -> Informe:
     prefijos = _prefijos()
+    valores = tuple(p.rstrip(":") for p in prefijos)
     informe = Informe(ficheros=len(fuentes))
     vistas: set[tuple[str, str]] = set()
     for nombre, texto in sorted(fuentes.items()):
         arbol = ast.parse(texto, filename=nombre)
         docs = _docstrings(arbol)
+        for linea in _fabrica_sin_dos_puntos(arbol, valores):
+            informe.fabrican.append({
+                "fichero": nombre,
+                "linea": linea,
+                "simbolo": _simbolo(arbol, linea),
+                "prefijo": "sin dos puntos, pegado a una interpolación",
+            })
         for nodo in ast.walk(arbol):
             if not isinstance(nodo, ast.Constant) or not isinstance(nodo.value, str):
                 continue

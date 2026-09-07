@@ -189,6 +189,8 @@ from shmir_design.presentation import (  # noqa: E402
     offtarget_upload_rows,
     offtarget_upper_bound,
     seed_highlights,
+    immune_panel_members,
+    immune_replacements,
     selection_warnings,
     site_table_rows,
     TABLE_SCOPE_NOTE,
@@ -599,6 +601,32 @@ def bloque_especie(nombre, transcrito, secuencia, anat, umbrales, config, seeds,
         )
         for aviso in selection_warnings(tiling, seleccion, selected=marcados):
             (st.error if aviso["rojo"] else st.warning)(aviso["texto"])
+
+        # RETIRAR UN INMUNE NO ES RETIRAR UNO CUALQUIERA. Su plaza la tiene que ocupar
+        # OTRO inmune o la cuota de cuatro baja, y con este 3'UTR la respuesta puede ser
+        # que no cabe ninguno — un hecho geométrico que hay que ver ANTES de decidir, no
+        # después. La app no elige: emite y ordena por asimetría (`presentation`).
+        with st.expander("¿Y si retiro un candidato inmune al APA?", expanded=False):
+            elegibles = immune_panel_members(tiling, seleccion)
+            if not elegibles:
+                st.caption(
+                    "En este panel no hay ningún candidato inmune al APA, así que no "
+                    "hay ninguna plaza de inmune que sustituir."
+                )
+            else:
+                cual = st.selectbox(
+                    "Candidato inmune a retirar", [f["etiqueta"] for f in elegibles],
+                    key=f"retirar_inmune_{nombre}",
+                )
+                plan = immune_replacements(
+                    tiling, seleccion,
+                    retire=next(f["inicio"] for f in elegibles
+                                if f["etiqueta"] == cual),
+                )
+                (st.warning if not plan["disponibles"] else st.info)(plan["texto"])
+                st.dataframe(
+                    plan["disponibles"] or plan["descartados"], hide_index=True,
+                )
 
     # ── AQUI TERMINA EL PRIMER TRAMO, y hasta ahora no lo decia ─────────────────
     #

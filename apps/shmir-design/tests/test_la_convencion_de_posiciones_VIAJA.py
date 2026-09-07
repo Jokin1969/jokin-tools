@@ -34,6 +34,7 @@ RAIZ = Path(__file__).resolve().parent.parent
 if str(RAIZ) not in sys.path:
     sys.path.insert(0, str(RAIZ))
 
+from tests.nombres_heredados import por_nombre_heredado
 from shmir_design import presentation, spliceai  # noqa: E402
 from shmir_design.anatomy import Anatomy, RegionSource  # noqa: E402
 from shmir_design.errors import ShmirDesignError  # noqa: E402
@@ -91,7 +92,9 @@ def _resultado_medido(panel, *, convencion: str | None) -> str:
     3.133, donante en 3134, aceptor en 3428—, así que las posiciones medidas son
     exactamente las mismas en la construcción de hoy.
     """
-    por_nombre = {c.name: c for c in panel.constructions}
+    # Los nombres del fichero medido son los de ANTES del arreglo del marco; se
+    # leen con `tests/nombres_heredados.py`, que es quien sabe cuál era la forma.
+    por_nombre = por_nombre_heredado(panel.constructions)
     lineas = []
     if convencion:
         lineas.append(f"# convencion: {convencion}")
@@ -228,13 +231,16 @@ class TestElGuardiaDelMARCO(unittest.TestCase):
         por_nombre = {p.construction: p for p in scan.pairs}
         # Las puntuaciones MEDIDAS, ya en el sitio que la app declara.
         self.assertAlmostEqual(
-            por_nombre["mvm_actual__3utr959"].legit_donor, 0.6638, places=3,
+            # `tx:959` es el candidato `3utr:10`, y el nombre lo dice desde el
+            # 2026-09-07: antes ponía `3utr959`, que se lee como otra ventana
+            # (errata nº 133). El fichero medido conserva los nombres de entonces.
+            por_nombre["mvm_actual__tx:959"].legit_donor, 0.6638, places=3,
         )
         self.assertAlmostEqual(
-            por_nombre["mvm_actual__3utr1684"].legit_donor, 0.8714, places=3,
+            por_nombre["mvm_actual__tx:1684"].legit_donor, 0.8714, places=3,
         )
         self.assertAlmostEqual(
-            por_nombre["mvm_actual__3utr959"].legit_acceptor, 0.7979, places=3,
+            por_nombre["mvm_actual__tx:959"].legit_acceptor, 0.7979, places=3,
         )
 
     def test_una_convencion_DESCONOCIDA_no_se_adivina(self):
@@ -347,10 +353,10 @@ class TestLaGuiaMODULA_el_donante_legitimo(unittest.TestCase):
         filas = presentation.splice_result_rows(self.scan)
         por_nombre = {f["construccion"]: f for f in filas}
         self.assertAlmostEqual(
-            por_nombre["mvm_actual__3utr1684"]["donante_vs_hermanas"], 1.0, places=6,
+            por_nombre["mvm_actual__tx:1684"]["donante_vs_hermanas"], 1.0, places=6,
         )
         self.assertLess(
-            por_nombre["mvm_actual__3utr959"]["donante_vs_hermanas"], 0.80,
+            por_nombre["mvm_actual__tx:959"]["donante_vs_hermanas"], 0.80,
         )
 
     def test_el_sitio_del_CONTEXTO_apenas_se_mueve_y_ese_es_el_contraste(self):
