@@ -7018,3 +7018,69 @@ Afirmaban que el sello está en la primera línea. La decisión cambió a propó
 que fijan pasa a ser lo que sí es invariante: **que el sello esté y que la primera línea
 sea la cabecera**. Es el principio nº 56 por su lado bueno — un test que fija una decisión
 tiene que moverse cuando la decisión se mueve, no bloquearla.
+
+---
+
+## 143 — Ocho tests rojos a mitad de suite, justo después de un cambio, y la causa era el disco
+
+Al comprobar el cambio del sello (errata nº 142) la suite sacó **ocho fallos del CLI**,
+todos a la vez, en mitad de la corrida y **justo después** de tocar los ficheros que esos
+mismos tests leen. Todo lo que se ve desde fuera apunta al cambio.
+
+**No era el cambio: el disco del contenedor estaba lleno.** Con espacio libre, las 5096
+pasan sin tocar una línea más.
+
+### Por qué esto es del principio nº 3 y no una anécdota de infraestructura
+
+El principio nº 3 dice que **un mensaje que explica una causa tiene que haberla
+comprobado**. Aquí el mensaje no lo escribía el código: lo iba a escribir yo, en el
+informe al responsable — «los ocho fallos son del cambio del sello, lo reviso». Habría
+sido un diagnóstico plausible, servicial y falso, de la misma familia que «Alu 0 %»: manda
+a mirar al sitio equivocado, y quien lo lee gasta el tiempo ahí antes de sospechar del
+diagnóstico.
+
+Y encaja en el **tercer peldaño**, el peor: no era un dato incómodo suelto, era un dato
+**interpretable en el vocabulario del proyecto**. «Cambiaste dónde se escribe la cabecera
+y se rompieron los tests que leen la cabecera» es una explicación *correcta como
+mecanismo* —existe, este proyecto la sabe nombrar, y predice justo lo que se veía—. Por
+eso no chirriaba. Es exactamente la forma del `SEGUNDO SITIO` explicado como
+cooperatividad.
+
+### La correlación temporal es evidencia DÉBIL, y ese es el punto
+
+Lo que empujaba hacia el cambio era **el orden de los sucesos**: tocar algo y ver rojo a
+continuación. Eso no distingue «lo rompí» de «se rompió mientras trabajaba», y en una
+sesión larga **todo** ocurre justo después de algo que acabo de hacer. La evidencia fuerte
+no estaba en la cronología: estaba en **el espacio libre del disco**, un número que se lee
+en un comando.
+
+| evidencia | qué distinguía | coste de comprobarla |
+|---|---|---|
+| «falló justo después del cambio» | nada — siempre es cierto | cero, y no vale nada |
+| ocho fallos **a la vez**, no uno | un cambio local no suele romper ocho ficheros de golpe | mirar la lista |
+| `df` con el disco agotado | la causa real | un comando |
+| **la suite entera en verde tras liberar espacio** | lo cierra | volver a correrla |
+
+La tercera y la cuarta son las que deciden, y las dos eran baratas. **La barata no era la
+cronología: era `df`.**
+
+### Un síntoma que se lee mal: `df` engaña en este contenedor
+
+El disco escribible es un cupo por sesión, así que **`Avail` a cero con `Used` bajo no
+significa que la máquina esté rota** — significa que el cupo se agotó. Un fallo de escritura
+por cupo lleno **no se parece a un fallo de disco**: se parece a un test roto, porque lo
+que se ve es un `assert` que no cuadra sobre un fichero que se escribió a medias.
+
+### La contramedida, y por qué no es un test
+
+No hay guardia que escribir: un test no puede comprobar que el disco no se llenará en
+mitad de la siguiente corrida. Lo que queda es una **regla de lectura**, del mismo tipo que
+la del principio nº 3:
+
+> **Varios fallos simultáneos en zonas que el cambio no toca se comprueban contra el
+> ENTORNO antes de atribuirlos al cambio.** Un fallo suele ser el cambio; ocho a la vez,
+> casi nunca.
+
+Y su corolario, que es el que evita la ronda perdida: **la atribución se verifica
+volviendo a correr**, no razonando. Ocho rojos que desaparecen sin tocar una línea son la
+prueba de que no eran del diff; ninguna cantidad de leer el diff lo habría demostrado.

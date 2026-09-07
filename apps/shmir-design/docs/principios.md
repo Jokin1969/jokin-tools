@@ -231,6 +231,39 @@ En la práctica, para cualquier texto que acompañe a un número o a un fallo:
 El corolario incómodo: **un mensaje más corto y menos servicial suele ser mejor mensaje.**
 La tentación de ayudar es la que escribe la causa.
 
+### Y el que escribe la causa no es siempre el código: también el INFORME
+
+Los cuatro casos de arriba son mensajes emitidos por el programa. El quinto (errata
+nº 143) lo iba a escribir yo, en el informe al responsable, y por eso conviene tenerlo
+aquí: **el principio aplica igual a lo que se cuenta sobre una corrida que a lo que la
+corrida imprime.**
+
+Al comprobar el cambio del sello salieron **ocho fallos del CLI**, a la vez, en mitad de
+la suite y justo después de tocar los ficheros que esos tests leen. La frase natural era
+«los ocho son del cambio, los reviso»: plausible, servicial y falsa — el disco del
+contenedor estaba lleno.
+
+Encaja en el **tercer peldaño**. No era un dato suelto: «tocaste dónde se escribe la
+cabecera y se rompieron los tests que leen la cabecera» es una explicación correcta *como
+mecanismo*, que este proyecto sabe nombrar y que predice justo lo que se veía. Por eso no
+chirriaba, igual que el `SEGUNDO SITIO` explicado como cooperatividad.
+
+**Lo que empujaba era la CRONOLOGÍA, y la cronología es evidencia débil.** «Falló justo
+después del cambio» no distingue «lo rompí» de «se rompió mientras trabajaba»: en una
+sesión larga, todo ocurre justo después de algo que se acaba de hacer, así que esa
+correlación es siempre cierta y por eso no vale nada. La evidencia fuerte estaba en el
+espacio libre del disco — un número que se lee en un comando.
+
+De ahí la regla, hermana de *¿sobre qué se midió esto?*:
+
+> **Varios fallos simultáneos en zonas que el cambio no toca se comprueban contra el
+> ENTORNO antes de atribuirlos al cambio.** Un fallo suele ser el cambio; ocho a la vez,
+> casi nunca.
+
+Y el corolario que ahorra la ronda perdida: **la atribución se verifica volviendo a
+correr, no razonando.** Ocho rojos que desaparecen sin tocar una línea prueban que no eran
+del diff; ninguna cantidad de leer el diff lo habría demostrado.
+
 ---
 
 ## 4 — Una predicción refutada se anota igual que un acierto

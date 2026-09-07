@@ -257,6 +257,16 @@ borra. Existe porque el proyecto llegó **tres veces** a lo mismo: código con t
 verde y sin caller. El golden lee lo que se emite; esto detecta lo que nunca llega a
 emitirse.
 
+**Si salen VARIOS rojos a la vez en zonas que tu cambio no toca, mira el disco antes de
+atribuirlos al cambio.** Pasó el 2026-09-07: ocho tests del CLI de shmir-design en rojo en
+mitad de la suite, justo después de tocar los ficheros que esos tests leen — y era el
+disco del contenedor lleno; con espacio libre pasan las 5096. En este entorno el disco
+escribible es un cupo por sesión, así que **`df` engaña**: `Avail` a cero con `Used` bajo
+es el cupo agotado, no la máquina rota, y una escritura truncada no se parece a un fallo
+de disco, se parece a un test roto. Un fallo suele ser el cambio; ocho a la vez, casi
+nunca. Y la atribución se verifica **volviendo a correr**, no razonando. Errata nº 143 y
+principio nº 3 en `apps/shmir-design/docs/`.
+
 La interfaz Streamlit de `apps/shmir-design/` es opcional y se instala aparte
 (`pip install -r apps/shmir-design/requirements-ui.txt`); ni el hub ni los CLI la
 necesitan.
