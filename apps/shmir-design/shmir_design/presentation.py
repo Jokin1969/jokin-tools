@@ -2620,7 +2620,8 @@ STORE_FOR_FRONT = {
 #: candidato: el candidato esta contestado si alguno de sus pares lo esta.
 #:
 #: **Por que existe esta lista y no basta la de abajo (2026-09-07).**
-#: `FRONTS_WITHOUT_COLUMN` se declaro para UNA cosa —«no cabe en una columna por
+#: `NO_CABE_COLUMNA_POR_CANDIDATO` —que hasta el 2026-09-07 se llamaba
+#: `FRONTS_WITHOUT_COLUMN`— se declaro para UNA cosa —«no cabe en una columna por
 #: candidato»— y acabo gobernando OTRA sin que nadie lo decidiera: no tener columna paso
 #: a significar **no poder cerrarse**, porque el unico camino que cierra un frente sale
 #: de `STORE_FOR_FRONT` y quien no esta en ella no esta en ninguna. Resultado:
@@ -2628,8 +2629,8 @@ STORE_FOR_FRONT = {
 #: usuario perdio tres corridas de SpliceAI para verlo. Principio nº 53.
 #:
 #: Las dos decisiones van ahora separadas y cada una declara lo suyo: **si tiene columna**
-#: lo dice `STORE_FOR_FRONT`/`FRONTS_WITHOUT_COLUMN`; **si puede cerrarse y con que
-#: almacen** lo dice esta.
+#: lo dicen `STORE_FOR_FRONT` y `NO_CABE_COLUMNA_POR_CANDIDATO`; **si puede cerrarse y
+#: con que almacen** lo dice esta.
 PAIR_UNIT_FRONTS = {
     "empalme_sitios": {
         "almacen": "splice",
@@ -2654,7 +2655,7 @@ PAIR_UNIT_FRONTS = {
 #: quedaba en `NOT_RUN` y arrastraba el VEREDICTO de los once candidatos a `INCOMPLETE`
 #: con la corrida guardada dentro del proyecto. Principio nº 53: una lista declarada para
 #: una cosa gobernando otra sin que nadie lo decidiera.
-FRONTS_WITHOUT_COLUMN = {
+NO_CABE_COLUMNA_POR_CANDIDATO = {
     "empalme_sitios": (
         "su unidad es el par candidato x intrón, no el candidato: en una tabla cuya fila "
         "es el candidato no cabe una columna por par, así que ahí sale UNA columna "
@@ -3280,13 +3281,14 @@ def candidate_fronts(
     # `empalme_sitios` faltara de esta lista, la fila diria «sin contestar:
     # especificidad» y quien la lee concluye que el empalme SI esta contestado. Es
     # justo el fallo que esta seccion existe para impedir, un frente mas alla. Se
-    # DERIVAN de `FRONTS_WITHOUT_COLUMN` y de los frentes abiertos, no se escriben.
+    # DERIVAN de `NO_CABE_COLUMNA_POR_CANDIDATO` y de los frentes abiertos, no se
+    # escriben.
     from .selection import blocking_fronts  # noqa: PLC0415
 
     abiertos = {
         f.name for f in blocking_fronts(tiling, selection) if f.blocking
     }
-    for frente, porque in sorted(FRONTS_WITHOUT_COLUMN.items()):
+    for frente, porque in sorted(NO_CABE_COLUMNA_POR_CANDIDATO.items()):
         if frente not in abiertos or frente in estados:
             # Con una corrida guardada, `panel_states_by_front` YA lo contesta por par y
             # su estado sale abajo con el motivo que le toca. Emitirlo aqui tambien
@@ -3388,6 +3390,87 @@ TABLE_SCOPE_NOTE = (
     "los demás, un `NOT_RUN` significa que **a ese candidato no se le ha preguntado** —"
     "las corridas se lanzan sobre el panel—, no que falte un fichero."
 )
+
+
+def pending_after_duplicate(
+    tiling, selection, *, species: str, front: str, stores=None,
+) -> dict[str, object]:
+    """Rechazada una subida por repetida: QUE SIGUE FALTANDO de ese frente.
+
+    **Principio nº 47: la salida va donde esta el BLOQUEO.** El aborto por fichero
+    repetido lo emite `ProjectStore.append`, que sabe —y solo puede saber— que ese crudo
+    ya esta en el log. Lo que NO puede decir es si la corrida anterior cubre lo que se
+    venia a cubrir: la capa que escribe el log no conoce el panel de hoy, y no deberia.
+
+    El caso que lo pide (2026-09-07) es el que hace la diferencia entera: se solto el
+    resultado viejo de SpliceAI **intentando cubrir a `3utr:359`**, que entro en el panel
+    DESPUES de esa corrida. El mensaje decia, con razon, que no habia nada nuevo que
+    guardar — y dejaba al usuario yendo a buscar la tarjeta del frente, en otra parte de
+    la pagina, para enterarse de que la corrida vieja deja fuera justo a los dos que le
+    faltaban. Se leyo como «ahora no te deja seguir», que es lo que se lee siempre de un
+    aborto que no nombra la salida.
+
+    Se DERIVA de `panel_states_by_front`, el unico sitio donde se decide si un frente
+    esta contestado (errata nº 68): recalcular la cobertura aqui seria la segunda regla
+    para la misma pregunta.
+
+    **Sin almacenes NO afirma que falte el panel entero.** No haber podido mirar y «no
+    cubre a nadie» son cosas distintas, y confundirlas es el `.out` sin resumen.
+    """
+    from .selection import blocking_fronts  # noqa: PLC0415
+
+    # EL NOMBRE SE VALIDA CONTRA LOS FRENTES DECLARADOS, no contra lo que hoy conteste
+    # algun almacen. Validarlo contra `estados` confundia dos cosas —«ese frente no
+    # existe» y «ese frente no lo contesta nadie todavia»— y abortaba en el caso normal
+    # de un proyecto sin corridas de ese frente. El principio nº 19: la pregunta era por
+    # el NOMBRE y la comprobacion miraba el CONTENIDO.
+    conocidos = {f.name for f in blocking_fronts(tiling, selection)}
+    if front not in conocidos:
+        raise ShmirDesignError(
+            f"`pending_after_duplicate` no conoce el frente {front!r}. Los que hay son: "
+            f"{', '.join(sorted(conocidos))}. Se aborta en vez de devolver «no falta "
+            f"nada»: un frente mal escrito daría el peor de los verdes — un pendiente "
+            f"invisible sobre el frente que se estaba intentando cerrar."
+        )
+    if stores is None:
+        return {"activo": False, "texto": ""}
+    estados = panel_states_by_front(
+        tiling, selection, species=species, stores=stores,
+    )["estados"]
+    por_candidato = estados.get(front)
+    if not por_candidato:
+        # HAY ALMACENES Y ESTE FRENTE NO SALE DE ELLOS: no se ha podido mirar, y eso no
+        # es «no cubre a nadie». Se calla en vez de afirmar que falta el panel entero,
+        # que es el `.out` sin resumen.
+        return {"activo": False, "texto": ""}
+    faltan = [
+        inicio for inicio in sorted(por_candidato)
+        if por_candidato[inicio] not in ESTADOS_QUE_RESPONDEN
+    ]
+    panel = len(por_candidato)
+    if not faltan:
+        # QUE NO FALTE NADA ES INFORMACION, no silencio: significa que el fichero
+        # repetido era, ademas, el que ya contestaba a todo el panel — o sea que no hay
+        # ninguna corrida pendiente y el frente esta donde tiene que estar.
+        return {
+            "activo": False,
+            "texto": (
+                f"Y no falta ninguno: la corrida que ya está registrada contesta a los "
+                f"{panel} candidatos del panel para este frente."
+            ),
+        }
+    nombres = ", ".join(_start_label(selection, inicio) for inicio in faltan)
+    return {
+        "activo": True,
+        "texto": (
+            f"Y ESO NO ES TODO EL PANEL: lo que ya está registrado contesta a "
+            f"{panel - len(faltan)} de {panel} candidatos para este frente, y "
+            f"{len(faltan)} siguen sin contestar — {nombres}. Si venías a cubrirlos, "
+            f"el fichero que hace falta es el de una corrida que los INCLUYA: se "
+            f"descarga el conjunto de este modal con el panel de hoy, se corre, y se "
+            f"sube ESE resultado."
+        ),
+    }
 
 
 def panel_first(filas):

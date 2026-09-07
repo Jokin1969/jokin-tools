@@ -112,8 +112,8 @@ class TestLaTarjetaYLaColumnaNOpuedenDiscrepar(unittest.TestCase):
     def test_NINGUN_frente_con_columna_puede_estar_abierto_con_el_panel_contestado(self):
         """La invariante entera, no sólo los dos del reporte."""
         # Sólo los frentes que SON una columna de la tabla: `empalme_intron` y
-        # `empalme_sitios` no lo son —lo declara `FRONTS_WITHOUT_COLUMN`— así que de
-        # ellos no hay columna con la que comparar.
+        # `empalme_sitios` no lo son —lo declara `NO_CABE_COLUMNA_POR_CANDIDATO`— así
+        # que de ellos no hay columna con la que comparar.
         for frente, tarjeta in self.tarjetas.items():
             if frente not in self.filas[0]:
                 continue

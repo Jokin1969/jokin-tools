@@ -51,13 +51,13 @@ class TestLaTablaSE_DECLARA(unittest.TestCase):
     def test_el_frente_declarado_EXISTE(self):
         """Un frente inventado dejaría la retirada sin poder cruzarse con nada."""
         from shmir_design.presentation import (
-            FRONTS_WITHOUT_COLUMN, STORE_FOR_FRONT,
+            NO_CABE_COLUMNA_POR_CANDIDATO, STORE_FOR_FRONT,
         )
 
         # Los frentes que tienen ALMACÉN de corridas, más los que se cierran por par y
         # no tienen columna por candidato. Un frente inventado en la tabla no podría
         # cruzarse con nada: la retirada diría caer por algo que no existe.
-        conocidos = set(STORE_FOR_FRONT) | set(FRONTS_WITHOUT_COLUMN)
+        conocidos = set(STORE_FOR_FRONT) | set(NO_CABE_COLUMNA_POR_CANDIDATO)
         for entrada in retirados.declarados():
             self.assertIn(entrada["frente"], conocidos, entrada)
 

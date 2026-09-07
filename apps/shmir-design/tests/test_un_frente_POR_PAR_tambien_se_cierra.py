@@ -5,8 +5,8 @@
 guardaran. Su autor perdió **tres corridas de SpliceAI** llegando hasta aquí.
 
 Y el mecanismo no era «se guarda y nadie lo lee» por descuido. Era peor y más difícil de
-ver: `FRONTS_WITHOUT_COLUMN` se declaró para UNA cosa —«no cabe en una columna por
-candidato, porque su unidad es el par»— y ese motivo está bien escrito y es correcto. Pero
+ver: `NO_CABE_COLUMNA_POR_CANDIDATO` —entonces llamada `FRONTS_WITHOUT_COLUMN`— se
+declaró para UNA cosa —«no cabe en una columna por candidato, porque su unidad es el par»— y ese motivo está bien escrito y es correcto. Pero
 el único camino que **cierra** un frente sale de `STORE_FOR_FRONT`, y quien no está en ella
 no está en ninguna. Así que **no tener columna pasó a significar no poder cerrarse**, y eso
 no lo decidió nadie.
@@ -18,7 +18,7 @@ Con las palabras del responsable del proyecto, que es quien lo nombró (principi
     para ellos. Y no da error porque cada uso es coherente con la lista.»
 
 Las dos decisiones van ahora separadas y **cada una declara lo suyo**: si tiene columna lo
-dice `FRONTS_WITHOUT_COLUMN`; si puede cerrarse y con qué almacén lo dice
+dice `NO_CABE_COLUMNA_POR_CANDIDATO`; si puede cerrarse y con qué almacén lo dice
 `PAIR_UNIT_FRONTS`.
 
 Regla 5: escrito antes.
@@ -63,11 +63,11 @@ class AlmacenFalso:
 class TestLasDosDECISIONES_van_separadas(unittest.TestCase):
 
     def test_hay_una_lista_para_la_COLUMNA_y_otra_para_el_CIERRE(self):
-        self.assertIn("empalme_sitios", presentation.FRONTS_WITHOUT_COLUMN)
+        self.assertIn("empalme_sitios", presentation.NO_CABE_COLUMNA_POR_CANDIDATO)
         self.assertIn("empalme_sitios", presentation.PAIR_UNIT_FRONTS)
 
     def test_y_cada_una_dice_lo_SUYO(self):
-        columna = presentation.FRONTS_WITHOUT_COLUMN["empalme_sitios"]
+        columna = presentation.NO_CABE_COLUMNA_POR_CANDIDATO["empalme_sitios"]
         cierre = presentation.PAIR_UNIT_FRONTS["empalme_sitios"]
         self.assertIn("columna", columna)
         self.assertIn("almacen", cierre)

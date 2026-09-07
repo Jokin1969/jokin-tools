@@ -2784,7 +2784,8 @@ CSV de miRarchitect: nada falla, todo cuadra, y lo que sale contesta otra pregun
 
 ## 53 — Una lista de exclusión declarada para un propósito acaba gobernando todos los que la consultan
 
-La formulación es del responsable del proyecto, sobre `FRONTS_WITHOUT_COLUMN`:
+La formulación es del responsable del proyecto, sobre la lista que hoy se llama
+`NO_CABE_COLUMNA_POR_CANDIDATO` y entonces se llamaba `FRONTS_WITHOUT_COLUMN`:
 
 > *«Una lista de excepciones declarada para un propósito se convierte en la condición de
 > todo lo que la consulta, y los usos posteriores heredan una decisión que no se tomó para
@@ -2823,7 +2824,7 @@ tres enseñan:
 
 | lista | lectores | ¿instancia? |
 |---|---|---|
-| `FRONTS_WITHOUT_COLUMN` | la columna y el cierre | **SÍ** — el caso. Separadas: `PAIR_UNIT_FRONTS` declara el cierre |
+| `FRONTS_WITHOUT_COLUMN` | la columna y el cierre | **SÍ** — el caso. Separadas: `PAIR_UNIT_FRONTS` declara el cierre. **Y renombrada**: hoy `NO_CABE_COLUMNA_POR_CANDIDATO` |
 | `manifest._NO_SON_DATOS` | `check_directory` y `deposit_vs_versioned` | **SÍ** — y la introduje YO un día después de nombrar el patrón |
 | `ESTADOS_SIN_RESPUESTA` | tres sitios de `presentation` | **NO** — los tres preguntan lo mismo, y está escrito que es a propósito |
 
@@ -2844,6 +2845,36 @@ Ante una lista de exclusión con dos consumidores, la pregunta no es «¿los dos
 mismo?» sino **«¿los dos excluyen POR LO MISMO?»**. Si los motivos que se escribirían son
 distintos, son dos listas aunque hoy tengan el mismo contenido — y la coincidencia de hoy
 es justo lo que impide ver la divergencia de mañana.
+
+### COROLARIO (2026-09-07) — si una lista tiene dos lecturas posibles, RENÓMBRALA
+
+La formulación es del responsable del proyecto, después de que la MISMA lista mordiera
+por segunda vez:
+
+> *«El 53 por segunda vez sobre la misma lista confirma que el corolario no basta:
+> `FRONTS_WITHOUT_COLUMN` ya había mordido una vez y volvió a morder por el otro lado. Si
+> una lista tiene dos lecturas posibles, renómbrala.»*
+
+**Las dos mordidas van por lados opuestos, y ésa es la prueba de que el arreglo anterior
+era incompleto.** La primera: «sin columna» pasó a significar «no puede cerrarse», así que
+`empalme_sitios` se quedaba en `NOT_RUN` con las corridas guardadas dentro. Se separó el
+cierre a `PAIR_UNIT_FRONTS`, se escribió el motivo, y se dio por cerrado. La segunda, el
+mismo día: el frente **sí** tenía columna —en la tabla de pantalla y en el export— y el
+código que la resuelve la dejó fuera **por estar en esa lista**, con el mismo
+razonamiento y en la dirección contraria.
+
+**Separar los consumidores no impide la relectura; el nombre sí.** Un nombre que admite
+dos lecturas se relee cada vez que alguien lo encuentra, y quien lo relee no está leyendo
+mal: está leyendo lo que el nombre dice. El comentario que lo aclara vive en la
+declaración y quien consulta la lista está en otro fichero — **un comentario protege su
+línea; un nombre viaja con cada uso** (principio nº 31, aplicado al identificador).
+
+**La regla operativa**: el nombre dice **qué no cabe y dónde**, no «qué no hay».
+`FRONTS_WITHOUT_COLUMN` pasa a `NO_CABE_COLUMNA_POR_CANDIDATO`, que **no se puede leer**
+como «sin columna en ninguna parte» — porque nombra el eje. Y la prueba de que un nombre
+está bien puesto es la misma que la de que dos listas son dos: **enunciar la lectura
+equivocada y ver si el nombre la admite**. Si la admite, el motivo escrito no la va a
+impedir.
 
 ## 54 — Una excepción declarada es una HIPÓTESIS, y el uso puede refutarla
 
@@ -2894,3 +2925,59 @@ en vez de abortar— y ésas sí las sostiene un test.
 
 Lo que queda del barrido no es una lista: es que la pregunta pasa a hacerse **al declarar
 la excepción**, que es cuando cuesta cero.
+
+## 55 — Un artefacto que dice MENOS que la pantalla es peor que uno que falla
+
+La formulación es del responsable del proyecto, con el export de candidatos delante y
+después de descubrir que llevaba días leyéndolo:
+
+> *«Un artefacto que dice menos que la pantalla es peor que uno que falla, porque el que
+> lo lee no tiene la pantalla delante para contrastar. Y aquí llevaba días.»*
+
+### EL CASO (2026-09-07, errata del export)
+
+`outputs.tsv_selected` montaba sus columnas de `window.filters` —los filtros de la
+VENTANA— y **no recibía los almacenes nunca**. Dos consecuencias, medidas antes de tocar
+nada:
+
+- `offtarget_seed` y `empalme_sitios` **no tenían columna** en el export y **sí** en la
+  tabla de pantalla, que deriva las suyas de `blocking_fronts`;
+- y las columnas que sí salían —`especificidad`, `seed_colision`— eran el **estado del
+  filtro de ventana**, no el **veredicto del frente con la corrida guardada encima**. O
+  sea que una corrida de BLAST cerraba el frente en pantalla y el export seguía diciendo
+  `NOT_RUN` de los mismos once candidatos.
+
+### Por qué es PEOR que fallar, y no una forma suave de fallar
+
+Un artefacto que falla se nota: no sale, sale vacío, aborta. **El que dice menos sale con
+la forma correcta**, y su lector —por correo, dentro de un pedido, dentro de un año— no
+tiene la pantalla al lado para contrastar. La pantalla se mira con la app abierta y con la
+corrida delante; **el export es lo que viaja**, y viaja solo.
+
+Y por eso la asimetría no se puede compensar con cuidado: el que mira la pantalla puede
+descubrir que el export miente; el que sólo tiene el export, no. Cuanto más lejos llega un
+artefacto de quien lo generó, **menos margen tiene de decir menos**.
+
+**Este llevaba días leyéndose.** Un fallo ruidoso cuesta una tarde; éste costó todas las
+decisiones tomadas con ese fichero delante mientras nadie sabía que decía otra cosa. Misma
+familia que el «Alu 0 %» y que el `verify()` que no verificaba: **el producto normal del
+fallo es una salida creíble**.
+
+### La regla
+
+Cuando la misma información salga por dos superficies —pantalla y fichero, informe y
+tabla, modal y export— **la que viaja manda**, y la comprobación se escribe en esa
+dirección: *toda columna que la pantalla emite tiene que estar en el artefacto*, derivada
+del mismo sitio y no listada a mano. Si una de las dos ha de quedarse corta, que sea la
+que se mira con la app delante.
+
+- **Se DERIVA, no se lista.** `tests/test_el_EXPORT_dice_lo_mismo_que_la_PANTALLA.py`
+  compara el export contra `front_columns` en vez de contra una lista escrita: un frente
+  nuevo entra solo en las dos, y el que se olvide de una hace fallar la suite.
+- **No basta con que la columna exista: la CELDA tiene que decir lo mismo**, letra por
+  letra, con la misma corrida guardada — y con control adversario, porque sin él
+  «coincide» y «la columna no mira nada» dan el mismo verde.
+- **Y el guardia se mueve con el emisor.** El que había cubría `_filter_columns` dentro de
+  `presentation.py` y no vio esto porque el export vive en `outputs.py`. La regla es la
+  misma un módulo más allá: **quien emita un estado por filtro le pide las columnas a
+  `presentation`**, que es donde se decide qué dicen los almacenes.

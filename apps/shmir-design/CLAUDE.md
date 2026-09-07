@@ -4898,7 +4898,8 @@ Pásalos antes de cada commit que toque `apps/shmir-design/`.
     tabla sin dar ningún error—. **Comprobado que falla con el código de antes**, en los
     dos frentes por hebra.
   - **Y hay un caso hermano que SÍ estaba protegido**: `empalme_sitios` tiene su propia
-    dimensión —par candidato × intrón— y está declarado en `FRONTS_WITHOUT_COLUMN` con el
+    dimensión —par candidato × intrón— y está declarado en
+    `NO_CABE_COLUMNA_POR_CANDIDATO` (entonces `FRONTS_WITHOUT_COLUMN`) con el
     motivo. O sea que el proyecto ya tenía una dimensión declarada y protegida y otra
     declarada y no protegida: **declararla no basta, hay que derivar de la declaración cada
     consulta que la atraviesa**.
@@ -5759,7 +5760,8 @@ la hoja describe el CONJUNTO; lo que se copia a un pedido es **el bloque de un f
   contestado: reimplementarlo aquí sería la segunda regla para la misma pregunta (errata
   nº 68). Y la lista de qué cuenta como laguna se **deriva** de `ESTADOS_SIN_RESPUESTA`.
 - **LOS FRENTES SIN COLUMNA POR CANDIDATO TAMBIÉN SALEN**, derivados de
-  `FRONTS_WITHOUT_COLUMN`. Si `empalme_sitios` faltara, la fila diría «sin contestar:
+  `NO_CABE_COLUMNA_POR_CANDIDATO`. Si `empalme_sitios` faltara, la fila diría «sin
+  contestar:
   especificidad» y quien la lee concluiría que el empalme SÍ está contestado — el fallo
   que esta sección existe para impedir, un frente más allá.
 - **`None` NO es `()`**: `fronts=None` es «nadie ha preguntado» y `fronts=()` es «se
@@ -5858,6 +5860,18 @@ pantalla? Si sólo en pantalla, es la novena tabla del guardia de `_filter_colum
 entonces el export es un artefacto que dice menos que la pantalla, que es peor que al
 revés porque el export es lo que viaja»*.
 
+**Y con el fichero ya medido, la lectura entera, que es PRINCIPIO nº 55**: *«las columnas
+que sí salían eran estados de filtro, no veredictos con la corrida encima. Así que los
+exports que llevo días mirando decían una cosa distinta de la pantalla. Un artefacto que
+dice menos que la pantalla es peor que uno que falla, porque el que lo lee no tiene la
+pantalla delante para contrastar. Y aquí llevaba días»*. Un artefacto que falla se nota
+—no sale, sale vacío, aborta—; **el que dice menos sale con la forma correcta** y su
+lector, por correo o dentro de un año, no tiene con qué contrastarlo. La asimetría no se
+compensa con cuidado: quien mira la pantalla puede descubrir que el export miente, quien
+sólo tiene el export no. **Cuanto más lejos llega un artefacto de quien lo generó, menos
+margen tiene de decir menos**, así que cuando la misma información sale por dos
+superficies **manda la que viaja** — y la comprobación se escribe en esa dirección.
+
 - **Era eso.** `outputs.tsv_selected` montaba sus columnas de `window.filters` —los
   filtros de la VENTANA— y no recibía los almacenes nunca. Así que `offtarget_seed` no
   tenía columna, y las que sí salían eran estados de filtro y **no veredictos de frente
@@ -5886,6 +5900,15 @@ fila**: por eso los once candidatos salían `INCOMPLETE` con la corrida de Splic
 del proyecto. **Principio nº 53 por segunda vez sobre la misma lista**:
 `FRONTS_WITHOUT_COLUMN` se leyó como «sin columna en ninguna parte» y lo que declara es
 que no cabe una columna POR PAR donde la fila es el candidato.
+
+**Y POR ESO LA LISTA SE RENOMBRA A `NO_CABE_COLUMNA_POR_CANDIDATO`** (corolario del
+principio nº 53). La primera mordida se arregló separando el cierre a `PAIR_UNIT_FRONTS`
+y escribiendo el motivo; la segunda llegó **por el lado contrario** —el frente sí tiene
+columna, en la pantalla y en el export, y el código que la resuelve lo dejó fuera **por
+estar en esa lista**— y con el mismo razonamiento. **Separar los consumidores no impide la
+relectura; el nombre sí**: un comentario protege su línea y un nombre viaja con cada uso.
+El nuevo dice qué no cabe y DÓNDE, así que no se puede leer como «sin columna en ninguna
+parte».
 
 - `_store_state` resuelve ahora los frentes por par, con la regla que `PAIR_UNIT_FRONTS`
   ya tenía escrita: contestado en cuanto alguno de sus pares lo está.
@@ -5925,6 +5948,36 @@ fichero subido dos veces y eso debería reconocerse, como haces con BLAST»*.
 - El mensaje dice **cuál es la corrida anterior y de qué día**, y que la salida no es
   cambiar la fecha: si lo que se quería era repetir la comprobación, hay que volver a
   correrla; si sólo consultarla, ya está en el historial.
+
+### Y EL RECHAZO DICE LO QUE SIGUE FALTANDO (errata nº 135)
+
+Reportado el mismo día, con el aborto en pantalla y en estas palabras: *«resulta que ahora
+no te deja seguir»*. El guardia hacía lo que debe —el fichero soltado era byte a byte el de
+una corrida ya registrada— y **aun así la lectura fue ésa**, porque quien lo soltaba estaba
+intentando cubrir a `3utr:359`, que entró en el panel DESPUÉS de aquella corrida.
+
+- **`ProjectStore.append` no puede decirlo, y no debería.** Sabe que ese crudo ya está en
+  el log; **no sabe cuál es el panel de hoy** — es la capa que escribe, y darle el panel
+  sería meterle una segunda pregunta. Así que el aborto era correcto y dejaba al usuario
+  yendo a buscar la tarjeta del frente, en otra parte de la página, para enterarse de que
+  la corrida vieja deja fuera justo a los dos que le faltaban.
+- **Principio nº 47: la salida va donde está el BLOQUEO**, y el bloqueo está en el botón
+  de guardar. `presentation.pending_after_duplicate` emite ahí, pegado al aborto, cuántos
+  del panel contesta lo que ya está registrado y **nombra a los que no** — con la salida
+  dicha: el fichero que hace falta es el de una corrida que los INCLUYA.
+- **Se DERIVA de `panel_states_by_front`**, el único sitio donde se decide si un frente
+  está contestado (errata nº 68): recalcular la cobertura ahí habría sido la segunda regla
+  para la misma pregunta.
+- **Que no falte ninguno también se dice**, en gris y sin alarma: significa que el fichero
+  repetido era además el que ya lo contestaba todo. Callarlo dejaría «no falta nada» y «no
+  se ha mirado» con la misma pantalla.
+- **Sin almacenes NO afirma que falte el panel entero**: no haber podido mirar no es «no
+  cubre a nadie» — el `.out` sin resumen. Y un frente mal escrito **aborta** en vez de
+  salir vacío: daría el peor de los verdes, un pendiente invisible sobre el frente que se
+  estaba intentando cerrar. El nombre se valida contra los frentes **declarados**
+  (`blocking_fronts`), no contra lo que hoy conteste algún almacén — validarlo contra lo
+  segundo confundía «ese frente no existe» con «todavía no lo contesta nadie», que es el
+  principio nº 19: la pregunta era por el NOMBRE y la comprobación miraba el CONTENIDO.
 
 ## LOS PERCENTILES DE CARGA, DESTACADOS — Y LA CONVERGENCIA DE DOS SEÑALES (2026-09-07)
 

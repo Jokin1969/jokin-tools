@@ -161,6 +161,7 @@ from shmir_design.presentation import (  # noqa: E402
     front_card_rows,
     fronts_closed_over_panel,
     panel_states_by_front,
+    pending_after_duplicate,
     verdicts_changed,
     folding_capability,
     folding_contrast_rows,
@@ -2235,7 +2236,7 @@ def main() -> None:
 
 
 def _guardar_corrida(proyecto, nombre: str, *, construir, guardar, clave: str,
-                     tiling=None, seleccion=None) -> None:
+                     tiling=None, seleccion=None, frente: str = "") -> None:
     """Guarda la corrida de un modal en el log del proyecto.
 
     Es el mismo formulario para los cuatro: sin fecha y sin quién la corrió el registro
@@ -2290,6 +2291,21 @@ def _guardar_corrida(proyecto, nombre: str, *, construir, guardar, clave: str,
             except (ShmirDesignError, ValueError, OSError) as exc:
                 # rule2-ok: frontera de la interfaz. Nada se guarda y se dice por qué.
                 st.error(f"**PARA** — {exc}")
+                # Y LO QUE SIGUE FALTANDO, aquí y no en la tarjeta del frente. El
+                # aborto por fichero repetido dice que no hay nada nuevo que guardar;
+                # quien lo suelta estaba intentando cubrir a alguien. Se leyó como «no
+                # te deja seguir» (2026-09-07), y es lo que se lee siempre de un aborto
+                # que no nombra la salida. Principio nº 47: la salida va donde está el
+                # bloqueo. Lo decide `presentation`, no esta página (regla 6).
+                if frente and tiling is not None and seleccion is not None:
+                    pendiente = pending_after_duplicate(
+                        tiling, seleccion, species=nombre, front=frente,
+                        stores=load_stores(proyecto),
+                    )
+                    if pendiente["texto"]:
+                        (st.warning if pendiente["activo"] else st.caption)(
+                            pendiente["texto"]
+                        )
             else:
                 if tiling is None or seleccion is None:
                     resumen = {
@@ -2552,7 +2568,7 @@ def _modal_blast(seleccion, nombre: str, proyecto=None, tiling=None) -> None:
                     database=base,
                     date=fecha, uploaded_by=quien,
                 ),
-                guardar=save_blast_run, clave="blast",
+                guardar=save_blast_run, clave="blast", frente="especificidad",
                 tiling=tiling, seleccion=seleccion,
             )
     else:
@@ -2661,7 +2677,7 @@ def _modal_seed(seleccion, nombre: str, maduros, proyecto=None,
             construir=lambda fecha, quien: seed_run_from_scan(
                 scan, date=fecha, ran_by=quien
             ),
-            guardar=save_seed_run, clave="seed",
+            guardar=save_seed_run, clave="seed", frente="seed_colision",
             # QUE VEREDICTOS CAMBIA, tambien aqui. Sin `tiling` y `seleccion` la
             # confirmacion era un «Guardada en el log» plano, y el CERO —que es la señal
             # de que el guardado no ha movido nada— no se veia en tres de los cuatro
@@ -2993,7 +3009,7 @@ def _modal_empalme(seleccion, nombre: str, diana: str, casete, proyecto=None,
             scan, raw=_read_upload(subido), date=fecha, ran_by=quien,
             executor=splice_executor_text(),
         ),
-        guardar=save_splice_run, clave="sp",
+        guardar=save_splice_run, clave="sp", frente="empalme_sitios",
         tiling=tiling, seleccion=seleccion,
     )
 
@@ -3173,7 +3189,7 @@ def _modal_offtarget(seleccion, nombre: str, maduros, diana: str,
             construir=lambda fecha, quien: offtarget_run_from_scan(
                 scan, date=fecha, ran_by=quien
             ),
-            guardar=save_offtarget_run, clave="ot",
+            guardar=save_offtarget_run, clave="ot", frente="offtarget_seed",
             tiling=tiling, seleccion=seleccion,
         )
 

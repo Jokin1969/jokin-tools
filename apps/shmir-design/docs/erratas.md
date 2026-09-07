@@ -3607,7 +3607,8 @@ muerde es la errata nº 29 otra vez.
 ### Y hay un caso hermano que SÍ estaba protegido
 
 `empalme_sitios` también tiene una dimensión propia —su unidad es el par candidato ×
-intrón— y **está declarado** en `FRONTS_WITHOUT_COLUMN` con el motivo escrito, para que
+intrón— y **está declarado** en `NO_CABE_COLUMNA_POR_CANDIDATO` —que entonces se llamaba
+`FRONTS_WITHOUT_COLUMN`— con el motivo escrito, para que
 nadie le dé una columna por candidato y colapse justo lo que ese frente existe para
 comparar. O sea: el proyecto ya tenía una dimensión declarada **y protegida**, y otra
 declarada (`por_hebra`) **y no protegida**. Declararla no basta; hay que derivar de la
@@ -6600,14 +6601,15 @@ dejaba el `NOT_RUN` en la tabla de candidatos.
 `selection.blocking_fronts` añade `empalme_sitios` con un motivo `NOT_RUN` escrito a mano
 e **incondicionalmente**; nunca consulta el almacén. Y el único camino que cierra un frente
 —`closed_by_panel`, construido desde `panel_states_by_front` → `STORE_FOR_FRONT`— **lo
-excluye**, porque está en `FRONTS_WITHOUT_COLUMN`.
+excluye**, porque está en `NO_CABE_COLUMNA_POR_CANDIDATO` —que entonces se llamaba
+`FRONTS_WITHOUT_COLUMN`, y ése fue medio problema (ver el corolario del principio nº 53)—.
 
 Esa exclusión se declaró para otra cosa: «no cabe en una columna por candidato, porque su
 unidad es el par». Motivo correcto y bien escrito. Pero **no tener columna acabó
 significando no poder cerrarse**, y eso no lo decidió nadie. Queda como **principio nº 53**.
 
-**Las dos decisiones van ahora separadas.** `FRONTS_WITHOUT_COLUMN` sigue diciendo lo suyo
-—si hay columna— y `PAIR_UNIT_FRONTS` dice lo otro: **con qué almacén se cierra y por qué**.
+**Las dos decisiones van ahora separadas.** `NO_CABE_COLUMNA_POR_CANDIDATO` sigue diciendo
+lo suyo —si hay columna por candidato— y `PAIR_UNIT_FRONTS` dice lo otro: **con qué almacén se cierra y por qué**.
 Un candidato queda contestado en cuanto **alguno de sus pares** lo está, que es lo que
 significa haber corrido SpliceAI sobre ese cassette; el que no estuvo en la corrida sigue
 sin contestar, que también es la verdad. Y un frente no puede estar en las dos listas: dos
