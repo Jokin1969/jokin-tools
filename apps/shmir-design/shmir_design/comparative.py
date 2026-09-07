@@ -342,10 +342,16 @@ def comparative_tsv(
         f"# {l}\n"
         for l in (coordinate_note(anatomy) + "\n" + CONVENTION_NOTE).splitlines()
     )
-    # El sello de la versión ARRIBA DEL TODO, antes de la prosa: es lo primero que hace
-    # falta cuando el fichero no cuadra con lo que se esperaba. Mismo motivo y misma
-    # línea que en `outputs.tsv_selected` y en el FASTA de empalme.
-    return build_line() + "\n" + CABECERA + nota + cuerpo
+    # LA PROSA Y EL SELLO VAN DETRÁS DE LOS DATOS (2026-09-07, errata nº 142). Iban
+    # delante —el sello arriba del todo, «lo primero que hace falta cuando el fichero no
+    # cuadra»— y ahí los toma Excel como fila de títulos: la cabecera de columnas baja una
+    # fila y todo se lee corrido, sin dar ningún error.
+    #
+    # Se mueve TAMBIÉN la prosa y no sólo el sello: el motivo es el mismo y dejar la prosa
+    # delante habría dejado este fichero exactamente igual de roto. No se recorta nada —va
+    # entera y en el mismo orden—, y `tsv_header` / `tsv_rows` saltan los comentarios estén
+    # donde estén, así que ningún lector de la app se entera.
+    return cuerpo + "\n" + CABECERA + nota + build_line()
 
 
 #: Columnas que se enseñan en el bloque legible del informe. La tabla entera no cabe en

@@ -225,7 +225,13 @@ def tsv_selected(
     # las columnas de dos frentes y no podía distinguir «no está arreglado» de «el
     # despliegue va por detrás». Va como comentario `#`, así que la cabecera de
     # columnas sigue siendo la primera línea de datos.
-    return build_line() + "\n" + _tsv(rows)
+    # EL SELLO VA AL FINAL, y no es una preferencia de formato (2026-09-07, errata
+    # nº 142). Arriba lo tomaba Excel como fila de títulos y la cabecera real bajaba una
+    # fila: todas las columnas se leen corridas, sin dar ningún error. `tsv_header` y
+    # `tsv_rows` saltan los comentarios ESTÉN DONDE ESTÉN, así que para quien lo lee con
+    # la app no cambia nada. Se pierde «arriba del todo» y se gana que el fichero se abra
+    # bien en la herramienta con la que se lee de verdad.
+    return _tsv(rows) + "\n" + build_line()
 
 
 def fasta_guides(selection: ReportSelection, *, species: str) -> str:

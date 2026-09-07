@@ -6432,3 +6432,30 @@ familia que buscar `st.rerun()` y encontrarlo dentro del comentario que lo expli
 **Lo que sigue faltando para cerrar la nº 130** es una sola observación: con la pestaña de
 red abierta, si el navegador pide `/shmir/media/…` y esa petición no responde, el problema
 es de transporte; si no la pide, es del cliente.
+
+---
+
+## EL SELLO VA AL FINAL DEL TSV (2026-09-07)
+
+El `# BUILD:` se puso arriba del todo esa misma mañana, con un motivo que **sigue siendo
+cierto** —«es lo primero que hace falta cuando el fichero no cuadra»— y en el sitio
+equivocado: **Excel toma la primera línea como fila de títulos**, así que la cabecera de
+columnas baja una fila y todas se leen corridas, sin ningún error. Costó dos rondas
+contando columnas sobre un fichero desplazado (errata nº 142).
+
+- **Se mueve, no se quita.** `presentation.tsv_header` y `tsv_rows` saltan los comentarios
+  **estén donde estén**, así que ningún lector de la app se entera; Excel recupera la
+  cabecera en la fila 1.
+- **También la prosa de la comparativa**, por el mismo motivo: dejarla delante habría
+  dejado ese fichero igual de roto. Va entera y en el mismo orden, detrás de los datos.
+- **El FASTA de empalme lo conserva arriba** y no es un olvido: no se abre en una hoja de
+  cálculo, y en un FASTA la cabecera de comentarios es su sitio.
+- **El guardia se DERIVA del paquete** (`test_NINGUN_TSV_empieza_por_comentario.py`): sobre
+  los `.tsv` que emite `output_bundle`, la primera línea tiene que **ser** la que devuelve
+  `tsv_header`. Con control de que el detector ha mirado y de que el sello sigue estando —
+  si no, «no empieza por comentario» se cumpliría borrándolo.
+
+**Y seis tests que fijaban la decisión anterior cambian con ella**: lo que fijan pasa a ser
+lo invariante —que el sello esté y que la primera línea sea la cabecera—, no dónde está. Es
+el principio nº 56 por su lado bueno: un test que fija una decisión se mueve cuando la
+decisión se mueve; no la bloquea.

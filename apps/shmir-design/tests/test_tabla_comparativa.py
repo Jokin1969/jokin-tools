@@ -154,7 +154,10 @@ class TestTSV(unittest.TestCase):
             l for l in texto.splitlines() if l.startswith("#")
         )
         self.assertIn("knockdown_medido", comentarios)
-        self.assertTrue(texto.startswith("#"))
+        # Los comentarios van DETRÁS de los datos desde la errata nº 142: arriba,
+        # Excel los tomaba como fila de títulos y la cabecera bajaba una fila.
+        self.assertFalse(texto.startswith("#"))
+        self.assertTrue(texto.rstrip().splitlines()[-1].startswith("#"))
 
 
 if __name__ == "__main__":

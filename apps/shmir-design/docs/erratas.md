@@ -6970,3 +6970,51 @@ lo contiene. La forma del fallo deja de poder escribirse.
 `bloque_especie` tiene dos descargas de naturaleza distinta —los informes binarios y el
 export de texto—, así que sale a la vez como exenta y como copiable. Un test que lo
 prohibiera daría rojo sobre código correcto; se escribió, dio ese rojo y se retiró.
+
+---
+
+## 142 — El sello arriba del todo hacía que Excel se comiera la cabecera
+
+El `# BUILD:` se puso arriba del todo el 2026-09-07 con este motivo: *«es lo primero que
+hace falta cuando el fichero no cuadra con lo que se esperaba»*. **El motivo sigue siendo
+cierto y el sitio era el equivocado.**
+
+**Excel toma la primera línea como fila de títulos.** Con el sello ahí, la cabecera de
+columnas baja una fila y **todas las columnas se leen corridas**, sin dar ningún error.
+Costó dos rondas: se reportó un `FAIL` en «la columna 12 de 16», luego en «la 10», y
+ninguna de las dos era una columna de estado —la 10 de `<especie>_seleccionados.tsv` es
+`penalizacion`, un número—. El fallo no estaba en el fichero: estaba en que las columnas
+que se estaban contando no eran las que el fichero tiene.
+
+### Se mueve al FINAL, no se quita
+
+`presentation.tsv_header` y `tsv_rows` saltan los comentarios **estén donde estén**, así
+que para quien lo lee con la app no cambia nada; para Excel, la cabecera vuelve a la fila
+1. Lo que se pierde es «arriba del todo», y a cambio el fichero se abre bien en la
+herramienta con la que se lee de verdad.
+
+### Y se aplica TAMBIÉN a la prosa de la comparativa
+
+`comparativa.tsv` llevaba además un bloque de prosa delante de la cabecera —la que explica
+la columna `knockdown_medido` vacía y que `score_externo` es informativo—. El motivo es el
+mismo y dejarla delante habría dejado ese fichero **exactamente igual de roto**: media
+medida. Va entera y en el mismo orden, detrás de los datos.
+
+**El FASTA de empalme conserva el sello arriba**, y eso no es una excepción olvidada: no
+se abre en una hoja de cálculo, y en un FASTA la cabecera de comentarios es su sitio.
+
+### El guardia se DERIVA del paquete
+
+`tests/test_NINGUN_TSV_empieza_por_comentario.py` recorre los `.tsv` que emite
+`output_bundle` y exige que la primera línea sea la cabecera de columnas — no sólo que no
+empiece por `#`, sino que **sea** la que devuelve `tsv_header`. Un TSV nuevo queda cubierto
+sin que nadie se acuerde, y hay control de que el detector ha encontrado ficheros
+(principio nº 51) y de que el sello **sigue estando**: sin eso, «no empieza por comentario»
+se cumpliría borrándolo.
+
+### Seis tests fijaban la decisión anterior, y cambian con ella
+
+Afirmaban que el sello está en la primera línea. La decisión cambió a propósito, así que lo
+que fijan pasa a ser lo que sí es invariante: **que el sello esté y que la primera línea
+sea la cabecera**. Es el principio nº 56 por su lado bueno — un test que fija una decisión
+tiene que moverse cuando la decisión se mueve, no bloquearla.

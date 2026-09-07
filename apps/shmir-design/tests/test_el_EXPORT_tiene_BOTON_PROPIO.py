@@ -83,11 +83,14 @@ class TestElBotonExiste(unittest.TestCase):
         self.assertNotIn(".tsv", boton["etiqueta"])
         self.assertIn(boton["nombre"], boton["nota"])
 
-    def test_los_datos_empiezan_por_el_sello_BUILD(self):
+    def test_los_datos_LLEVAN_el_sello_BUILD(self):
         from shmir_design.identidad import BUILD_PREFIX
 
-        primera = self._boton()["datos"].splitlines()[0]
-        self.assertTrue(primera.startswith(BUILD_PREFIX), primera)
+        # AL FINAL desde la errata nº 142. Lo que se exige no es dónde está: es que
+        # ESTÉ, y que la primera línea sea la cabecera de columnas.
+        lineas = [l for l in self._boton()["datos"].splitlines() if l.strip()]
+        self.assertTrue(lineas[-1].startswith(BUILD_PREFIX), lineas[-1])
+        self.assertFalse(lineas[0].startswith("#"), lineas[0])
 
     def test_es_TSV_de_verdad_y_el_mime_lo_dice(self):
         boton = self._boton()
