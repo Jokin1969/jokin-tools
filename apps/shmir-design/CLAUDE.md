@@ -6602,6 +6602,77 @@ abiertos sean los del humano.
   —el bloque siguiente, errata nº 157—, que es lo que hace que el diff de este golden
   las enseñe en vez de fundirlas con el cambio que las destapó.
 
+## LOS CANDIDATOS HUMANOS PASAN OFF-TARGETS CONTRA LOS DOS TRANSCRIPTOMAS. DECIDIDO (2026-09-08)
+
+Con las palabras del responsable del proyecto, citadas tal cual y anotadas con su nombre
+a petición suya:
+
+> **«Los candidatos humanos pasan off-targets contra los dos transcriptomas, en un frente
+> con eje de transcriptoma y sin veredicto fundido, porque el murino mide el experimento y
+> el humano el paciente.»**
+> — Joaquín Castilla, 2026-09-08.
+
+**EL MODELO ES UN RATÓN HUMANIZADO**: BAC de PRNP humana y `Prnp` murino noqueado. El
+transcrito diana es `NM_000311.5`, pero el transcriptoma que se expresa en ese animal es
+el **MURINO** más el transgén — el transcriptoma humano **no está en el animal**.
+
+### El razonamiento que la decide, también con sus palabras
+
+> *«Los dos transcriptomas describen dos organismos distintos — el murino el ratón
+> humanizado donde se hace el experimento, el humano el paciente al que va dirigida la
+> terapia. Un número fundido no describe a ninguno de los dos. Y el percentil se calcula
+> contra una nula del mismo catálogo, así que agrupado no se refiere a nada.»*
+
+A eso se suma que **los conteos NO SON SUMABLES**: un gen conservado aparece en los dos
+catálogos, así que sumarlo lo cuenta dos veces. Es `WHY_NOT_SUMMED` un piso más arriba —
+allí eran las cuatro clases de sitio, aquí son dos catálogos.
+
+### Un EJE, no dos frentes
+
+Dos frentes serían **dos definiciones del mismo criterio**, con dos sitios donde
+arreglarlo. Lo que este proyecto ya tiene para esto es un eje, y hay dos precedentes:
+`seed_colision:guia`/`:pasajera` y `empalme_sitios` por intrón. La unidad pasa a ser
+**candidato × hebra × transcriptoma**, con **una celda por transcriptoma**, y
+`PAIR_UNIT_FRONTS` decidiendo que **el frente cierra sólo si están los dos**.
+
+### HOY NO ESTÁ IMPLEMENTADO, y se dice para que no se lea como hecho
+
+**DECIDIDO el 2026-09-08 y a implementar cuando arranque la campaña humana**, por
+decisión expresa: *«el cambio de modelo no lo hagas de paso»*. Lo que hay hoy, medido:
+
+- `required_files(human)` pide **`transcriptoma_3utr_human.fa`** y **no pide**
+  `transcriptoma_3utr.fa`: el gestor pide los ficheros de UNA especie, y este diseño
+  necesita los de dos;
+- `STORE_FOR_FRONT["offtarget_seed"]` es `{"almacen": "offtarget", "por_hebra": True}` —
+  **una sola clave de consulta por hebra**, sin sitio donde meter el catálogo;
+- `PAIR_UNIT_FRONTS` sólo tiene `empalme_sitios`.
+
+**La pieza que falta es de MODELO, no de fontanería**: hay que distinguir **especie
+DIANA** —humana, la del transcrito— de **fondo genético del MODELO** —murino—, y que los
+frentes de off-target corran contra todos los fondos declarados. Mientras eso no exista,
+una corrida humana mide **la mitad** que hace falta, y la mitad que mide es la del
+paciente y no la del experimento.
+
+### Lo que este eje NO cambia
+
+**La carga de off-targets sigue siendo DESEMPATE Y NUNCA FILTRO.**
+`OfftargetStore.verdict_for` no puede devolver `FAIL` —hay test que lo fija— y el eje no
+lo convierte en un filtro duro: lo que hace es impedir que un `PASS` de un catálogo se lea
+como si fueran los dos. Un eje que se leyera como un filtro nuevo sería exactamente el
+`especificidad: PASS` que da por cubierto lo que no se miró.
+
+### Y SpliceAI NO se corre contra ningún transcriptoma
+
+Va aquí porque la premisa volverá: `spliceai.Construction` lleva la **secuencia de la
+construcción** y su contexto —`sequence`, `context_5`, `context_3`, `donor_position`,
+`acceptor_position`— y **no hay catálogo por ninguna parte**. SpliceAI puntúa sitios de
+splicing **dentro del casete montado**; nunca ve un transcriptoma.
+
+Lo que sí depende de la especie ahí es el **CASETE**, y `aav_casete_human.fa` es justo uno
+de los ficheros que faltan. Comparar el empalme en los dos fondos se hace con **dos
+casetes**, no con dos transcriptomas, y **eso es otra decisión** — no se toma de paso.
+
+
 ## EL INVENTARIO DE ESTADOS GANA EL EJE DE LA ESPECIE (2026-09-08)
 
 D2 de `docs/revision-preparacion-humano.md`, y el último de los nueve. `data/estados.toml`
