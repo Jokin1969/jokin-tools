@@ -7227,3 +7227,77 @@ golden existiera en su forma actual: un valor **estable y equivocado** no produc
 Lo que lo destapó fue leerlo junto al derivado de al lado, que es el mismo mecanismo del
 principio nº 11 — código y prosa discrepando, y aquí las dos mitades dentro de la misma
 frase.
+
+---
+
+## 146 — La limitación dejó de imprimirse porque el amplicón se alejó, y la limitación no había cambiado
+
+`_lineas_de_cruce` emite la pareja **«QUÉ MIDE / QUÉ NO MIDE»** del ensayo de RT-qPCR, que
+es la que dice que este par de amplicones **no aísla el evento de `3utr:236`** y no
+confirma el techo del tramo intermedio. Salía bajo una sola condición:
+
+```python
+if not self.distal_crosses:
+    return []
+```
+
+Correcto mientras el distal fue `3utr:282-401`, que **atraviesa** la banda del `AATAAA`
+de `3utr:288`. Al moverse el panel (errata nº 144) el distal que emite el informe pasó a
+`3utr:850-969`, que queda **entero por detrás de las dos bandas** y no atraviesa ninguna
+— y **la pareja dejó de imprimirse**.
+
+### Lo que hace que esto sea grave y no un texto que falta
+
+**La limitación no había cambiado nada.** Un amplicón entero por detrás de una banda está
+tan ausente de esa isoforma corta como uno partido por ella: en los dos casos la razón
+mide la fracción que sobrevive a **todos** los cortes y no separa uno del otro. Lo único
+que cambió es **cuál de las dos formas de estar ausente** se daba.
+
+Así que el informe pasó a callar una limitación vigente **justo cuando el diseño mejoró**
+—el distal nuevo mide lo mismo sin quedar partido—, y un informe que calla una limitación
+no se lee como «no lo dice»: se lee como **que el problema desapareció**. Con las palabras
+con que se pidió el arreglo: *«si el informe la calla cuando no hay cruce, alguien puede
+leerlo como que el problema desapareció»*.
+
+### La condición era la FORMA del fallo, no lo que lo hace posible
+
+Es el principio nº 34 sobre un emisor en vez de sobre un guardia. `distal_crosses` es
+**cómo se veía** el caso conocido; lo que decide qué mide la razón es otra cosa y más
+ancha: **que el distal no quede entero por delante de la otra banda** —desde su corte más
+temprano posible, `end + CLEAVAGE_MIN`—. Atravesar es un caso particular de eso.
+
+`AmpliconPlan.distal_behind` lo deriva de la geometría, y `measures_all_cuts` pasa a
+leerlo a él. `distal_crosses` **no se borra**: sigue distinguiendo los dos casos, porque
+**no se arreglan igual** —uno se podría mover, el otro ya está donde tiene que estar— y
+el motivo emitido dice cuál es. Fundirlos daría una frase correcta y una instrucción
+equivocada.
+
+Y `gap_between` —el «y no se arregla moviéndolo: 11 nt para un amplicón de 120»— se
+calculaba también sólo para los que cruzan. Es la respuesta a «¿y por qué no lo mueves?»,
+y esa pregunta se le hace igual al distal que está detrás.
+
+### El control adversario, que es lo que impide el arreglo perezoso
+
+Emitir la pareja **siempre** habría hecho pasar el caso reportado y habría convertido la
+frase en ruido: un aviso que sale siempre deja de leerse.
+`test_la_limitacion_del_TRAMO_INTERMEDIO_es_PERMANENTE` exige las dos mitades —que salga
+con los **dos** distales reales de hoy, el que atraviesa y el que está detrás, y que
+**calle** cuando no hay ninguna otra señal de la que separar—. Sin la segunda, «lo dice
+cuando toca» y «lo dice siempre» darían el mismo verde.
+
+### Y la nota va además al registro, porque un informe puede volver a callarse
+
+En «SI VAS AL BANCO» queda como **nota permanente y no condicional**, con la tabla de los
+dos distales y el veredicto de los dos: ninguno aísla `3utr:236`, y no es propiedad de
+unas coordenadas sino de la geometría —entre las dos bandas caben 11 nt y el amplicón mide
+120—. Las cifras de esa nota **no están transcritas**: el test las recalcula del mismo
+plan que las emite (principio nº 13).
+
+### Lo que queda ABIERTO y se dice aquí para no perderlo
+
+El **documento descargable** (`.md`/`.docx`/`.pdf`) **no lleva el plan de amplicones**: la
+RT-qPCR sólo aparece nombrada dentro del motivo del frente. O sea que las coordenadas de
+banco y esta limitación viven hoy en el informe de texto del CLI y en el registro, y **no
+en el artefacto que viaja** — que es el principio nº 55 exactamente. No se corrige aquí
+porque meter el plan en el documento obliga a imprimir **unas** coordenadas, y cuáles van
+al banco es la decisión que está abierta a propósito.

@@ -1558,29 +1558,63 @@ class AmpliconPlan:
     #: Vacio = no cruza ninguna, que es el caso limpio.
     proximal_crosses: tuple[PolyASignal, ...] = ()
     distal_crosses: tuple[PolyASignal, ...] = ()
+    #: OTRAS señales de las que este par NO SEPARA, que es una pregunta MAS ANCHA que
+    #: `distal_crosses` y la que decide lo que la razon mide. El distal esta ausente de
+    #: la isoforma corta de otra señal de DOS formas: partido por su banda —lo que
+    #: `distal_crosses` recoge— o entero POR DETRAS de ella. En las dos, la razon deja
+    #: de medir la fraccion que sobrevive a ESTE corte y pasa a medir la que sobrevive a
+    #: TODOS. Atravesar es UNA de las dos, y tratarla como la unica callaba la
+    #: limitacion justo cuando el distal se iba mas lejos (errata nº 146).
+    distal_behind: tuple[PolyASignal, ...] = ()
     #: Hueco disponible entre esta banda y la siguiente, si la hay. Se emite porque la
-    #: pregunta obvia al leer «cruza otra banda» es «¿y por que no lo mueves?».
+    #: pregunta obvia al leer que el par no separa es «¿y por que no lo mueves?».
     gap_between: tuple[int, int] | None = None
 
     @property
     def measures_all_cuts(self) -> bool:
         """¿La razon mide la fraccion que sobrevive a TODOS los cortes, no solo a este?"""
-        return bool(self.distal_crosses)
+        return bool(self.distal_behind)
 
     def _lineas_de_cruce(self) -> list[str]:
-        """Que otras bandas de corte atraviesa el distal, y que mide entonces la razon.
+        """De que otras señales NO SEPARA este par, y que mide entonces la razon.
 
-        Un amplicon partido por un corte NO da producto en la isoforma cortada. Si el
-        distal cruza la banda de otra señal, la razon distal/proximal deja de medir la
-        fraccion que sobrevive a ESTE corte y pasa a medir la que sobrevive a TODOS.
-        Eso puede ser exactamente lo que se quiere —lo es para este panel, cuyos seis
-        candidatos con techo estan detras de las dos— pero no puede quedar implicito:
-        quien lea el plan tiene que saberlo ANTES de pedir cebadores.
+        Un amplicon ausente de una isoforma corta no da producto en ella, y hay DOS
+        formas de estar ausente: partido por la banda de corte, o entero por DETRAS.
+        En las dos, la razon distal/proximal deja de medir la fraccion que sobrevive a
+        ESTE corte y pasa a medir la que sobrevive a TODOS. Eso puede ser exactamente lo
+        que se quiere —lo es para este panel, cuyos candidatos con techo estan detras de
+        las dos— pero no puede quedar implicito: quien lea el plan tiene que saberlo
+        ANTES de pedir cebadores.
+
+        **La condicion es NO SEPARAR, no ATRAVESAR (2026-09-08, errata nº 146).** Salia
+        solo con `distal_crosses`, asi que cuando el distal se fue mas lejos —entero por
+        detras de las dos bandas— la pareja «QUE MIDE / QUE NO MIDE» dejo de imprimirse
+        **sin que la limitacion hubiera cambiado nada**. Un informe que calla una
+        limitacion se lee como que el problema desaparecio.
+
+        Lo que SI depende de cual de los dos casos sea es el MOTIVO, y va escrito: uno
+        se arregla moviendo el amplicon y el otro no, asi que fundirlos daria una frase
+        correcta y una instruccion equivocada.
         """
-        if not self.distal_crosses:
+        if not self.distal_behind:
             return []
         cuales = ", ".join(
-            f"{s.motif}@{label(s.position, self.frame)}" for s in self.distal_crosses
+            f"{s.motif}@{label(s.position, self.frame)}" for s in self.distal_behind
+        )
+        motivo = (
+            [
+                "  INTERMEDIO. El amplicón distal atraviesa esa otra banda, y un "
+                "amplicón partido por un",
+                "  corte no da producto en la isoforma cortada.",
+            ]
+            if self.distal_crosses
+            else [
+                "  INTERMEDIO. El amplicón distal queda entero por DETRÁS de esa otra "
+                "banda, así que",
+                "  tampoco da producto en la isoforma que corta ahí: ausente y partido "
+                "dan la misma",
+                "  lectura.",
+            ]
         )
         lineas = [
             # LAS DOS FRASES, y en este orden: primero QUE MIDE y despues que no. Un
@@ -1594,9 +1628,7 @@ class AmpliconPlan:
             "  TODAS ellas, que es exactamente el que necesita el panel.",
             f"  QUÉ NO MIDE: no separa esta señal de {cuales} y no confirma el techo "
             f"del tramo",
-            "  INTERMEDIO. El amplicón distal atraviesa esa otra banda, y un amplicón "
-            "partido por un",
-            "  corte no da producto en la isoforma cortada.",
+            *motivo,
         ]
         if self.gap_between is not None:
             bajo, alto = self.gap_between
@@ -1799,11 +1831,20 @@ def rtqpcr_amplicons(
         )
 
     cruza_distal = _cruza(distal)
-    # El hueco entre esta banda y la SIGUIENTE que el distal cruza. Es la respuesta a la
-    # pregunta obvia —«¿y por que no lo mueves?»— y a veces la respuesta es que no cabe.
+    # DE QUE OTRAS SEÑALES NO SEPARA ESTE PAR. Se DERIVA de la geometria y es mas ancho
+    # que cruzar: el distal esta ausente de la isoforma corta de otra señal en cuanto no
+    # queda ENTERO por delante de su banda —o sea desde el corte mas TEMPRANO posible,
+    # que es `end + CLEAVAGE_MIN`—. Partido o por detras, la lectura es la misma.
+    detras_distal = tuple(
+        otra for otra in others if distal.end >= otra.end + CLEAVAGE_MIN
+    )
+    # El hueco entre esta banda y la SIGUIENTE de las que impiden separar. Es la
+    # respuesta a la pregunta obvia —«¿y por que no lo mueves?»— y a veces la respuesta
+    # es que no cabe. Se calcula para las MISMAS que la limitacion, no solo para las que
+    # se cruzan: al distal que esta detras se le hace la misma pregunta.
     hueco = None
-    if cruza_distal:
-        siguiente = min(o.end + CLEAVAGE_MIN for o in cruza_distal)
+    if detras_distal:
+        siguiente = min(o.end + CLEAVAGE_MIN for o in detras_distal)
         hueco = (banda[1] + margin + 1, siguiente - margin - 1)
 
     return AmpliconPlan(
@@ -1814,6 +1855,7 @@ def rtqpcr_amplicons(
         utr_length=utr_length,
         proximal_crosses=_cruza(proximal),
         distal_crosses=cruza_distal,
+        distal_behind=detras_distal,
         gap_between=hueco,
         frame=frame,
     )

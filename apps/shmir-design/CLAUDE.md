@@ -69,20 +69,38 @@ amplicón partido por un corte no da producto en la isoforma cortada, así que e
 dejaría de medir «el total» y **la razón distal/proximal no mediría nada**. El distal
 viejo sí estaba bien colocado; el que invalida el par es el proximal.
 
-### Lo que este par SÍ mide y lo que NO
+### Lo que este par SÍ mide y lo que NO — NOTA PERMANENTE, no condicional
 
-El amplicón distal nuevo (`3utr:282-401`) queda entero detrás de `251-271` **y atraviesa
-`303-323`**, la banda del `AATAAA` de 288. Así que la razón **no** mide la fracción que
-sobrevive al corte de 236: mide **la que sobrevive a los dos**.
+**Vale para CUALQUIER distal que se elija, y por eso está aquí y no colgando de una
+condición.** Con las palabras con que se pidió (2026-09-08): *«la limitación del tramo
+intermedio queda aunque el informe deje de imprimirla… si el informe la calla cuando no
+hay cruce, alguien puede leerlo como que el problema desapareció»*.
 
-**Para el panel eso es justo lo que hace falta** —sus seis candidatos con techo están
-detrás de las dos bandas, o sea el tramo de 0,86—. Lo que **no** se puede confirmar con
-este par es el **0,91 del tramo intermedio**.
+> **NINGÚN par de amplicones de esta arquitectura puede aislar el evento de `3utr:236`.**
+> La razón distal/proximal mide **la fracción que sobrevive a los DOS cortes** —el tramo
+> de **0,86**, que es justo el que necesita el panel— y **no confirma el 0,91 del tramo
+> intermedio**. No es una propiedad de unas coordenadas concretas: es geometría.
 
-**Y no se arregla moviéndolo**: entre las dos bandas, con la misma holgura, quedan
-`3utr:282-292` — **11 nt** para un amplicón de 120. Es geométricamente imposible aislar
-el evento de 236 con esta arquitectura. El informe lo emite pegado al plan
-(`AmpliconPlan.distal_crosses`, `gap_between`), no en una nota.
+**Por qué no se arregla moviendo el distal**: entre las dos bandas, con la misma holgura,
+quedan `3utr:282-292` — **11 nt** para un amplicón de 120. **NO CABE**, y no cabría con
+ninguna otra elección.
+
+**Y da igual dónde caiga el distal, porque hay DOS formas de estar ausente de la isoforma
+corta** y las dos dan la misma lectura:
+
+| distal | respecto de la banda de `3utr:288` | ¿aísla 236? |
+|---|---|---|
+| `3utr:282-401` (el declarado) | la **atraviesa** — partido por el corte | no |
+| `3utr:850-969` (el que emite hoy el informe) | entero **por detrás** — ausente entera | no |
+
+**El informe lo emitía sólo en el primer caso, y eso era un fallo (errata nº 146).**
+`_lineas_de_cruce` salía si `distal_crosses`, así que al moverse el distal la pareja
+«QUÉ MIDE / QUÉ NO MIDE» dejó de imprimirse **sin que la limitación hubiera cambiado
+nada**. Ahora la condición se DERIVA de la geometría —`AmpliconPlan.distal_behind`: el
+distal no queda entero por delante de la otra banda— y **atravesar es sólo uno de los dos
+casos**. Lo que sí cambia con el caso es el MOTIVO, y va escrito: uno se arregla
+moviéndolo y el otro no, así que fundirlos daría una frase correcta y una instrucción
+equivocada.
 
 **EL ENSAYO NO SE REDISEÑA: se queda con ALCANCE DECLARADO. DECIDIDO (2026-08-27).**
 Mide lo que el panel necesita —el **0,86** que hay detrás de las dos bandas—, y el plan

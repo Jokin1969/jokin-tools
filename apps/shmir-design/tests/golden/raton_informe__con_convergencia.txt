@@ -305,6 +305,15 @@
     Señal en cuestion: AATATA en tx:1185-1190 (3utr:236-241); banda de corte tx:1200-1220.
     proximal: tx:1055-1174 (3utr:106-225) (120 nt). entero por delante de AATATA@tx:1185 (holgura 10 nt) y dentro de la región analizada: presente en las DOS isoformas, mide el total.  ⚠  solapa 1083-1124, 1139-1180
     distal: tx:1799-1918 (3utr:850-969) (120 nt). entero por detrás de la banda de corte tx:1200-1220 (holgura 10 nt): solo presente en la isoforma LARGA.
+    QUÉ MIDE ESTE PAR: la fracción de transcritos que sobrevive a las bandas de corte de
+    esta señal Y de AATAAA@tx:1237 — o sea el techo de los candidatos que quedan por detrás de
+    TODAS ellas, que es exactamente el que necesita el panel.
+    QUÉ NO MIDE: no separa esta señal de AATAAA@tx:1237 y no confirma el techo del tramo
+    INTERMEDIO. El amplicón distal queda entero por DETRÁS de esa otra banda, así que
+    tampoco da producto en la isoforma que corta ahí: ausente y partido dan la misma
+    lectura.
+    Y NO se arregla moviéndolo: entre las dos bandas, con la misma holgura, queda tx:1231-1241 — 11 nt para un amplicón de 120. NO CABE.
+    SI ALGÚN DÍA HICIERA FALTA el tramo intermedio: no se alcanza moviendo amplicones —es geométricamente imposible— sino con 3'RACE o secuenciación de extremos, donde la resolución no depende de que quepa un amplicón entre dos cortes. Línea abierta: hoy no hay ningún candidato ahí, así que no confirmarlo no cuesta nada.
     Los dos se cuantifican contra una CURVA ESTÁNDAR COMUN: sin ella las dos eficiencias
     no son comparables y la razón no significa nada.
     RETROTRANSCRIPCION CON HEXÁMEROS ALEATORIOS. Con oligo-dT NO, y el sesgo tiene dirección
