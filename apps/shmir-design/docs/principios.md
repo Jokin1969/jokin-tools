@@ -3452,3 +3452,55 @@ La que sí discriminaba estaba a un clic: `chrome://downloads` —una entrada ca
 que la maquinaria recibió la orden y la rechazó; ninguna entrada dice que no llegó a
 recibirla— y el icono de bloqueo de la barra de direcciones. **La observación buena no era
 más cara: era otra.**
+
+## 63 — Un valor por defecto declarado en el código y una interfaz que lo ignora
+
+Hermano del nº 32 y con el fallo un piso más arriba: allí una clave sin escritor
+convertía su literal de reserva en la configuración; aquí **el valor por defecto SÍ está
+declarado, en el sitio correcto y con su motivo escrito, y la vista no lo mira**.
+
+Con las palabras con que se pidió (2026-09-08): *«no es sólo que el orden alfabético
+eligiera mal: es que el valor por defecto estaba declarado en el código y la interfaz lo
+ignoraba silenciosamente, dando la apariencia de configurado»*. Y la forma exacta que
+toma, que es la que hay que reconocer: **«2-7 como valor inicial era PEOR que vacío,
+porque parecía la ventana estándar»** — el mismo enunciado con el que este proyecto ya
+había cerrado el desplegable de especies, donde «modelo» como valor inicial era peor que
+vacío.
+
+### Por qué es peor que estar vacío
+
+Un control vacío **pregunta**. Un control con algo dentro **afirma**, y lo que afirma es
+que alguien lo decidió. `st.selectbox` sin `index=` abre por la primera opción de la
+lista, así que quien mira la pantalla ve `2-7` con la misma cara que tendría si un
+humano lo hubiera puesto ahí — y `2-7` **es** una ventana legítima, así que no chirría.
+El defecto declarado (`2-8`) seguía existiendo, correcto, testado y **sin llegar nunca a
+la pantalla**.
+
+Y el coste no es cosmético: con `2-7` el espacio de seeds pasa de 16.384 a 4.096 y la
+tasa base de 9,7 % a 31,1 %. **El orden alfabético de una lista estaba eligiendo un
+parámetro científico**, y su resultado viajó a un veredicto guardado.
+
+### La regla
+
+**Un control cuyo valor tiene un defecto DECLARADO se abre por ese defecto, y el índice
+se DERIVA de la declaración — nunca del orden de la lista de opciones.** Un control cuyo
+valor NO tiene defecto declarado se abre **vacío**, con su centinela «ninguno»: es la
+otra mitad, y es la que ya estaba resuelta.
+
+Las dos mitades son la misma pregunta: **¿lo que se ve lo ha decidido alguien?** Si sí,
+que sea lo decidido; si no, que se note.
+
+### Y el mecanismo, porque un comentario protege su clase
+
+`seed_setting_rows` y `offtarget_setting_rows` emiten `indice`, sacado del valor
+declarado a través de **una sola** función que convierte un valor en su etiqueta —
+escrita dos veces antes, y con el índice serían tres, que es como el desplegable acabaría
+abriendo por una opción que no existe (principio nº 13).
+
+El barrido de los ocho `st.selectbox` de la página encontró **dos** casos y no uno: el de
+seed, reportado, y el de off-targets, donde `null_seed = 0` se etiquetaba `"TODAS"` por
+un `str(valor or "TODAS")` — o sea que abría por una etiqueta que **ni siquiera estaba
+entre sus opciones**. Los otros seis son legítimos: o su primera opción es un centinela
+«ninguno», o no hay ningún valor declarado que respetar. **El criterio se midió antes de
+escribir el guardia**: exigir `index=` a los ocho habría dado seis falsos positivos, y un
+guardia con falsos positivos se acaba apagando (principio nº 34).

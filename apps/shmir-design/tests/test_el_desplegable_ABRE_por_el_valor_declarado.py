@@ -105,6 +105,75 @@ class TestElPrefijoNoSeTECLEA(unittest.TestCase):
         self.assertIsNone(presentation.seed_params_from_form({}).species_prefix)
 
 
+class TestElMismoFalloEnElOTRO_MODAL(unittest.TestCase):
+    """La familia, no el caso: el modal de off-targets tenía el mismo desplegable.
+
+    Un comentario protege su clase; un mecanismo protege la siguiente (principio nº 31).
+    Aquí lo que salió al barrer los OCHO `st.selectbox` de la página es que el de
+    off-targets abría `null_seed` por una etiqueta que **ni siquiera estaba entre sus
+    opciones**: `str(0 or "TODAS")` convierte una semilla de 0 —perfectamente válida— en
+    la etiqueta de «sin filtro». Es la errata nº 18 otra vez: la pregunta era por el
+    CONTENIDO y la comprobación miraba si el valor era falso.
+    """
+
+    def test_un_CERO_no_se_llama_TODAS(self):
+        from shmir_design.offtarget import DEFAULTS as OFFTARGET
+
+        fila = next(
+            f for f in presentation.offtarget_setting_rows(OFFTARGET)
+            if f["ajuste"] == "null_seed"
+        )
+        self.assertEqual(fila["por_defecto"], "0")
+        self.assertIn(fila["por_defecto"], fila["opciones"])
+
+    def test_todos_sus_ajustes_abren_por_lo_declarado(self):
+        from shmir_design.offtarget import DEFAULTS as OFFTARGET
+
+        for fila in presentation.offtarget_setting_rows(OFFTARGET):
+            if fila["fijo"]:
+                continue
+            with self.subTest(ajuste=fila["ajuste"]):
+                self.assertEqual(
+                    fila["opciones"][fila["indice"]], fila["por_defecto"]
+                )
+
+    def test_y_la_pagina_tambien_le_pasa_el_indice(self):
+        inicio = FUENTE.index("def _modal_offtarget")
+        fin = FUENTE.find("\ndef ", inicio + 10)
+        cuerpo = FUENTE[inicio : fin if fin != -1 else len(FUENTE)]
+        limpio = "\n".join(
+            l for l in cuerpo.split("\n") if not l.lstrip().startswith("#")
+        )
+        hueco = limpio.index("st.selectbox(")
+        self.assertIsNotNone(
+            re.search(r"index=ajuste\[.indice.\]", limpio[hueco : hueco + 400])
+        )
+
+
+class TestNINGUN_desplegable_abre_por_algo_que_nadie_declaro(unittest.TestCase):
+    """El barrido de los OCHO, para que no haga falta acordarse del noveno."""
+
+    def test_los_que_tienen_un_valor_declarado_lo_usan(self):
+        # Se declara qué emisor de filas alimenta cada desplegable de ajustes. Los otros
+        # —elegir un candidato, elegir un proyecto— no tienen «valor declarado»: su
+        # primera opción es la respuesta correcta o un centinela «ninguno», y por eso no
+        # entran. Un guardia con falsos positivos se acaba apagando.
+        from shmir_design.offtarget import DEFAULTS as OFFTARGET
+
+        for emisor, defectos in (
+            (presentation.seed_setting_rows, seed_scan.DEFAULTS),
+            (presentation.offtarget_setting_rows, OFFTARGET),
+        ):
+            for fila in emisor(defectos):
+                if fila["fijo"]:
+                    continue
+                with self.subTest(emisor=emisor.__name__, ajuste=fila["ajuste"]):
+                    self.assertIn(fila["por_defecto"], fila["opciones"])
+                    self.assertEqual(
+                        fila["opciones"][fila["indice"]], fila["por_defecto"]
+                    )
+
+
 class TestLaPaginaPASAelIndice(unittest.TestCase):
     """Emitirlo y no usarlo sería la novena vez del patrón de `page_run`."""
 

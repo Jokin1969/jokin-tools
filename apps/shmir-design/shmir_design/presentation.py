@@ -1828,7 +1828,13 @@ def _seed_setting_label(params, campo: str) -> str:
         # `None` no es `""`: el primero es «nadie lo ha dicho» y el segundo «todas, a
         # proposito». Colapsarlos aqui volveria a esconder la distincion.
         return SEED_PREFIX_BY_RUN if valor is None else (valor or SEED_PREFIX_ALL)
-    return str(valor or "TODAS")
+    # UN CERO NO ES «TODAS». `str(valor or "TODAS")` convertia `null_seed=0` —una semilla
+    # perfectamente valida— en la etiqueta de «sin filtro», que ademas no esta entre sus
+    # opciones. Es la familia de la errata nº 18: la pregunta era por el CONTENIDO y la
+    # comprobacion miraba si el valor era falso.
+    if valor is None or valor == "":
+        return "TODAS"
+    return str(valor)
 
 
 def seed_source_text(mature) -> str:
@@ -2406,19 +2412,17 @@ def offtarget_setting_rows(params):
     return [
         {
             "ajuste": campo,
-            "valor": (
-                "SI" if getattr(params, campo) is True
-                else str(getattr(params, campo) or "TODAS")
-            ),
-            "por_defecto": (
-                "SI" if getattr(base, campo) is True
-                else str(getattr(base, campo) or "TODAS")
-            ),
+            "valor": _seed_setting_label(params, campo),
+            "por_defecto": _seed_setting_label(base, campo),
             "modificado": campo in tocados,
             # La normalizacion no es editable: sin ella una guia en ADN contra un 3'UTR
             # en ARN daria CERO sitios, y cero parece una buena noticia.
             "fijo": campo == "normalize_u_t",
             "opciones": opciones[campo],
+            # MISMO ARREGLO QUE EN SEED (errata nº 151): sin `index=`, `st.selectbox`
+            # abre por la primera opcion, y aqui la primera de `null_seed` no era la
+            # declarada. Se DERIVA del valor de `OfftargetParams`.
+            "indice": opciones[campo].index(_seed_setting_label(base, campo)),
         }
         for campo in _OFFTARGET_SETTINGS
     ]
@@ -6602,6 +6606,83 @@ def _ultima_fecha(store) -> str:
     """La fecha del ultimo registro, o vacio si no hay ninguno."""
     registros = store.records()
     return str(registros[-1].date) if registros else ""
+
+
+#: DONDE se guardan los proyectos, dicho en la pantalla que los lista.
+#:
+#: Existe por el 2026-09-08 (errata nº 152): el paso 0 desaparecia sin decir nada cuando
+#: no habia ningun proyecto, y **cero se lee como «no tengo ninguno guardado» cuando lo
+#: que ha pasado puede ser «he mirado en otro sitio»**. Es el «Alu 0 %» sobre el
+#: directorio de proyectos.
+#:
+#: La frase del caso SIN DECLARAR lleva la CONSECUENCIA y no solo el hecho: «va junto al
+#: paquete» no significa nada para quien busca su proyecto; lo que hay que saber es que
+#: ahi, en un despliegue, se vacia en cada redespliegue. Es lo que este proyecto ya tenia
+#: escrito de `SHMIR_PROJECT_DIR` y que no llegaba a ninguna pantalla.
+PROJECTS_NOT_DECLARED = (
+    "`SHMIR_PROJECT_DIR` NO está declarado, así que los proyectos se guardan junto al "
+    "paquete, en `{ruta}`. En un despliegue eso vive dentro de la imagen y **se vacía en "
+    "cada redespliegue**: si ayer había proyectos y hoy no hay ninguno, es el primer "
+    "sitio donde mirar."
+)
+
+
+def projects_location(env=None) -> dict[str, object]:
+    """DONDE se buscan los proyectos, y qué se ha encontrado ahí. Nunca aborta.
+
+    Las **dos cifras** —carpetas y proyectos— no son la misma: `project_list` se salta EN
+    SILENCIO cualquier directorio sin `proyecto.json`, así que «no hay ninguno» y «hay
+    tres y ninguno se puede listar» daban la misma pantalla vacía.
+
+    No aborta ni con la ruta declarada mal: esto es lo que se pinta para EXPLICAR un
+    problema, y una explicación que puede fallar se lleva por delante lo que venía a
+    cubrir (errata nº 137).
+    """
+    import os
+    from pathlib import Path
+
+    from .store import PROJECT_FILE
+    from .trabajo import PROJECT_ENV_VAR, projects_dir
+
+    entorno = os.environ if env is None else env
+    declarado = bool(str(entorno.get(PROJECT_ENV_VAR, "") or "").strip())
+    ruta = Path(projects_dir(entorno))
+    existe = ruta.is_dir()
+    carpetas = sorted(p for p in ruta.iterdir() if p.is_dir()) if existe else []
+    proyectos = [d for d in carpetas if (d / PROJECT_FILE).is_file()]
+
+    if not declarado:
+        # PRIMERO ESTO, aunque ademas no exista: «no esta declarado» explica por que la
+        # ruta es la que es, y «no existe» a secas manda a mirar un directorio que nadie
+        # eligio. El orden al reves daba la mitad del diagnostico.
+        texto = PROJECTS_NOT_DECLARED.format(ruta=ruta)
+        if not existe:
+            texto += " Y ese directorio ni siquiera existe todavía."
+    elif not existe:
+        texto = (
+            f"El directorio de proyectos declarado es `{ruta}` y **no existe**. Nada de "
+            f"lo que se guarde va a poder releerse desde ahí."
+        )
+    elif len(carpetas) != len(proyectos):
+        texto = (
+            f"En `{ruta}` hay {len(carpetas)} carpeta(s) y {len(proyectos)} con "
+            f"`{PROJECT_FILE}`. Las demás no se listan: sin ese fichero no son un "
+            f"proyecto, y saltarlas en silencio es lo que hacía que «no hay ninguno» y "
+            f"«están y no se pueden leer» dieran la misma pantalla."
+        )
+    else:
+        texto = f"Los proyectos se guardan en `{ruta}` — {len(proyectos)} ahora mismo."
+    return {
+        "ruta": str(ruta),
+        "declarado": declarado,
+        "existe": existe,
+        "carpetas": len(carpetas),
+        "proyectos": len(proyectos),
+        # Cuando algo no cuadra se pinta en ambar, no en gris: un `caption` es el
+        # elemento mas silencioso que hay y esto es la explicacion de una pantalla vacia.
+        "avisa": (not existe) or (not declarado) or len(carpetas) != len(proyectos),
+        "texto": texto,
+    }
 
 
 def project_list(base) -> list[dict[str, object]]:

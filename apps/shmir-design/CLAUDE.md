@@ -6462,6 +6462,36 @@ equivocada de la errata nº 133.
 
 ---
 
+## CERO PROYECTOS NO ES «NO HAY»: ES «NO HAY AHÍ» (2026-09-08)
+
+Errata nº 152, y es la que explica la pantalla reportada: con `6faa283` desplegado el
+paso 0 **no aparece**, no hay ningún rojo, y el paso 1 se pinta bien. Eso **descarta** la
+errata nº 150 —aquélla mata la página entera— y deja la otra rama: `project_list`
+devolvió **cero filas**, o sea que el directorio que la app mira no tiene ninguna carpeta
+de proyecto. Y el `if not slugs: return None` se iba **mudo**.
+
+**El sitio lo decide `SHMIR_PROJECT_DIR`**, y sin declarar los proyectos van junto al
+paquete — dentro de la imagen, que es donde este registro ya tenía escrito que *«se
+pierde en el siguiente redespliegue, sin ningún síntoma hasta que alguien busca lo que
+guardó ayer»*. La contramedida existía para el directorio de REFERENCIA («cuando el de
+trabajo no es el del paquete, la interfaz lo dice con la ruta delante») y no se había
+aplicado al de proyectos, donde pesa más: una referencia se vuelve a bajar y un registro
+de decisiones no.
+
+`presentation.projects_location` emite dónde se ha mirado, si esa ruta está **declarada**
+o es la del paquete, si **existe**, y **dos cifras que no son la misma**: carpetas y
+proyectos — `project_list` se salta en silencio cualquier directorio sin `proyecto.json`,
+así que «no hay ninguno» y «hay tres y ninguno se puede listar» daban la misma pantalla.
+Sale en el paso 0 cuando no hay ninguno y **siempre** en el gestor de la barra lateral,
+que es donde se escribe. En ámbar cuando algo no cuadra, en gris cuando es normal. Y **no
+aborta**: es lo que se pinta para explicar un problema (errata nº 137).
+
+**No hay ruta por URL a un proyecto**: no existe `?proyecto=<slug>` ni ningún
+`query_params` en la app — el único camino es el selector. Y una ruta así no habría
+ayudado aquí: pasaría por el mismo `project_open` sobre el mismo directorio vacío.
+
+---
+
 ## UN PROYECTO ILEGIBLE NO ESCONDE A LOS DEMÁS (2026-09-08)
 
 Errata nº 150. `project_list` abría cada proyecto **sin ninguna protección**, así que uno
