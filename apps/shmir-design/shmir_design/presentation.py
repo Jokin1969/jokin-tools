@@ -3676,14 +3676,21 @@ def pending_after_duplicate(
     **Sin almacenes NO afirma que falte el panel entero.** No haber podido mirar y «no
     cubre a nadie» son cosas distintas, y confundirlas es el `.out` sin resumen.
     """
-    from .selection import blocking_fronts  # noqa: PLC0415
+    from .informe_doc import declared_fronts  # noqa: PLC0415
 
     # EL NOMBRE SE VALIDA CONTRA LOS FRENTES DECLARADOS, no contra lo que hoy conteste
     # algun almacen. Validarlo contra `estados` confundia dos cosas —«ese frente no
     # existe» y «ese frente no lo contesta nadie todavia»— y abortaba en el caso normal
     # de un proyecto sin corridas de ese frente. El principio nº 19: la pregunta era por
     # el NOMBRE y la comprobacion miraba el CONTENIDO.
-    conocidos = {f.name for f in blocking_fronts(tiling, selection)}
+    #
+    # Y LA PRIMERA VERSION LO ARREGLO A MEDIAS (errata nº 148): validaba contra
+    # `blocking_fronts`, que **tambien es contenido** — es la lista de los frentes
+    # ABIERTOS, y un frente cuyo fichero ya esta en el deposito no sale de ella. Con el
+    # transcriptoma dentro, `offtarget_seed` «no existia»; con la mascara puesta,
+    # `repeticiones` tampoco. La declaracion es `declared_fronts()`, que se deriva de las
+    # tres tablas que `informe_doc` ya obliga a rellenar.
+    conocidos = declared_fronts()
     if front not in conocidos:
         raise ShmirDesignError(
             f"`pending_after_duplicate` no conoce el frente {front!r}. Los que hay son: "

@@ -276,6 +276,30 @@ _FRONT_SOURCE_ATTR = {
     "empalme_intron": None,
 }
 
+def declared_fronts() -> frozenset[str]:
+    """QUE FRENTES EXISTEN. No es lo mismo que cuales estan ABIERTOS hoy.
+
+    **`blocking_fronts` NO sirve para esto (2026-09-08, errata nº 148).** Esa funcion
+    contesta «que frentes estan abiertos en ESTA corrida», y un frente cuyo fichero ya
+    esta en el deposito **deja de salir de ella**: con la mascara puesta desaparecen
+    `repeticiones` y `repeticion_polimorfica`, y con el transcriptoma desaparece
+    `offtarget_seed`. Usarla para validar un NOMBRE hace que un frente exista o no segun
+    lo que haya en el volumen, que es el principio nº 19 — la pregunta es por el NOMBRE y
+    la comprobacion miraba el CONTENIDO.
+
+    Las tres tablas de las que se deriva son la UNICA declaracion completa que hay, y lo
+    son porque estan **forzadas**: `_front_source` aborta con un frente que no este en
+    ninguna de las tres, asi que un frente nuevo no puede llegar al documento sin pasar
+    por aqui. Un frente sin declarar rompe la suite antes de llegar a producir un texto.
+
+    Quien pregunte «¿existe este frente?» pregunta AQUI. Quien pregunte «¿esta abierto?»
+    sigue preguntando a `blocking_fronts`: son dos preguntas y por eso son dos funciones.
+    """
+    return frozenset(BENCH_FRONTS) | frozenset(UPLOADED_FRONTS) | frozenset(
+        _FRONT_SOURCE_ATTR
+    )
+
+
 BIOPHYSICAL_NOTE = (
     "Los seis filtros biofísicos de ventana NO dependen de ningún fichero ni de ninguna "
     "especie: corren siempre. Por eso no son un «frente» — no hay nada que conseguir "
