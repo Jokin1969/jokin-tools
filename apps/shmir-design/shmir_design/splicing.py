@@ -572,9 +572,23 @@ RTPCR_CONDITIONS = (
 )
 
 
-def splicing_readouts(plan: SplicingRtPcr | None = None) -> tuple[SplicingReadout, ...]:
-    """Las CUATRO lecturas que cierran el frente. Todas `NOT_RUN`, y por eso bloquea."""
+def splicing_readouts(
+    plan: SplicingRtPcr | None = None, *, species: str = "",
+) -> tuple[SplicingReadout, ...]:
+    """Las CUATRO lecturas que cierran el frente. Todas `NOT_RUN`, y por eso bloquea.
+
+    `species` nombra el casete de ESA especie. Estaba escrito —`aav_casete.fa`, el
+    MURINO— dentro de la lectura del parental sin intron, asi que el informe humano
+    nombraba un fichero que su gestor no pide (errata nº 157). Sin especie se nombra el
+    ROL, que es lo que el gestor entiende.
+    """
+    from .species import filename_for_role  # noqa: PLC0415
+
     crypticos = CRYPTIC_RETAINED
+    casete = (
+        f"`{filename_for_role(species, 'transgen')}`" if species
+        else "el casete del vector (rol `transgen`)"
+    )
     coordenadas = (
         f"Coordenadas emitidas: ventanas casete:{plan.upstream.start}-"
         f"{plan.upstream.end} y casete:{plan.downstream.start}-{plan.downstream.end}; "
@@ -622,10 +636,11 @@ def splicing_readouts(plan: SplicingRtPcr | None = None) -> tuple[SplicingReadou
                 "Parental SIN INTRÓN en la MISMA TANDA, como TECHO de expresión. Sin "
                 "techo, un western flojo no dice si el empalme va mal o si la "
                 "construcción expresa poco de por si. "
-                "OJO: el casete que hay (aav_casete.fa) NO es ese. Es el parental sin "
-                "MÓDULO pero CON el intrón vacío de 82 nt, así que tiene el mismo "
-                "problema de empalme que se quiere medir y no sirve de techo. Hace "
-                "falta la construcción sin donante ni aceptor."
+                f"OJO: el casete de este frente ({casete}) NO es ese. El que hay "
+                f"versionado, el del RATÓN, es el parental sin MÓDULO pero CON el "
+                f"intrón vacío de 82 nt, así que tiene el mismo problema de empalme que "
+                f"se quiere medir y no sirve de techo. Hace falta la construcción sin "
+                f"donante ni aceptor."
             ),
         ),
     )

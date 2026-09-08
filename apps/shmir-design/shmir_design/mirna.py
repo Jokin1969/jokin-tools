@@ -217,12 +217,12 @@ UNDECLARED_SPECIES_WARNING = (
 )
 
 BORROWED_LIST_WARNING = (
-    f"{BORROWED_LIST_MARK}: el núcleo de abundancia que ha producido este FAIL esta "
+    f"{BORROWED_LIST_MARK}: el núcleo de abundancia que ha producido este FAIL está "
     f"autorizado para CEREBRO MURINO, y la especie de este diseño es otra. "
     f"`CoreMember.matches` compara SIN el prefijo, así que la lista casa igual y el "
     f"filtro corre — pero eso no la convierte en una lista de esta especie. "
     f"Puede que acierte: let-7, miR-124 y miR-9 son abundantes en cerebro de "
-    f"practicamente cualquier mamifero. Excluir por una lista PRESTADA es defendible; "
+    f"prácticamente cualquier mamífero. Excluir por una lista PRESTADA es defendible; "
     f"no decirlo, no. Para cerrarlo bien hace falta la lista de abundancia de ESTA "
     f"especie, con su referencia y su umbral."
 )
@@ -259,6 +259,40 @@ class CoreHit:
         elif not self.declared:
             texto += f" {UNDECLARED_SPECIES_WARNING}"
         return texto
+
+
+#: La MARCA corta, para la fila. La nota entera va en la cabecera del bloque: en una
+#: tabla de 206 filas el parrafo completo repetido no lo lee nadie, y sin marca ninguna
+#: la fila no dice que su FAIL sale de una lista prestada.
+CORE_LIST_MARK = "⚠ núcleo de OTRA ESPECIE"
+
+
+def core_list_note(species: str = "") -> str:
+    """Que hay que decir del NUCLEO cuando se emite un veredicto para esta especie.
+
+    Es lo mismo que `CoreHit.reason` añade a cada FAIL, pero pedible **sin tener un
+    hit delante**: lo necesita el modal de seed, que construye sus propias filas y solo
+    usaba el booleano `core`, asi que el aviso no se construia nunca y el bloque
+    exportable —«material para defender la seleccion»— salia sin una palabra sobre la
+    especie de la lista (principio nº 33).
+
+    Vacio cuando la especie del diseño es aquella para la que la lista esta autorizada:
+    un aviso que sale siempre deja de leerse.
+    """
+    from .species import resolve  # noqa: PLC0415
+
+    if not species:
+        return UNDECLARED_SPECIES_WARNING
+    if resolve(species).slug == resolve(CORE_SPECIES).slug:
+        return ""
+    # EL NOMBRE DE LA ESPECIE AUTORIZADA SE DERIVA de `CORE_SPECIES`, no se teclea: la
+    # autorizacion es de esa especie y el texto tiene que nombrarla aunque manaña se
+    # amplie a otra (principio nº 13).
+    return (
+        f"{BORROWED_LIST_WARNING} La lista está autorizada para "
+        f"{resolve(CORE_SPECIES).scientific}, y esta corrida es de "
+        f"{resolve(species).scientific}."
+    )
 
 
 def core_hits(names, *, species: str = "") -> tuple[CoreHit, ...]:

@@ -7936,3 +7936,151 @@ cuatro ficheros son siempre los correctos y ningún guardia puede fallar ni falt
 - **Y el motivo de los sitios ajenos se calculaba y no llegaba a ninguna salida**, que es
   el patrón de `page_run` por undécima vez. Se cazó preguntándose, antes de commitear,
   quién lee lo que se acaba de calcular.
+
+---
+
+## 157 — Los nombres murinos escritos: seis mensajes, el casete y tres fichas
+
+**Reportado por el diff de `humano_informe__con_usar_manifiesto__una_especie.txt`**, el
+golden humano que se acababa de escribir (errata nº 155, D1 de la revisión). Su primera
+generación enseñó dos cosas que la suite no ve: el informe humano nombraba
+`transcriptoma_3utr.fa` —el fichero **murino**— y afirmaba un hecho murino como si fuera
+del proyecto en curso.
+
+Es la **errata nº 83 con la especie como eje**: *un aviso que no nombra el paso que lo
+cierra no es una instrucción*. Aquí sí nombra un paso, y el paso es de otra especie: manda
+a conseguir un fichero que el gestor no pide para nadie que haya cargado humano.
+
+### Estaba ANTICIPADO por escrito y se arregló la mitad
+
+`insumos.py` lo dejó dicho al cerrar la errata nº 47: *«`transcriptoma_3utr.fa` es el
+nombre murino, o sea que en humano fallaban igual»*. Se derivó la **comparación de md5**
+—que era el fallo que se estaba mirando— y se dejaron los **mensajes**. Un mes después
+son seis, y el sexto está escrito *inline*.
+
+### Las tres formas del mismo fallo
+
+| dónde | qué decía en humano | qué pide el gestor |
+|---|---|---|
+| `offtarget.MISSING_FILE` y sus **seis** lectores | `transcriptoma_3utr.fa` | `transcriptoma_3utr_human.fa` |
+| `presentation.seed_load_placeholder` (el **séptimo**) | `transcriptoma_3utr.fa` | `transcriptoma_3utr_human.fa` |
+| `splicing.splicing_readouts` (el **octavo**) | `aav_casete.fa` | `aav_casete_human.fa` |
+| `presentation.cassette_deposit_check` | buscaba `aav_casete.fa` en el depósito | `aav_casete_human.fa` |
+| tres fichas de obtención (`transgen`, `empalme_intron`, `offtarget_seed`) | `aav_casete.fa`, `refseq_rna.fa` | los de la especie cargada |
+
+**El séptimo y el octavo salieron DESPUÉS de derivar los seis**, y eso es lo que más
+enseña de la tanda: **un nombre escrito no aparece en la lista de quien lee la constante
+que se acaba de derivar**. Los seis se encontraron leyendo los llamadores de
+`MISSING_FILE`; el séptimo tenía su propio literal en la capa de presentación y el octavo
+vivía en una **lectura de banco** del frente de empalme, que no es motivo de frente ni
+ficha ni celda de tabla. Al séptimo lo cazó ampliar el guardia; **al octavo lo cazó LEER
+EL DIFF DEL GOLDEN humano**, que es exactamente para lo que existe.
+
+**El del casete es el peor de los tres, y no por el texto**: `aav_casete.fa` está
+**versionado en git**, así que SIEMPRE está en el depósito. Con el nombre murino escrito,
+`cassette_deposit_check` comparaba el casete humano en uso contra el **murino del
+repositorio** y emitía `NO_COINCIDE` en **toda corrida humana correcta**. Un guardia con
+falsos positivos se acaba apagando — y éste es el que se escribió ayer para que no vuelva
+a salir un FASTA emitido con un casete y validado con otro (errata nº 129).
+
+Medido, antes y después:
+
+```
+    ANTES   HUMANO con su casete → NO_COINCIDE contra aav_casete.fa (el murino)
+    AHORA   HUMANO → SIN_COMPROBAR | busca aav_casete_human.fa
+            RATON  → COINCIDE      | busca aav_casete.fa
+```
+
+`SIN_COMPROBAR` es la verdad: ese fichero no existe todavía. `NO_COINCIDE` era un
+veredicto **inventado sobre otra molécula**.
+
+### La ficha `transgen` no se arregla cambiando el nombre
+
+La frase era «El casete que hay hoy en el proyecto (`aav_casete.fa`) es el PARENTAL, sin
+el módulo del shmiR, y **está comprobado por secuencia**». Sustituir el literal por
+`{fichero_transgen}` la habría dejado **afirmando de un casete humano que nadie ha visto**
+lo que sólo se ha comprobado del murino — el principio nº 3 introducido por el arreglo.
+
+Lo que se escribe es la frase que es cierta **leída por cualquier especie**: el fichero se
+nombra por su rol, y el hecho murino se dice **diciendo que es del ratón**. Igual en
+`empalme_intron`.
+
+### El guardia mide LO QUE SE EMITE, no el fuente (principio nº 34)
+
+Un barrido de literales da **17 ficheros** con un nombre de fichero murino escrito, y
+casi todos son prosa legítima: una errata que cita el caso, la tabla de nombres base del
+manifiesto, la procedencia de un fichero versionado, este mismo documento. Exigir una
+declaración por cada uno sería un auditor con falsos positivos.
+
+Lo que no puede pasar **no es que el nombre esté escrito: es que SALGA** en una corrida de
+otra especie. `tests/test_NINGUN_MENSAJE_nombra_el_fichero_de_OTRA_ESPECIE.py` corre el
+diseño humano de verdad y barre los motivos de frente, los motivos de filtro por ventana,
+los dos huecos de la carga de off-targets, **el informe ENTERO**, la ficha de un candidato
+y **las trece fichas resueltas para todas las especies declaradas**. El conjunto de
+nombres ajenos se **deriva** de `species.required_files`.
+
+**El informe entra entero y no por trozos**, y es lo que habría cazado al octavo sin el
+golden: es el artefacto que llega más lejos de quien lo generó, así que es el que menos
+margen tiene de nombrar el fichero de otra especie (principio nº 55). Un barrido por
+emisores sólo encuentra los emisores que alguien ya sabía que existían.
+
+**Con su control adversario**, que aquí no es opcional: dejar de nombrar ficheros pasaría
+el guardia igual de bien, y un aviso que no dice qué fichero falta no es una instrucción.
+El test exige que la corrida murina **siga nombrando los suyos**.
+
+### Y una cuarta: el núcleo no decía que era una lista PRESTADA
+
+La decisión del 2026-08-26 (opción **a**) es que fuera del ratón el veredicto del núcleo
+de abundancia **sale marcado**: «excluir por una lista prestada es defendible; no
+decirlo, no». `CoreHit.reason` lo hacía. El **modal de seed** no: construye sus propias
+filas y sólo miraba el booleano `core`, así que el aviso **no se construía nunca** y el
+bloque exportable —«material para defender la selección»— salía sin una palabra sobre la
+especie de la lista. Principio nº 33: el guardia estaba y la pregunta no le llegaba.
+
+`mirna.core_list_note(species)` es el mismo texto pedible **sin tener un hit delante**, y
+el nombre de la especie autorizada se **deriva** de `CORE_SPECIES`. En humano, la fila
+del FAIL pasa a llevar `⚠ núcleo de OTRA ESPECIE` y el bloque exportable, la nota entera.
+En ratón, **vacío**: un aviso que sale siempre deja de leerse.
+
+### Lo que generaliza
+
+**Un nombre de fichero escrito en un mensaje es un dato transcrito, y envejece por su
+cuenta en cada copia** (errata nº 28). Aquí las copias eran seis en un módulo, una en la
+capa de presentación y tres en ficheros de datos, y ninguna daba error: las tres capas
+mandaban a conseguir algo con la forma correcta.
+
+Y la contramedida que funciona no es revisar los mensajes: es que **el nombre no se pueda
+escribir** — se le pide a `species.required_files` por su ROL, que es la única fuente de
+los nombres del depósito, y lo que queda es un guardia sobre **lo que sale**.
+
+`species.filename_for_role(species, role)` es esa puerta única, y **no tiene valor por
+defecto** (principio nº 58): sin especie ABORTA, porque «el fichero de la especie que
+sea» no significa nada y el defecto que saldría es el del caso base — el fallo con otro
+disfraz.
+
+**Y el ROL se declara UNA vez, donde vive el frente** (`seed_load.MISSING_ROLE`, que
+`offtarget` importa). Una copia en cada módulo se lee igual de bien y el día que el rol
+se renombre una de las dos se queda vieja **sin dar ningún error** — es el mismo
+principio nº 13 un piso por debajo del nombre del fichero.
+
+### Y son DOS funciones, no una: un NOMBRE y un TROZO DE MENSAJE
+
+`missing_file(species)` da un **nombre de fichero**, que sin especie **no existe**, y
+aborta. `missing_file_text(species)` da la **frase para un mensaje**, ya con sus comillas:
+el nombre entrecomillado, o el ROL cuando no hay especie declarada — que siempre se puede
+escribir.
+
+Fundidas en una, los llamadores ponían sus propias comillas y con el rol dentro salía
+`` `el catálogo de 3'UTR del transcriptoma (rol `transcriptoma`)` `` —una comilla dentro
+de otra— **en el informe descargable**. Lo cazó leer el diff del golden, y es el principio
+nº 27 en pequeño: dos cantidades distintas bajo un nombre.
+
+### Y el generador del golden declaraba la especie en un sitio y no en el otro
+
+`build_document(species="mouse", …)` sobre un `tile_utr(utr3)` **sin especie**, así que el
+documento decía «falta el catálogo (rol `transcriptoma`)» donde el CLI dice
+`transcriptoma_3utr.fa`: **dos salidas del mismo generador diciendo cosas distintas**.
+
+No es un parámetro de los que prohíbe el principio nº 18: es la **IDENTIDAD de la
+entrada**, como `--name`, y estaba ya declarada dos líneas más abajo. Declarada a medias
+es peor que no declararla — el golden fija una salida que el marco de uso no produce.

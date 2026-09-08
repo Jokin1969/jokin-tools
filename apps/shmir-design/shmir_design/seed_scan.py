@@ -70,13 +70,27 @@ MIR30_NOTE = (
     "mismo tejido. Se marca aparte a propósito."
 )
 
-WHAT_THIS_DOES_NOT_ANSWER = (
-    "LO QUE ESTE MODAL NO CONTESTA. Contesta «¿mi seed es la de un miARN conocido?». NO "
-    "contesta «¿cuántos mensajeros llevan mi seed?», que es la CARGA de off-targets y "
-    "necesita `transcriptoma_3utr.fa`. Son dos preguntas y DOS FRENTES: este cierra "
-    "`seed_colision`, el otro es `offtarget_seed` y sigue en NOT_RUN mientras falte ese "
-    "fichero."
-)
+def what_this_does_not_answer(species: str = "") -> str:
+    """Lo que este modal NO contesta, con el fichero que falta nombrado PARA ESA especie.
+
+    Era una constante con `transcriptoma_3utr.fa` escrito, o sea el nombre MURINO: en
+    humano el gestor pide `transcriptoma_3utr_human.fa`, asi que el bloque exportable
+    —«material para defender la seleccion»— mandaba a conseguir un fichero que nadie
+    pide (errata nº 157). El nombre se le pide a `species.required_files` por su ROL.
+
+    Sin especie NO se inventa un nombre: `missing_file("")` nombra el rol, que es lo
+    que el gestor entiende.
+    """
+    from .offtarget import missing_file_text  # noqa: PLC0415
+
+    return (
+        f"LO QUE ESTE MODAL NO CONTESTA. Contesta «¿mi seed es la de un miARN "
+        f"conocido?». NO contesta «¿cuántos mensajeros llevan mi seed?», que es la "
+        f"CARGA de off-targets y necesita {missing_file_text(species)}. Son dos "
+        f"preguntas "
+        f"y DOS FRENTES: este cierra `seed_colision`, el otro es `offtarget_seed` y "
+        f"sigue en NOT_RUN mientras falte ese fichero."
+    )
 
 
 @dataclass(frozen=True)
@@ -415,6 +429,12 @@ class SeedResult:
     level: str
     #: El marco de `start`, DERIVADO de la anatomía de la corrida (errata nº 121).
     frame: Frame = field(kw_only=True)
+    #: La marca de que el nucleo de abundancia es una lista PRESTADA. Va en la FILA y no
+    #: solo en la cabecera, por el mismo motivo que la ventana y el marco: la cabecera se
+    #: lee una vez y el veredicto se lee siempre — quien copia una linea a un correo se
+    #: lleva el FAIL sin la cabecera. Vacia cuando la lista es de la especie del diseño:
+    #: un aviso que sale siempre deja de leerse.
+    core_mark: str = field(default="", kw_only=True)
 
     @property
     def mir30(self) -> bool:
@@ -447,6 +467,10 @@ class SeedResult:
             )
         nombres = ", ".join(c.name for c in self.collisions)
         marca = "  ⚠ miR-30" if self.mir30 else ""
+        # SOLO donde el veredicto lo produce el NUCLEO: pegarla a un AVISO de la capa
+        # ampliada seria marcar filas que esa lista no decide.
+        if self.core_mark and any(c.core for c in self.collisions):
+            marca += f"  {self.core_mark}"
         return (
             f"{etiqueta:<12} {self.strand:<10} {self.heptamer}  {self.verdict}"
             f"{marca} — {len(self.collisions)}: {nombres}"
@@ -467,6 +491,15 @@ class SeedScan:
     #: miRBase publica versiones. Ver `insumos.CONSUMIDOS`.
     mature_md5: str = ""
     mature_version: str = ""
+    #: La nota ENTERA del nucleo prestado. Va en la corrida —no en cada fila— porque es
+    #: propiedad de la LISTA y de la especie del diseño; la fila lleva la marca corta.
+    #: Vacia cuando la lista es de la especie que se esta diseñando: un aviso que sale
+    #: siempre deja de leerse.
+    core_note: str = ""
+    #: LA ESPECIE DEL DISEÑO, que NO es `params.species_prefix` —ese es el filtro de
+    #: miRBase—. De ella sale el nombre del fichero que el bloque exportable dice que
+    #: falta: el bloque se lee sin la app delante y no puede nombrar el de otra especie.
+    species: str = ""
 
     def for_strand(self, strand: str) -> tuple[SeedResult, ...]:
         return tuple(r for r in self.results if r.strand == strand)
@@ -494,6 +527,8 @@ class SeedScan:
             lineas.append(f"  ── {hebra.upper()} ({len(filas)}) ──")
             lineas.extend(f"    {r.describe()}" for r in filas)
             lineas.append("")
+        if self.core_note:
+            lineas.extend(["", f"  {self.core_note}", ""])
         lineas.append(
             "  Guía y pasajera van SEPARADAS y no se suman en un veredicto: la pasajera "
             "se carga a RISC"
@@ -504,7 +539,7 @@ class SeedScan:
         )
         if self.mir30_results:
             lineas.extend(["", f"  ⚠ {MIR30_NOTE}"])
-        lineas.extend(["", f"  {WHAT_THIS_DOES_NOT_ANSWER}"])
+        lineas.extend(["", f"  {what_this_does_not_answer(self.species)}"])
         return "\n".join(lineas) + "\n"
 
 
@@ -549,6 +584,12 @@ def run_scan(
             indice.setdefault(seed[:largo], []).extend(propios)
 
     marco = tiled_frame(getattr(selection, "anatomy", None))
+    # LA NOTA DEL NUCLEO, una vez por corrida: es propiedad de la LISTA y de la especie
+    # del diseño, no de cada fila. Se DERIVA (`mirna.core_list_note`), y sale vacia
+    # cuando la lista es de la especie que se esta diseñando.
+    from .mirna import CORE_LIST_MARK, core_list_note  # noqa: PLC0415
+
+    nota_nucleo = core_list_note(species)
     resultados = []
     crudas = []
     for inicio, hebra, secuencia in _strands(
@@ -556,7 +597,10 @@ def run_scan(
     ):
         hepta = params.seed_of(secuencia)
         nombres = sorted(set(indice.get(hepta, ())))
-        nucleo = {h.name for h in core_hits(nombres)}
+        # LA ESPECIE SE PASA. Sin ella `CoreHit` no puede decir si la lista es
+        # PRESTADA, y este es el camino que ESCRIBE en el almacen y produce el bloque
+        # exportable: el aviso llegaba al filtro del tilado y no aqui (principio nº 33).
+        nucleo = {h.name for h in core_hits(nombres, species=species)}
         colisiones = tuple(
             SeedCollision(
                 name=n, core=n in nucleo, mir30=MIR30_FAMILY in n,
@@ -584,6 +628,7 @@ def run_scan(
                 start=inicio, strand=hebra, query=consulta, sequence=secuencia,
                 heptamer=hepta, window=params.window, collisions=colisiones,
                 level=nivel, frame=marco,
+                core_mark=CORE_LIST_MARK if nota_nucleo else "",
             )
         )
         crudas.append(f"{consulta}\t{hepta}\t{nivel}\t{','.join(nombres)}")
@@ -591,5 +636,6 @@ def run_scan(
     return SeedScan(
         params=params, source=mature.provenance, results=tuple(resultados),
         base_rate=base_rate(mature, params), raw="\n".join(crudas) + "\n",
+        core_note=nota_nucleo, species=species,
         mature_md5=mature.checksum, mature_version=mature.version,
     )

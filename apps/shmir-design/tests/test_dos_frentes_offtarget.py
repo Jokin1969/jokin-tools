@@ -34,8 +34,15 @@ class TestSonDosCosasDistintas(unittest.TestCase):
     def test_y_que_es_el_modo_MAS_FRECUENTE(self):
         self.assertIn("más frecuente", seed_mod.WHY_NOT_BLAST.lower())
 
-    def test_nombra_el_fichero_que_hace_falta(self):
-        self.assertIn("transcriptoma_3utr.fa", seed_mod.WHY_NOT_BLAST)
+    def test_nombra_el_ROL_del_fichero_que_hace_falta(self):
+        # `WHY_NOT_BLAST` es una explicacion de MODULO, sin especie: nombrar ahi un
+        # fichero es nombrar el MURINO, y en humano el gestor pide otro (errata nº 157).
+        # El nombre lo pone quien tiene la especie —el motivo del frente— y esta frase
+        # va pegada detras.
+        from shmir_design.offtarget import MISSING_ROLE
+
+        self.assertIn(MISSING_ROLE, seed_mod.WHY_NOT_BLAST)
+        self.assertNotIn("transcriptoma_3utr.fa", seed_mod.WHY_NOT_BLAST)
 
     def test_el_frente_tiene_nombre_propio(self):
         self.assertEqual(seed_mod.FRONT_NAME, "offtarget_seed")

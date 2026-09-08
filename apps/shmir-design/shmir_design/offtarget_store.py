@@ -26,7 +26,7 @@ from .identidad import (
 )
 from .filters import FilterResult, FilterState
 from .offtarget import (
-    MISSING_FILE,
+    missing_file_text,
     SITE_CLASSES,
     UPPER_BOUND_NOTE,
     USE_NOTE,
@@ -169,7 +169,7 @@ class OfftargetStore:
         historial = self.history(query_name)
         return historial[-1] if historial else None
 
-    def verdict_for(self, query_name: str) -> FilterResult:
+    def verdict_for(self, query_name: str, *, species: str = "") -> FilterResult:
         """Por HEBRA. No hay `verdict_for_candidate`, igual que en la colision."""
         ultima = self.latest(query_name)
         if ultima is None:
@@ -177,7 +177,8 @@ class OfftargetStore:
                 name=FILTER_NAME, state=FilterState.NOT_RUN,
                 reason=(
                     f"No hay ninguna corrida de carga de off-targets para {query_name}. "
-                    f"Falta `{MISSING_FILE}`. NOT_RUN no es PASS, y sobre todo NO ES "
+                    f"Falta {missing_file_text(species)}. NOT_RUN no es PASS, y "
+                    f"sobre todo NO ES "
                     f"CERO: no haber contado cuántos mensajeros llevan esta seed no es "
                     f"lo mismo que no llevarla ninguno."
                 ),

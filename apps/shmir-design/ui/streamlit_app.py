@@ -2900,7 +2900,7 @@ def _modal_seed(seleccion, nombre: str, maduros, proyecto=None,
             tiling=tiling, seleccion=seleccion,
         )
 
-    hueco = seed_load_placeholder(None)
+    hueco = seed_load_placeholder(None, species=nombre)
     st.warning(hueco["texto"])
 
 
@@ -3070,7 +3070,7 @@ def _modal_empalme(seleccion, nombre: str, diana: str, casete, proyecto=None,
     # corrida de SpliceAI: si el casete no es el del depósito, el resultado se rechaza al
     # volver —correctamente— pero la corrida ya está gastada (errata nº 129). La app lo
     # dice aquí, que es donde todavía sirve de algo. La decisión la toma `presentation`.
-    ficha_casete = cassette_deposit_check(casete)
+    ficha_casete = cassette_deposit_check(casete, species=nombre)
     if ficha_casete["estado"] == CASETE_NO_COINCIDE:
         st.error(f"**PARA** — {ficha_casete['motivo']}")
         return
@@ -3087,7 +3087,7 @@ def _modal_empalme(seleccion, nombre: str, diana: str, casete, proyecto=None,
 
     try:
         panel = splice_constructions(
-            seleccion, intron_names=elegidos, scaffold=SGEP_SCAFFOLD,
+            seleccion, species=nombre, intron_names=elegidos, scaffold=SGEP_SCAFFOLD,
             starts=starts, cassette=casete, context_nt=contexto,
         )
     except (ShmirDesignError, ValueError) as exc:

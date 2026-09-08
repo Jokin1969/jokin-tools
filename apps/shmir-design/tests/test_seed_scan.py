@@ -329,15 +329,33 @@ class TestElBloqueExportable(unittest.TestCase):
 class TestLoQueEsteModalNoCierra(unittest.TestCase):
 
     def test_la_frase_esta_escrita_en_el_nucleo(self):
-        texto = seed_scan.WHAT_THIS_DOES_NOT_ANSWER
+        texto = seed_scan.what_this_does_not_answer("raton")
         self.assertIn("mi seed es la de un miARN conocido", texto)
         self.assertIn("cuántos mensajeros", texto.lower())
 
-    def test_nombra_el_fichero_que_falta(self):
-        self.assertIn("transcriptoma_3utr.fa", seed_scan.WHAT_THIS_DOES_NOT_ANSWER)
+    def test_nombra_el_fichero_que_falta_DE_ESA_ESPECIE(self):
+        # Era una constante con el nombre MURINO escrito, asi que en humano mandaba a
+        # conseguir un fichero que el gestor no pide (errata nº 157). El nombre se le
+        # pide a `species.required_files` por su ROL.
+        from shmir_design.species import required_files, resolve
+
+        for especie in ("raton", "humano"):
+            nombre = next(
+                f.filename for f in required_files(resolve(especie))
+                if f.role == "transcriptoma"
+            )
+            self.assertIn(nombre, seed_scan.what_this_does_not_answer(especie))
+
+    def test_y_SIN_especie_nombra_el_ROL_en_vez_de_inventar_uno(self):
+        # Volver al murino por defecto seria el mismo fallo con otro disfraz.
+        texto = seed_scan.what_this_does_not_answer()
+        self.assertIn("transcriptoma", texto)
+        self.assertNotIn("transcriptoma_3utr.fa", texto)
 
     def test_y_dice_que_son_DOS_frentes(self):
-        self.assertIn("dos frentes", seed_scan.WHAT_THIS_DOES_NOT_ANSWER.lower())
+        self.assertIn(
+            "dos frentes", seed_scan.what_this_does_not_answer("raton").lower()
+        )
 
 
 if __name__ == "__main__":

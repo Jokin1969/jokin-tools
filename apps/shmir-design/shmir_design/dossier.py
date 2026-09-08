@@ -358,7 +358,9 @@ def build_dossier(
     for hebra in ("guia", "pasajera"):
         nombre = f"offtarget_seed:{hebra}"
         consulta_hebra = query_name(species, start, hebra)
-        resultado_hebra = cargas.verdict_for(consulta_hebra)
+        # LA ESPECIE VIAJA: sin ella el NOT_RUN nombra el rol y no el fichero que el
+        # gestor pide para esta especie (errata nº 157).
+        resultado_hebra = cargas.verdict_for(consulta_hebra, species=species)
         corrida = cargas.latest(consulta_hebra)
         estados[nombre] = (resultado_hebra.state, resultado_hebra.reason)
         procedencia_de[nombre] = (

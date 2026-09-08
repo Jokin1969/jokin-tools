@@ -332,6 +332,11 @@ class TilingReport:
     #: no los distingue: no hay fichero / hay fichero y no habla de esta secuencia / se
     #: excluyo a proposito. Si el informe dijera lo mismo de los tres, nadie sabria si
     #: hay que subir un fichero o si el que hay es de otro gen.
+    #: LA ESPECIE PARA LA QUE SE TILO. El informe ya registra su longitud y su md5 —«sin
+    #: esas dos cifras no hay forma de saber a posteriori que se paso»— y no registraba
+    #: de QUIEN es. Sin ella, todo el que lea el informe tiene que escribir el nombre de
+    #: los ficheros del deposito, y lo que se escribe es el murino (errata nº 157).
+    species: str = ""
     apa_missing_reason: str = ""
     #: Por que los sitios medidos que SI llegaron no se aplicaron: son de otra
     #: secuencia. Campo propio y no fundido con `apa_missing_reason`, porque son dos
@@ -936,6 +941,7 @@ def tile_utr(
         signals=tuple(signals),
         measured_apa=measured_apa,
         apa_excluded_reason=motivo_exclusion,
+        species=species,
         apa_missing_reason=motivo_sin_medida,
         apa_sites_foreign_reason=motivo_sitios_ajenos,
         anatomy=anatomy,

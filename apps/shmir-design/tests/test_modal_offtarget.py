@@ -35,9 +35,9 @@ FORMULARIO = {
 class TestElHuecoMientrasFaltaElFichero(unittest.TestCase):
 
     def test_sin_catalogo_el_frente_sale_NOT_RUN_VISIBLE(self):
-        hueco = presentation.offtarget_placeholder(None)
+        hueco = presentation.offtarget_placeholder(None, species="raton")
         self.assertIs(hueco["state"], FilterState.NOT_RUN)
-        self.assertIn(offtarget.MISSING_FILE, hueco["texto"])
+        self.assertIn(offtarget.missing_file("raton"), hueco["texto"])
 
     def test_y_dice_que_NOT_RUN_no_es_cero(self):
         texto = presentation.offtarget_placeholder(None)["texto"].lower()

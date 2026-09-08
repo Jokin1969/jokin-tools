@@ -562,10 +562,10 @@
       pone.
     · parental_sin_intron [NOT_RUN]: Parental SIN INTRÓN en la MISMA TANDA, como TECHO de
       expresión. Sin techo, un western flojo no dice si el empalme va mal o si la
-      construcción expresa poco de por si. OJO: el casete que hay (aav_casete.fa) NO es
-      ese. Es el parental sin MÓDULO pero CON el intrón vacío de 82 nt, así que tiene el
-      mismo problema de empalme que se quiere medir y no sirve de techo. Hace falta la
-      construcción sin donante ni aceptor.
+      construcción expresa poco de por si. OJO: el casete de este frente (`aav_casete.fa`)
+      NO es ese. El que hay versionado, el del RATÓN, es el parental sin MÓDULO pero CON
+      el intrón vacío de 82 nt, así que tiene el mismo problema de empalme que se quiere
+      medir y no sirve de techo. Hace falta la construcción sin donante ni aceptor.
 
 ── Criterio de poliadenilación: los tres modos lado a lado ──
   Modo usado en esta corrida: escalonado
@@ -601,11 +601,11 @@
     se han contado. NOT_RUN no es PASS. EL OFF-TARGET MEDIADO POR SEED NO SE BUSCA CON
     BLAST, y no es una preferencia: 7 nt contiguos NO DAN UN ALINEAMIENTO PUNTUABLE, así
     que un blastn no los devuelve por mucho que se le baje el word_size. Esto es
-    coincidencia EXACTA del heptamero 2-8 sobre los 3'UTR del transcriptoma murino —
-    busqueda de SUBCADENA, no alineamiento— y necesita `transcriptoma_3utr.fa`. Fundirlo
-    con la especificidad en un solo «PASS» daria por cubierto EL MODO DE OFF-TARGET MÁS
-    FRECUENTE DE RNAi con una herramienta que no lo detecta. Por eso son DOS frentes y se
-    cuentan aparte.
+    coincidencia EXACTA del heptamero 2-8 sobre los 3'UTR del transcriptoma de la especie
+    que se diseña —busqueda de SUBCADENA, no alineamiento— y necesita el catálogo de 3'UTR
+    del transcriptoma (rol `transcriptoma`). Fundirlo con la especificidad en un solo
+    «PASS» daria por cubierto EL MODO DE OFF-TARGET MÁS FRECUENTE DE RNAi con una
+    herramienta que no lo detecta. Por eso son DOS frentes y se cuentan aparte.
     empalme_intron: RIESGO BINARIO. NO ES UN PARÁMETRO DE CALIDAD y no se lee como tal: o
     el intrón se escinde o no. Si no se escinde, la horquilla se queda en el 5'UTR del
     mRNA maduro y no hay proteina DN EN ABSOLUTO — no hay «un poco de proteina» que
