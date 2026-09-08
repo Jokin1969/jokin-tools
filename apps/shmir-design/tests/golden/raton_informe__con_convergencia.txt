@@ -620,7 +620,6 @@
   seed: NOT_RUN en 2170 de 2170 ventanas
   seed_colision: NOT_RUN en 2170 de 2170 ventanas
   transgen: NOT_RUN en 2170 de 2170 ventanas
-  homopolimero_molecula: NOT_RUN en 1780 de 2170 ventanas
   NOT_RUN no es PASS. Mientras haya filtros sin correr, la selección es PROVISIONAL y ningún candidato está aprobado: su veredicto es INCOMPLETE.
   EL PANEL ES PROVISIONAL EN 9 FRENTE(S): empalme_intron, empalme_sitios, especificidad, offtarget_seed, repeticion_polimorfica, repeticiones, seed, seed_colision, transgen.
     offtarget_seed: NOT_RUN: falta `transcriptoma_3utr.fa`, así que los sitios de seed no

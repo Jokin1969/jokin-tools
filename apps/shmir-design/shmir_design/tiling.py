@@ -105,19 +105,41 @@ _SEED_COLISION_SIN_BASE = FilterResult(
 )
 
 
-#: Estado por defecto del homopolimero DE LA MOLECULA: no se ha mirado.
+#: EL HOMOPOLIMERO DE LA MOLECULA NO SE MIRA POR DOS CAUSAS, Y SON DOS ESTADOS
+#: (2026-09-08, errata nº 147). `escaneable` es `asymmetry is not None` **AND**
+#: `biophysical_ok(...)`, o sea que mezcla dos cosas que se arreglan con cosas distintas:
 #:
-#: Se mira solo en las ventanas que superan los biofisicos, por el mismo motivo que la
-#: colision de seed: montar la pasajera pliega, y plegarlas todas son 45 s por corrida
-#: sobre las 2170 (medido el 2026-09-07) — en CADA repintado de la pagina. Las que no
-#: los superan ya no son elegibles por su cuenta, asi que no se pierde ningun candidato;
-#: lo que NO se hace es dejarlas en PASS, que seria decir que se miro.
-_HOMOPOLIMERO_MOLECULA_SIN_MIRAR = FilterResult(
+#:   · **una ventana con `N`** no tiene guia que medir. Es una LAGUNA —`NOT_RUN`— y se
+#:     arregla con otra secuencia, o quitando la mascara;
+#:   · **una ventana que ya cayo por los biofisicos** no se mira porque gastar en ella es
+#:     tiempo tirado. Es una DECISION —`NO_PEDIDO`— y no hay NADA que conseguir.
+#:
+#: Se mira solo en las escaneables por el mismo motivo que la colision de seed: montar la
+#: pasajera pliega, y plegarlas todas son 45 s por corrida sobre las 2170 (medido el
+#: 2026-09-07) — en CADA repintado de la pagina. Las que no los superan ya no son
+#: elegibles por su cuenta, asi que no se pierde ningun candidato; lo que NO se hace es
+#: dejarlas en PASS, que seria decir que se miro.
+#:
+#: **La primera version daba `NOT_RUN` a las dos con el motivo «por coste»**, y sobre una
+#: ventana con `N` eso es un diagnostico EQUIVOCADO —manda a mirar un presupuesto cuando
+#: lo que hay es una base desconocida—, que es lo que el principio nº 3 prohibe. Con la
+#: mascara murina puesta son 66 ventanas.
+_HOMOPOLIMERO_MOLECULA_SIN_GUIA = FilterResult(
     name=MOLECULE_HOMOPOLYMER,
     state=FilterState.NOT_RUN,
     reason=(
-        "No evaluado: por coste, el homopolimero de la guía y la pasajera solo se mira "
-        "en las ventanas que superan los filtros biofísicos. NOT_RUN no es PASS."
+        "No evaluado: la ventana tiene al menos una N, así que no hay guía sobre la que "
+        "medir el homopolímero de la molécula. NOT_RUN no es PASS."
+    ),
+)
+_HOMOPOLIMERO_MOLECULA_NO_PEDIDO = FilterResult(
+    name=MOLECULE_HOMOPOLYMER,
+    state=FilterState.NO_PEDIDO,
+    reason=(
+        "No medido: por coste, el homopolímero de la guía y la pasajera solo se mira en "
+        "las ventanas que superan los filtros biofísicos. Es una decisión, no una "
+        "laguna: esta ventana ya no es elegible por su cuenta y no hay nada que "
+        "conseguir. NO_PEDIDO no es PASS."
     ),
 )
 
@@ -253,7 +275,7 @@ class TiledWindow:
             self.especificidad or _ESPECIFICIDAD_SIN_BASE,
             self.transgen or _TRANSGEN_SIN_BASE,
             self.seed_colision or _SEED_COLISION_SIN_BASE,
-            self.homopolimero_molecula or _HOMOPOLIMERO_MOLECULA_SIN_MIRAR,
+            self.homopolimero_molecula or _HOMOPOLIMERO_MOLECULA_SIN_GUIA,
         )
 
     def filter(self, name: str) -> FilterResult:
@@ -731,11 +753,16 @@ def tile_utr(
         # que superan los biofisicos—: montar la pasajera pliega, y las que no los
         # superan ya no son elegibles. Sin la puerta, cada repintado de la pagina paga
         # 45 s.
-        homopolimero_molecula = (
-            filter_molecule_homopolymer(evaluation.guide)
-            if escaneable
-            else _HOMOPOLIMERO_MOLECULA_SIN_MIRAR
-        )
+        #
+        # Y CUANDO NO SE MIRA, EL ESTADO DEPENDE DE POR QUE. `escaneable` mezcla «no hay
+        # guia» con «no se pide», que son una laguna y una decision; el estado se elige
+        # con la causa DERIVADA, no con el booleano que las funde. Ver los dos centinelas.
+        if escaneable:
+            homopolimero_molecula = filter_molecule_homopolymer(evaluation.guide)
+        elif evaluation.asymmetry is None:
+            homopolimero_molecula = _HOMOPOLIMERO_MOLECULA_SIN_GUIA
+        else:
+            homopolimero_molecula = _HOMOPOLIMERO_MOLECULA_NO_PEDIDO
 
         colision = None
         if mature is not None:
