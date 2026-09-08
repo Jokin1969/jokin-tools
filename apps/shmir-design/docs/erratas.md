@@ -7657,3 +7657,69 @@ cuál de las dos es: que `SHMIR_PROJECT_DIR` no esté llegando al proceso hijo �
 proyectos se estén escribiendo y leyendo dentro de la imagen— o que el volumen sea otro.
 Lo que hace este cambio es que **la propia pantalla lo diga con la ruta delante**, que es
 un vistazo en vez de una ronda.
+
+## 153 — La persistencia colgaba de `NODE_ENV`, una bandera que este repositorio no pone
+
+**Reportado (2026-09-08)**, ya con el aviso nuevo delante: *«el aviso dice lo que
+necesitaba saber: `SHMIR_PROJECT_DIR NO está declarado`. Llevamos más de 30 despliegues
+accediendo al proyecto sin problema. Algo cambió»*. Y, con razón: *«los proyectos NO se
+han perdido. Están en el volumen, en la ruta correcta. Lo único que falta es que el
+proceso sepa dónde mirar»*.
+
+### La premisa que se descarta, MEDIDA
+
+La hipótesis era que `DB_PATH` había desaparecido de las variables. **No puede ser eso**,
+y se mide sobre la derivación que había:
+
+| entorno | `PROJECT_DIR` |
+|---|---|
+| `production` + `DB_PATH` | `/data/shmir/proyectos` |
+| `production` **SIN** `DB_PATH` | `/data/shmir/proyectos` ← el propio defecto lo cubría |
+| `production` + `DB_PATH` en otro volumen | `/vol/otro/shmir/proyectos` |
+| **SIN `NODE_ENV`**, con `DB_PATH` | **`''`** ← el hijo no recibe nada |
+| `NODE_ENV` mal escrito | **`''`** |
+
+O sea: **que falte `DB_PATH` no vacía nada**. El **único** interruptor capaz de dejarlo
+vacío era `NODE_ENV`.
+
+### Y la arqueología descarta al repositorio
+
+- La derivación **no la ha tocado ningún commit** desde `17b25ac` (2026-08-27), que es el
+  que la escribió.
+- `railway.toml` no cambia desde el commit inicial del hub.
+- El bloque `[variables]` de `nixpacks.toml` lleva ahí desde el **2026-05-02**, cuatro
+  meses antes de todo esto.
+
+Nada del repositorio explica el cambio, así que **no se acusa a ningún commit** — que era
+la pregunta («¿en qué commit empezó a fallar?») y la respuesta honesta es que en ninguno.
+
+### Lo que sí es un fallo NUESTRO, y es el que se arregla
+
+**`NODE_ENV` no lo declara este repositorio, no lo prueba ningún test y no se ve en
+ninguna salida.** De esa bandera colgaba el registro de lo que se decidió, y su fallo es
+**silencioso**: la app arranca, funciona, y escribe donde no sobrevive. Da igual quién la
+cambió — que una decisión de persistencia dependa de algo así es el defecto.
+
+**El ancla pasa a ser el directorio de la base de datos del hub**, que es lo que de verdad
+significa «aquí está el volumen» y es la MISMA cuenta que hace `server.js` para crear
+`/data`. Si ese directorio **existe**, existe el volumen; si no, estamos en local y el
+vacío es la verdad. **Es una medida del mundo, no una bandera**, y `NODE_ENV` desaparece
+de esta decisión.
+
+- **Arregla el caso sin tocar Railway**: con el volumen montado —que lo está, porque la
+  base de datos del hub lleva treinta despliegues sobreviviendo— los dos directorios
+  vuelven a salir de él.
+- **Y arregla los DOS**: `SHMIR_REFERENCE_DIR` tenía la misma forma, así que la referencia
+  también estaba cayendo dentro de la imagen. Un fallo así se barre entero o vuelve por el
+  otro lado.
+- **Una variable declarada a mano sigue mandando**, que es la salida si algún día el
+  volumen no se puede deducir.
+- **Y se DICE en el arranque** (`routes.describeDirs`, en el log de `server.js` junto a
+  `DB_PATH` y `NODE_ENV`): la pregunta «¿en qué directorio está guardando?» sólo se podía
+  contestar abriendo la app, y hay que poder contestarla en el log del despliegue, que es
+  donde se mira cuando algo dejó de funcionar hace tres días.
+
+**Los dos tests que fijaban la derivación vieja se MUEVEN, no se borran**: su invariante
+—«los ficheros siguen al volumen esté donde esté»— no ha cambiado; lo que cambió es el
+ancla, y ahora crean el directorio de verdad en vez de nombrar una ruta. Un test que fija
+una decisión se mueve cuando la decisión se mueve (principio nº 56 por su lado bueno).

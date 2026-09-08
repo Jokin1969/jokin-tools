@@ -333,6 +333,12 @@ if (require.main === module) {
     console.log(`[server] Jokin's Tools running on port ${PORT}`);
     console.log(`[server] DB path: ${process.env.DB_PATH || '/data/jokin_tools.db'}`);
     console.log(`[server] NODE_ENV: ${process.env.NODE_ENV || 'development'}`);
+    // DONDE ESCRIBE shmir-design, en el arranque y con la ruta delante. Los proyectos
+    // dejaron de aparecer tras treinta despliegues buenos y esa pregunta sólo se podía
+    // contestar abriendo la app; ahora está en el log del despliegue, que es donde se
+    // mira cuando algo dejó de funcionar hace tres días (errata nº 153).
+    try { console.log(require('./apps/shmir/routes').describeDirs()); }
+    catch (e) { console.error('[shmir] no se pudo describir sus directorios:', e.message); }
   });
 
   // ── WebSocket de shmir-design ───────────────────────────────────────────────
