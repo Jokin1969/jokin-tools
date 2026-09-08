@@ -17,6 +17,8 @@ qué comprobar.
 
 import re
 import unittest
+
+from shmir_design.coords import Frame
 from pathlib import Path
 
 RAIZ = Path(__file__).resolve().parents[1]
@@ -68,7 +70,9 @@ class TestLoQueElRegistroAFIRMAYElCodigoPuedeDESMENTIR(unittest.TestCase):
             if s.classification is SignalClass.APA_POSSIBLE
         ]
         plan = rtqpcr_amplicons(
-            señales[0], utr_length=informe.utr_length, others=tuple(señales[1:])
+            señales[0], utr_length=informe.utr_length, others=tuple(señales[1:]),
+            # El fixture tila el 3'UTR PELADO: sus posiciones van en ese espacio.
+            frame=Frame.UTR3,
         )
         for amp in (plan.proximal, plan.distal):
             with self.subTest(f"3utr:{amp.start}-{amp.end}"):

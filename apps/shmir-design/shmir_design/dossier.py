@@ -18,8 +18,10 @@ Python 3.11+, solo libreria estandar (regla 6).
 
 from __future__ import annotations
 
-from dataclasses import dataclass
+import textwrap
+from dataclasses import dataclass, field
 
+from .coords import Frame, label, requested, span, tiled_frame
 from .errors import ShmirDesignError
 from .filters import FilterState
 
@@ -56,13 +58,21 @@ class NearbyHexamer:
     position: int
     classification: str
     distance: int
+    #: El marco de `position`. NO se pone `3utr` a pelo: con un tilado del transcrito
+    #: eso etiquetaba `tx:1185` como `3utr:1185` —una posicion valida, sólo que de otra
+    #: señal— y `coords` no puede abortar porque 1185 cabe en el 3'UTR mas largo que el
+    #: proyecto conoce. Lo cazo la variante del golden sobre el transcrito.
+    frame: Frame = field(kw_only=True)
 
     def describe(self) -> str:
         donde = (
             "SOLAPA la ventana" if self.distance == 0
             else f"a {abs(self.distance)} nt {'por delante' if self.distance > 0 else 'por detras'}"
         )
-        return f"{self.motif}  3utr:{self.position}  {self.classification:<12} {donde}"
+        return (
+            f"{self.motif}  {label(self.position, self.frame)}  "
+            f"{self.classification:<12} {donde}"
+        )
 
 
 @dataclass(frozen=True)
@@ -83,11 +93,21 @@ class Dossier:
     module: str
     cassette: str
     blast_history: tuple
+    #: El marco de `start` y `end`, DERIVADO de la anatomia de la corrida. Los dos van
+    #: en el MISMO marco: hasta hoy `start` venia del tilado y `end` convertido al 3'UTR,
+    #: y sobre el 3'UTR pelado coincidian —desfase 0— asi que la mezcla era invisible.
+    frame: Frame = field(kw_only=True)
     module_note: str = ""
     #: Otros candidatos ELEGIDOS que comparten el nucleo de seed de 6 nt con este. No
     #: es un veredicto del candidato: es una propiedad de la PAREJA, y por eso va en su
     #: propia fila y no mezclada con los frentes.
     core_shared_with: tuple[str, ...] = ()
+    #: SOBRE QUE se buscaron esos sitios, con su marco. Sin esto un «SEGUNDO SITIO» no
+    #: es interpretable: `self_sites` barre lo que se le pase como `target`, asi que
+    #: sobre el 3'UTR y sobre el transcrito entero contesta preguntas DISTINTAS — con el
+    #: transcrito aparecen sitios en el CDS y en el 5'UTR, reales y de otra naturaleza,
+    #: porque la represion por seed opera sobre todo en el 3'UTR.
+    self_sites_span: str = ""
     #: Sitios de ESTA hebra en su propia diana, con su clase.
     self_sites: tuple = ()
 
@@ -97,9 +117,10 @@ class Dossier:
         # nombres, y un ancho fijo se queda corto sin que nadie lo note.
         ancho = max([len("frente")] + [len(f.name) for f in self.fronts])
         lineas = [
-            f"═══ Ficha del candidato — {self.species} 3utr:{self.start} ═══",
+            f"═══ Ficha del candidato — {self.species} "
+            f"{label(self.start, self.frame)} ═══",
             "",
-            f"  sitio      3utr:{self.start}-{self.end}",
+            f"  sitio      {span(self.start, self.end, self.frame)}",
             f"  guía       {self.guide}",
             f"  pasajera   {self.passenger}",
             f"  veredicto  {self.verdict}",
@@ -122,13 +143,29 @@ class Dossier:
             lineas.append(f"  sin techo — {self.ceiling_layer}")
         else:
             lineas.append(f"  {self.ceiling:.2f} — {self.ceiling_layer}")
-        lineas.extend(["", "── Sitios de esta seed en la PROPIA diana (esperado: 1) ──"])
+        alcance = f"  buscados en {self.self_sites_span}" if self.self_sites_span else (
+            "  ALCANCE NO DECLARADO: no se dice sobre qué se buscó, así que un «SEGUNDO "
+            "SITIO» de aquí no es interpretable."
+        )
+        lineas.extend([
+            "",
+            "── Sitios de esta seed en la PROPIA diana ──",
+            alcance,
+        ])
         if not self.self_sites:
             lineas.append(
                 "  NO CALCULADO en esta ficha. No es cero: no se ha contado."
             )
         else:
             lineas.extend(f"  {s.describe()}" for s in self.self_sites)
+            # EL AVISO SÓLO CUANDO HAY ALGO QUE DISTINGUIR. Uno que sale siempre deja
+            # de leerse, y sobre el 3'UTR pelado no hay ninguna región que separar.
+            if any(s.region and s.region != "3'UTR" for s in self.self_sites):
+                from .offtarget import SITES_OUTSIDE_UTR3
+
+                lineas.extend(
+                    f"  {l}" for l in textwrap.wrap(SITES_OUTSIDE_UTR3, 88)
+                )
             if len(self.self_sites) > 1:
                 lineas.append(
                     "  ⚠  MÁS DE UNO: hay varias dianas en el mismo mensajero, así que "
@@ -180,7 +217,14 @@ class Dossier:
         return "\n".join(lineas) + "\n"
 
 
-def _hexamers_near(tiling, start: int, end: int, *, offset: int, window: int = 60):
+def _normalizar(secuencia) -> str:
+    """La secuencia sin blancos, que es sobre la que se cuenta. Una sola definicion."""
+    return "".join(str(secuencia).split())
+
+
+def _hexamers_near(
+    tiling, start: int, end: int, *, offset: int, frame: Frame, window: int = 60,
+):
     from .polya import SignalClass
 
     salida = []
@@ -201,7 +245,7 @@ def _hexamers_near(tiling, start: int, end: int, *, offset: int, window: int = 6
         salida.append(
             NearbyHexamer(
                 motif=señal.motif, position=pos, classification=etiqueta,
-                distance=distancia,
+                distance=distancia, frame=frame,
             )
         )
     return tuple(sorted(salida, key=lambda h: h.position))
@@ -217,13 +261,26 @@ def build_dossier(
     from .scaffold import SGEP_SCAFFOLD
     from .selection import blocking_fronts
 
+    # EL MARCO SE RECIBE, sacado de la anatomia, y `start` y `end` van los DOS en el.
+    # Antes `end` se convertia al 3'UTR restando el desfase y `start` no: sobre el 3'UTR
+    # pelado el desfase es 0 y los dos coincidian, asi que la ficha salia bien y la
+    # mezcla no se veia. Sobre el transcrito imprimia `3utr:1149-221`.
+    #
+    # Se calcula ANTES del aborto de abajo, no despues: el mensaje de «ese sitio no esta
+    # en el panel» tambien imprime posiciones, y era el ultimo de este fichero que las
+    # etiquetaba a mano.
+    marco = tiled_frame(tiling.anatomy)
+
     elegido = next(
         (c for c in selection.selection.chosen if c.start == start), None
     )
     if elegido is None:
+        elegidos = ", ".join(
+            label(c.start, marco) for c in selection.selection.chosen
+        )
         raise ShmirDesignError(
-            f"3utr:{start} no está entre los candidatos elegidos de esta corrida "
-            f"({', '.join(str(c.start) for c in selection.selection.chosen)}); no se "
+            f"{requested(start, marco)} no está entre los candidatos elegidos de esta "
+            f"corrida ({elegidos}); no se "
             f"emite una ficha de un sitio que el panel no tiene. Se aborta."
         )
     ventana = selection.window_of(elegido)
@@ -324,7 +381,7 @@ def build_dossier(
     ultima = empalmes.latest
     for intron in INTRONS:
         nombre = f"empalme_sitios:{intron}"
-        resultado_intron = empalmes.verdict_for(start, intron)
+        resultado_intron = empalmes.verdict_for(start, intron, frame=marco)
         estados[nombre] = (resultado_intron.state, resultado_intron.reason)
         procedencia_de[nombre] = (
             f"corrida {ultima.run_id} ({ultima.executor})" if ultima is not None
@@ -348,25 +405,31 @@ def build_dossier(
     # con quien NO es independiente, y cuantas dianas tiene en su propio mensajero.
     from .offtarget import core_conflicts, self_sites
 
-    from .coords import Frame, frame_of, label as etiqueta
-
-    marco_ficha = (
-        frame_of(selection.anatomy) if selection.anatomy is not None else Frame.UTR3
-    )
+    marco_ficha = tiled_frame(selection.anatomy)
     compartido = tuple(
         c.describe(
-            label_a=etiqueta(c.a, marco_ficha), label_b=etiqueta(c.b, marco_ficha)
+            label_a=label(c.a, marco_ficha), label_b=label(c.b, marco_ficha)
         )
         for c in core_conflicts(selection)
         if start in (c.a, c.b)
     )
+    # LA VENTANA VA EN EL MARCO DE `target`, que es lo que se le pasa: con el transcrito
+    # entero delante y una ventana en coordenadas de 3'UTR, el sitio propio caia 949 nt
+    # mas alla y su PROPIA diana salia marcada «SEGUNDO SITIO».
     propios = self_sites(
         ventana.evaluation.guide,
         target=target if target is not None else "",
-        window=(ventana.inicio_3utr, ventana.fin_3utr),
+        window=(ventana.window.start, ventana.window.end),
+        frame=marco,
+        anatomy=tiling.anatomy,
     ) if target is not None else ()
+    # EL ALCANCE SE DERIVA de lo que se ha barrido de verdad, no se escribe: si se
+    # escribiera, diria «el 3'UTR» sobre una ficha generada con el transcrito delante y
+    # nadie se enteraria — que es la forma exacta del fallo que esto viene a hacer legible.
+    alcance = span(1, len(_normalizar(target)), marco) if target is not None else ""
     return Dossier(
-        species=species, start=start, end=elegido.end - desfase,
+        species=species, start=start, end=elegido.end, frame=marco,
+        self_sites_span=alcance,
         guide=ventana.evaluation.guide.replace("U", "T"),
         passenger=bloque.passenger,
         verdict=ventana.verdict.value,
@@ -380,7 +443,8 @@ def build_dossier(
             else "sin tabla de APA medido en esta corrida: techo INDETERMINADO"
         ),
         hexamers=_hexamers_near(
-            tiling, ventana.window.start, ventana.window.end, offset=0
+            tiling, ventana.window.start, ventana.window.end, offset=0,
+            frame=marco,
         ),
         core_shared_with=compartido,
         self_sites=propios,

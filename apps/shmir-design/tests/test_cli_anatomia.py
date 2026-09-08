@@ -387,7 +387,10 @@ class TestTablaComparativa(unittest.TestCase):
     def test_la_cabecera_explica_para_que_es(self):
         _, _, tmp = self._correr()
         texto = list(tmp.glob("*comparativa.tsv"))[0].read_text(encoding="utf-8")
-        self.assertTrue(texto.startswith("#"))
+        # Los comentarios van DETRÁS de los datos desde la errata nº 142: arriba,
+        # Excel los tomaba como fila de títulos y la cabecera bajaba una fila.
+        self.assertFalse(texto.startswith("#"))
+        self.assertTrue(texto.rstrip().splitlines()[-1].startswith("#"))
         self.assertIn("NUNCA cero", texto)
 
     def test_el_informe_trae_el_bloque_legible(self):

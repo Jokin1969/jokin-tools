@@ -20,6 +20,7 @@ longitudes son atipicas y la composicion tambien. Consecuencia, y va ANTES del b
 import unittest
 
 from shmir_design import blocks, introns, spliceai
+from shmir_design.coords import Frame
 from shmir_design.errors import ShmirDesignError
 from shmir_design.filters import FilterState
 from shmir_design.reference import REFERENCES, fixture_available, load_3utr
@@ -465,7 +466,10 @@ class TestElVeredictoNO_PUEDE_SER_FAIL(unittest.TestCase):
     def test_sin_corrida_es_NOT_RUN(self):
         from shmir_design.splice_store import SpliceStore
 
-        self.assertIs(SpliceStore().verdict_for(3, "mvm_actual").state, FilterState.NOT_RUN)
+        self.assertIs(
+            SpliceStore().verdict_for(3, "mvm_actual", frame=Frame.UTR3).state,
+            FilterState.NOT_RUN,
+        )
 
     def test_y_NO_existe_un_verdict_que_devuelva_FAIL(self):
         from pathlib import Path

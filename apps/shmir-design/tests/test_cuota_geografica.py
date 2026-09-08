@@ -131,16 +131,30 @@ class TestElPanelDeDiez(unittest.TestCase):
                 maximo += 1
                 ultimo = p
         self.assertEqual(maximo, 4)
+        # Y LA GEOMETRIA NO SE MUEVE AL RETIRAR UN CANDIDATO: `3utr:10` sigue siendo un
+        # sitio elegible —la retirada sale de la SELECCION, no de la piscina—, asi que el
+        # maximo alcanzable sigue siendo 4. Lo que baja a TRES es lo que el panel LLEVA,
+        # y esas son dos cantidades distintas (principio nº 27).
         inmunes = [p for p in self.inicios if p <= CORTE_ESTRICTO]
-        self.assertEqual(len(inmunes), 4)
+        self.assertEqual(inmunes, [60, 143, 200])
 
-    def test_y_la_quinta_plaza_se_DECLARA_sin_llenar(self):
+    def test_y_lo_que_FALTA_para_la_quinta_se_DECLARA(self):
         # No se rellena con un candidato de mas abajo: seria otro riesgo, no el que la
-        # cuota compra. Y se dice.
+        # cuota compra. Y se dice, con las DOS cifras: cuantas se pedian y cuantas salen.
         avisos = " ".join(self.seleccion.selection.quota_unfilled)
         self.assertIn("inmunes al corte", avisos)
         self.assertIn("5", avisos)
-        self.assertIn("4", avisos)
+        self.assertIn("3", avisos)
+
+    def test_y_la_RETIRADA_esta_entre_las_decisiones_con_su_motivo(self):
+        """La cuarta plaza no se pierde en silencio: falta porque alguien la retiró.
+
+        Sin esto, «se pedían 5 y salen 3» se lee como una limitación geométrica —que es
+        lo que era hasta el 2026-09-07, cuando eran 4— y no como una decisión tomada.
+        """
+        decisiones = " ".join(self.seleccion.selection.decisions)
+        self.assertIn("empalme_sitios", decisiones)
+        self.assertIn("2026-09-07", decisiones)
 
     def test_con_el_criterio_LAXO_si_salen_cinco_pero_una_es_de_la_BANDA(self):
         laxa = select_from_report(
@@ -151,10 +165,12 @@ class TestElPanelDeDiez(unittest.TestCase):
             ),
         )
         inicios = sorted(c.start for c in laxa.selection.chosen)
-        self.assertEqual(len([p for p in inicios if p <= CORTE_LAXO]), 5)
-        # La quinta cae DENTRO de la banda de corte: no es inmune, es incierta.
-        quinta = [p for p in inicios if CORTE_ESTRICTO < p <= CORTE_LAXO]
-        self.assertEqual(quinta, [309])
+        # CUATRO desde que `3utr:10` está retirado; eran cinco. Lo que este test mide no
+        # es cuántos salen sino DE DÓNDE sale el último, y eso no ha cambiado.
+        self.assertEqual(len([p for p in inicios if p <= CORTE_LAXO]), 4)
+        # El último cae DENTRO de la banda de corte: no es inmune, es incierto.
+        de_la_banda = [p for p in inicios if CORTE_ESTRICTO < p <= CORTE_LAXO]
+        self.assertEqual(de_la_banda, [309])
 
     def test_los_tres_inmunes_conocidos_siguen_dentro(self):
         for posicion in (60, 143, 200):
@@ -267,10 +283,12 @@ class TestLaQuintaPlazaVaAlTercioMEDIO(unittest.TestCase):
             with self.subTest((a, b)):
                 self.assertGreaterEqual(b - a, 50)
 
-    def test_cuatro_inmunes_ni_uno_mas(self):
+    def test_los_inmunes_que_QUEDAN_ni_uno_mas(self):
+        # Eran cuatro hasta el 2026-09-07; `3utr:10` está retirado por el frente de
+        # empalme y ningún otro inmune cabe a 50 nt de los tres que quedan.
         inicios = [c.start for c in self.seleccion.selection.chosen]
         self.assertEqual(
-            sorted(p for p in inicios if p <= CORTE_ESTRICTO), [10, 60, 143, 200]
+            sorted(p for p in inicios if p <= CORTE_ESTRICTO), [60, 143, 200]
         )
 
     def test_el_medio_se_lleva_tres(self):

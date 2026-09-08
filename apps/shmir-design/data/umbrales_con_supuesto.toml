@@ -85,3 +85,8 @@ donde_se_declara = "`introns` y el bloque del cuarto modal en CLAUDE.md."
 #
 # Lo que esto deja escrito: **un umbral en una ruta de ingesta no lo ve nadie**. Si algún
 # día se amplía el detector, éste es el ejemplo con el que calibrarlo.
+
+["montaje.verify_assembly:secuencia.count(f.sequence) > 1"]
+que_decide = "si el plásmido montado lleva el fragmento MÁS DE UNA VEZ, que es FAIL."
+supuesto = "que la construcción es de UNA copia. Va escrito: el fragmento sustituye la feature del intrón —una por plásmido— y por eso dos copias no son «más señal», son otro plásmido. El umbral NO codifica «una es la tuya» como hacía el `> 1` de la errata nº 56: aquí no hay una copia legítima que descontar, hay una esperada y punto, y lo que se busca es exactamente el caso de haber pegado sin quitar."
+donde_se_declara = "`fragmento.WHY_THE_ENDS_ARE_THE_CONDITION` y la comprobación `pegado` del propio fragmento, que ya exige que el plásmido crezca lo que crece el intrón: con dos copias no crecería eso."

@@ -32,6 +32,7 @@ import json
 from dataclasses import dataclass, field, replace
 from pathlib import Path
 
+from .coords import Frame, frame_of_utr3_bounds
 from .identidad import configuration_fingerprint
 from .errors import ShmirDesignError
 
@@ -340,6 +341,8 @@ class ProjectStore:
                 f"se aborta en vez de escribir una línea que luego no se pueda leer."
             ) from exc
 
+        _rechaza_si_es_el_mismo_fichero(self, kind, payload)
+
         anterior = self._records[-1].md5 if self._records else ""
         seq = len(self._records) + 1
         registro = Record(
@@ -459,6 +462,43 @@ class ProjectStore:
 # dejaria uno fuera sin que nadie lo note.
 
 
+def _rechaza_si_es_el_mismo_fichero(store, kind: str, payload: dict) -> None:
+    """El MISMO resultado ya registrado, sea cual sea el dia: no es otra corrida.
+
+    El `run_id` es `<tipo>-<fecha>-<result_md5>` (errata nº 48), asi que el mismo fichero
+    subido dos DIAS distintos da dos ids distintos y entraba dos veces — en los cuatro
+    almacenes, BLAST incluido. La comprobacion que habia cubria la mitad del caso: la del
+    mismo dia, donde el id coincide y `add` aborta. La otra mitad es justo la que no se
+    ve, porque no da ningun error — y deja el historial con la misma medida dos veces,
+    que se lee como dos comprobaciones independientes.
+
+    **Va aqui y no en el `add` de cada almacen**: `add` lo llaman tambien los cargadores
+    al releer el log, asi que abortar ahi dejaria sin poder ABRIR un proyecto que ya tiene
+    el duplicado escrito — y el log es append-only, asi que borrarlo no es una opcion. La
+    regla se aplica al ESCRIBIR.
+
+    Y se DERIVA del registro: cualquier tipo cuyo contenido lleve `result_md5` queda
+    cubierto sin nombrarlo. Un `seleccion` o una `nota` no lo llevan, y repetirlas es
+    normal.
+    """
+    md5 = str(payload.get("result_md5") or "")
+    if not md5:
+        return
+    for registro in store.records(kind):
+        if str(registro.payload.get("result_md5") or "") != md5:
+            continue
+        raise ShmirDesignError(
+            f"Este resultado YA está registrado en el proyecto: mismo `result_md5` "
+            f"({md5}) que la corrida {registro.payload.get('run_id', '(sin id)')!r}, "
+            f"del {registro.date}. Es el MISMO FICHERO subido dos veces, no otra "
+            f"corrida — el `run_id` lleva la fecha, así que no chocan, pero la medida "
+            f"es la misma y guardarla otra vez dejaría el historial diciendo que se "
+            f"comprobó dos veces. Si lo que querías era repetir la comprobación, hay "
+            f"que volver a CORRERLA y subir ese resultado; si sólo querías consultarla, "
+            f"ya está en el historial."
+        )
+
+
 def save_blast_run(store: ProjectStore, run) -> Record:
     """Persiste una corrida de BLAST en el log del proyecto."""
     return store.append(
@@ -507,7 +547,7 @@ def load_blast_store(store: ProjectStore):
         consulta = _QueryEcho(
             md5=datos["query_md5"], names=tuple(datos["query_names"])
         )
-        almacen.add(
+        almacen.add_recorded(
             BlastRun(
                 run_id=datos["run_id"], date=registro.date,
                 uploaded_by=datos["uploaded_by"], query_md5=datos["query_md5"],
@@ -566,6 +606,8 @@ def save_seed_run(store: ProjectStore, run) -> Record:
                     "start": r.start, "strand": r.strand, "query": r.query,
                     "sequence": r.sequence, "heptamer": r.heptamer,
                     "window": r.window, "level": r.level,
+                    # El marco de `start`. Mismo motivo que en la corrida de off-targets.
+                    "frame": r.frame.value,
                     "collisions": [
                         {"name": c.name, "core": c.core, "mir30": c.mir30}
                         for c in r.collisions
@@ -579,6 +621,10 @@ def save_seed_run(store: ProjectStore, run) -> Record:
                 "space": run.scan.base_rate.space,
                 "window": run.scan.base_rate.window,
                 "species_prefix": run.scan.base_rate.species_prefix,
+                # EL NIVEL VIAJA CON LA TASA. Sin él, una corrida guardada con
+                # `level=nucleo` se relee con la tasa de todos los maduros y vuelve el
+                # defecto que esto cerró: la cifra describiendo otro conjunto.
+                "level": run.scan.base_rate.level,
             },
         },
         date=run.date,
@@ -591,6 +637,9 @@ def load_seed_store(store: ProjectStore):
     from .seed_store import SeedRun, SeedStore
 
     almacen = SeedStore()
+    # El marco de los registros que no lo traen: DERIVADO de la anatomia del proyecto,
+    # nunca por defecto. Ver `marco_del_panel`.
+    marco = marco_del_panel(store)
     for registro in store.records("corrida_seed"):
         datos = registro.payload
         resultados = tuple(
@@ -598,6 +647,7 @@ def load_seed_store(store: ProjectStore):
                 start=r["start"], strand=r["strand"], query=r["query"],
                 sequence=r["sequence"], heptamer=r["heptamer"], window=r["window"],
                 level=r["level"],
+                frame=Frame(r["frame"]) if "frame" in r else marco,
                 collisions=tuple(
                     SeedCollision(name=c["name"], core=c["core"], mir30=c["mir30"])
                     for c in r["collisions"]
@@ -616,7 +666,7 @@ def load_seed_store(store: ProjectStore):
             mature_md5=datos.get("mature_md5", ""),
             mature_version=datos.get("mature_version", ""),
         )
-        almacen.add(
+        almacen.add_recorded(
             SeedRun(
                 run_id=datos["run_id"], date=registro.date, ran_by=datos["ran_by"],
                 source=datos["source"], result_md5=datos["result_md5"], scan=scan,
@@ -660,6 +710,21 @@ def _null_from_json(datos: dict):
         by_class=por_clase,
         distinct_heptamers=tuple(datos["distinct_heptamers"]),
     )
+
+
+def marco_del_panel(store: ProjectStore) -> Frame:
+    """El espacio de coordenadas del PANEL de este proyecto, DERIVADO de su anatomia.
+
+    Existe para los registros escritos ANTES de que el marco viajara en el log. **No es
+    un valor por defecto**: el proyecto guarda sobre que frontera se tilo, asi que el
+    marco de sus corridas es una consecuencia de eso y no una suposicion — que es lo que
+    convirtio un panel del transcrito en once posiciones del 3'UTR (errata nº 138).
+
+    La cuenta la hace `coords`, que es su dueño; aqui solo se le pasa la frontera que el
+    proyecto tiene escrita.
+    """
+    anatomia = getattr(store.project, "anatomy", None) or {}
+    return frame_of_utr3_bounds(anatomia.get("utr3"))
 
 
 def save_offtarget_run(store: ProjectStore, run) -> Record:
@@ -707,6 +772,10 @@ def save_offtarget_run(store: ProjectStore, run) -> Record:
                     "sequence": r.sequence, "heptamer": r.patterns.heptamer,
                     "sites": r.counts.sites, "transcripts": r.counts.transcripts,
                     "percentiles": r.percentiles,
+                    # EL MARCO DE `start`, que hasta hoy no se guardaba. Sin el, una
+                    # corrida del TRANSCRITO volvia del log con sus once posiciones en el
+                    # espacio del 3'UTR — medido (errata nº 138).
+                    "frame": r.frame.value,
                 }
                 for r in scan.results
             ],
@@ -747,6 +816,8 @@ def load_offtarget_store(store: ProjectStore):
     from .offtarget_store import OfftargetRun, OfftargetStore
 
     almacen = OfftargetStore()
+    # El marco de los registros que no lo traen. Ver `marco_del_panel`.
+    marco = marco_del_panel(store)
     for registro in store.records("corrida_offtarget"):
         datos = registro.payload
         auditoria = dict(datos["audit"])
@@ -768,6 +839,7 @@ def load_offtarget_store(store: ProjectStore):
                     patterns=patterns_from_heptamer(r["heptamer"]),
                     counts=Counts(sites=r["sites"], transcripts=r["transcripts"]),
                     percentiles=r["percentiles"],
+                    frame=Frame(r["frame"]) if "frame" in r else marco,
                 )
                 for r in datos["results"]
             ),
@@ -791,7 +863,7 @@ def load_offtarget_store(store: ProjectStore):
             mature_md5=datos.get("mature_md5", ""),
             mature_version=datos.get("mature_version", ""),
         )
-        almacen.add(
+        almacen.add_recorded(
             OfftargetRun(
                 run_id=datos["run_id"], date=registro.date, ran_by=datos["ran_by"],
                 source=datos["source"], result_md5=datos["result_md5"], scan=scan,
@@ -862,6 +934,11 @@ def save_splice_run(store: ProjectStore, run) -> Record:
                 {
                     "construction": p.construction,
                     "candidate_start": p.candidate_start,
+                    # El MARCO viaja con la posicion, tambien al disco. Sin el, un
+                    # registro de una corrida sobre el transcrito se relee como si
+                    # fuera del 3'UTR y vuelve a imprimir el `3utr:1398` de la errata
+                    # nº 121 — esta vez desde un fichero, semanas despues.
+                    "candidate_frame": p.candidate_frame.value,
                     "intron": p.intron,
                     "legit_donor": p.legit_donor,
                     "legit_acceptor": p.legit_acceptor,
@@ -905,6 +982,7 @@ def load_splice_store(store: ProjectStore):
     from .spliceai import Cryptic, PairResult, SpliceScan
 
     almacen = SpliceStore()
+    marco = marco_del_panel(store)
     for registro in store.records("corrida_empalme"):
         datos = registro.payload
 
@@ -919,6 +997,13 @@ def load_splice_store(store: ProjectStore):
             PairResult(
                 construction=p["construction"],
                 candidate_start=p["candidate_start"],
+                # Los registros escritos ANTES de que el marco viajara no lo traen.
+                # NO se rellena con `UTR3` —eso era un valor por defecto, y contestaba
+                # `3utr` a un log del transcrito (errata nº 138)—: se DERIVA de la
+                # anatomia que el propio proyecto guarda.
+                candidate_frame=(
+                    Frame(p["candidate_frame"]) if "candidate_frame" in p else marco
+                ),
                 intron=p["intron"],
                 legit_donor=p["legit_donor"],
                 legit_acceptor=p["legit_acceptor"],
@@ -933,7 +1018,7 @@ def load_splice_store(store: ProjectStore):
         for clave, valores in datos.get("folding", {}).items():
             inicio, _, intron = clave.partition("|")
             plegado[(int(inicio), intron)] = valores
-        almacen.add(
+        almacen.add_recorded(
             SpliceRun(
                 run_id=datos["run_id"], date=registro.date, ran_by=datos["ran_by"],
                 executor=datos["executor"], result_md5=datos["result_md5"],

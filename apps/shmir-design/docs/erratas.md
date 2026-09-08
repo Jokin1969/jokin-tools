@@ -3607,7 +3607,8 @@ muerde es la errata nº 29 otra vez.
 ### Y hay un caso hermano que SÍ estaba protegido
 
 `empalme_sitios` también tiene una dimensión propia —su unidad es el par candidato ×
-intrón— y **está declarado** en `FRONTS_WITHOUT_COLUMN` con el motivo escrito, para que
+intrón— y **está declarado** en `NO_CABE_COLUMNA_POR_CANDIDATO` —que entonces se llamaba
+`FRONTS_WITHOUT_COLUMN`— con el motivo escrito, para que
 nadie le dé una columna por candidato y colapse justo lo que ese frente existe para
 comparar. O sea: el proyecto ya tenía una dimensión declarada **y protegida**, y otra
 declarada (`por_hebra`) **y no protegida**. Declararla no basta; hay que derivar de la
@@ -5484,3 +5485,1602 @@ recalcularlos por su cuenta habría sido la segunda definición del mismo númer
 con que uno derivara el mínimo de otra forma para que la celda y el informe dijeran cosas
 distintas. `BlastRun._judge` es ese sitio único, y `verdict` y `judged_call` lo llaman los
 dos.
+
+---
+
+## 112 — El «PARA» estaba bien escrito y el camino de salida no existía
+
+Pedido por el responsable del proyecto: el fragmento de síntesis. Al cablearlo en la
+página salió al paso un fallo que llevaba ahí desde que se escribió el aviso de «sin
+motor de plegado no se emite ADN».
+
+El aviso era correcto y estaba bien puesto — la pasajera de este módulo se elige
+plegando, y sin plegado se elegiría con la regla que este proyecto descartó por escrito.
+Lo que estaba mal era la línea de después:
+
+```python
+except ShmirDesignError as exc:
+    st.error(f"**PARA** — {exc}")
+    return ficheros          # `ficheros` NO existe en esta función
+```
+
+`ficheros` no se define en ninguna parte de `bloque_especie`. Marcar la casilla de
+bloques sin ViennaRNA —que **es lo normal: ViennaRNA es opcional y no está en el
+despliegue**— no enseñaba el «PARA»: tumbaba la página entera con un `NameError` justo
+después de pintarlo.
+
+### Por qué ningún test lo veía
+
+Es el bloqueo declarado del propio inventario de estados: `AppTest` no puede rellenar un
+`file_uploader`, así que ningún test lleva la página al estado `DISEÑADO`, y esta rama
+vive detrás de él. El inventario decía «11 estados sin pintar» y aquí estaba el precio.
+
+### Lo que se cambia
+
+El camino de salida deja de existir: se marca que no se emite ADN y el resto de la
+corrida —informe, tablas, descargas— sigue saliendo. Un aviso que se lleva por delante
+todo lo demás no es un aviso, es una caída con texto.
+
+---
+
+## 113 — `selection.report.frame`: el marco pedido a un atributo que no existe
+
+La primera versión de `presentation.fragment_bundle` etiquetaba cada candidato así:
+
+```python
+label=coords.label(choice.start, selection.report.frame)
+```
+
+`ReportSelection` **no tiene** `report`. Lo que lleva es `anatomy`, y de ella sale el
+marco con `coords.frame_of`. El resultado, con un tilado del TRANSCRITO: el marco cayó a
+`3utr`, la posición era del transcrito, y `coords` abortó — con razón — la corrida entera
+del CLI:
+
+```
+PARA — 3utr:1684 no cabe en ningún 3'UTR conocido del proyecto: el más largo mide 1606 nt.
+```
+
+Es la QUINTA vez que aparece la misma familia: una coordenada del transcrito etiquetada
+como 3'UTR. Las cuatro anteriores no daban error; ésta sí, porque `coords` puso el techo
+— la contramedida funcionó exactamente como se diseñó.
+
+### Y el segundo, en el mismo sitio y sin error
+
+`selection.tercio_coverage` tenía la variante silenciosa: contaba los tercios sobre el
+3'UTR y guardaba las posiciones del PANEL **sin convertir**, así que la frase «los 14
+sitios que quedan a 50 nt o más de `3utr:359`» mezclaba dos marcos en la misma línea. Con
+un tilado del 3'UTR coinciden y no se ve; con uno del transcrito, aborta.
+
+Se arregla convirtiendo **al entrar y no al imprimir**: todo lo que guarda
+`TercioCoverage` está ya en el marco del 3'UTR, y lo que no cae en él se cuenta y se dice
+en vez de meterlo en un tramo por descarte.
+
+### Lo que enseña, y por qué no es sólo un despiste
+
+Las dos funciones tenían tests y los dos fallos vivían en la COMBINACIÓN: un panel de
+transcrito y una salida que imprime posiciones. Es la errata nº 31 otra vez —las piezas
+probadas, el camino entero no— y lo que lo cerró fue correr el CLI de verdad, no leer el
+código.
+
+---
+
+## 114 — La feature del intrón son 92 nt y el intrón 82: los diez de diferencia, medidos
+
+No es un fallo del código: es un desajuste que el responsable del proyecto señaló antes
+de pedir el fragmento, y que había que resolver ANTES de emitir nada.
+
+En el `.dna` del casete la feature del intrón MVM va de **3129 a 3220 — 92 nt**. El
+intrón vacío del proyecto son **82** de `GT` a `AG`. Diez de diferencia. La hipótesis era
+«contexto exónico anotado dentro de la feature», y aquí está comprobada contra el casete
+versionado (`aav_casete.fa`, md5 `74f3fd79fa9547a59ca439d73e387c3d`):
+
+```
+3129  AAGAG                                   exon5 (5 nt, pieza versionada)
+3134  GTAAGGGTTTAAGG…TTTTTTTCAG               intrón, 82 nt, de GT a AG
+3216  GTTGG                                   exon3 (5 nt, pieza versionada)
+3220
+```
+
+Los diez son exactamente `blocks.PIECES["exon5"]` y `blocks.PIECES["exon3"]`, una pieza
+versionada a cada lado. **Pegar 82 nt sobre una selección de 92 borraría 10 nt de exón**,
+y no daría ningún error hasta secuenciar.
+
+Por eso el fragmento que se emite lleva ese contexto: sus extremos son los de la FEATURE
+ANOTADA y no los del intrón. Y por eso el tramo se DERIVA del casete —localizando las
+piezas y leyendo los dinucleótidos— en vez de teclear 3129: el número reportado del
+`.dna` entra sólo como cruce (`fragmento.check_declared_span`), que es lo que convierte
+una coincidencia en una comprobación.
+
+### La consecuencia que no se veía, y ahora sale declarada
+
+`splicing.locate_intron` localiza el intrón **por las dos mitades del MVM**. Con el
+intrón quimérico dentro, sobre el plásmido resultante ya no lo encuentra — y de ese
+localizador salen las ventanas de cebador con las que se mide la eficiencia de empalme.
+No es un fallo del fragmento: es lo que cuesta cambiar de arquitectura, y estaba
+invisible. Ahora sale como comprobación `localizable` en `NO_APLICA`, con el motivo, al
+lado del `PASS` que da el MVM por el mismo camino.
+
+---
+
+## 115 — El guardia del montaje aprobaba las CUATRO casillas
+
+Señalado por el responsable del proyecto el 2026-09-06, y comprobado antes de tocar nada:
+`montaje.verify_assembly` daba `PASS` a las cuatro combinaciones de fragmento × plásmido
+receptor.
+
+| | plásmido con MVM | plásmido con quimérico |
+|---|---|---|
+| **fragmento MVM** | PASS ✔ correcto | **PASS** ✘ cruzada |
+| **fragmento quimérico** | **PASS** ✘ cruzada | PASS ✔ correcto |
+
+### La causa no era un umbral: era qué se comparaba
+
+`fragmento_presente` busca el fragmento **dentro** del plásmido y lo encuentra siempre —
+porque el fragmento está, se haya pegado donde se haya pegado. Y mirar el MÓDULO no ayuda:
+**es idéntico en las dos arquitecturas** (misma horquilla, mismos contextos de SGEP,
+mismos espaciadores). Lo que cambia son los FLANCOS, que son de intrones distintos.
+
+`sin_intron_previo` tenía además su propia ceguera: buscaba SÓLO el intrón vacío del MVM,
+por valor por defecto, así que un plásmido que llevara el quimérico detrás salía `PASS`.
+Un centinela que sólo busca lo que ya esperabas no es un centinela. Ahora barre el
+registro entero.
+
+### El criterio que discrimina, y su CALIBRACIÓN
+
+Los extremos del fragmento contra los del intrón **donde se va a pegar**. Y hace falta
+medir cuántos nucleótidos, porque no es obvio:
+
+```
+MVM   AAGAG GTAAG GGTTT …   AAGAG GTAAG = 10 nt IDÉNTICOS
+QUI   AAGAG GTAAG TATCA …   divergen en el 11
+                            por el otro extremo, en el 9
+```
+
+**Con 5 nt no se distinguen. Con 10 tampoco.** Los 15 que ya destacaba la hoja de pedido
+cubren los dos casos con margen — y eso convierte una preferencia en una medida. Con un
+tercer intrón se vuelve a medir con `montaje.divergence_point`; no se hereda.
+
+### Tres de las cuatro casillas no son errores
+
+Pegar el fragmento del quimérico sobre un plásmido que lleva el MVM **es** cómo se cambia
+de arquitectura. Así que el guardia no prohíbe una casilla: DICE en cuál se está. El
+cambio se declara (`--cambio-de-arquitectura`), sin declararlo la cruzada es `FAIL`, y
+declarándolo lo que falla es que no haya cambio — la matriz se invierte, que es la prueba
+de que discrimina en las dos direcciones.
+
+### Y una pregunta que no se puede hacer después
+
+`check_before_pasting` es una entrada nueva y no un modo de la otra: sobre el plásmido YA
+montado el intrón anterior **ya no está**, así que la casilla de la matriz no se puede
+reconstruir a posteriori. La comprobación tenía que existir en el momento en que todavía
+se puede no pegar.
+
+---
+
+## 116 — «11 de los 16» no sale con ninguna definición: son 13
+
+Al pedir los tres mejores candidatos del tercio distal, el responsable del proyecto dio la
+cifra como *«de los 16 elegibles del tercio distal, 11 quedan a ≥50 nt de 3utr:1018»*. La
+conclusión que saca de ella —**la cobertura de ese tramo no la limita la geometría, la
+limita la cuota**— es correcta, y con el número medido lo es más. Pero el 11 no sale.
+
+Medido sobre las definiciones que hay, con el panel de diez:
+
+| conjunto | total | a ≥50 nt de `3utr:1018` | a ≥50 nt de TODO el panel |
+|---|---|---|---|
+| distal por INICIO | 16 | **13** | 9 |
+| distal por PUNTO MEDIO | 17 | 14 | 9 |
+
+Se probaron además tres lecturas alternativas y ninguna da 11: medir el espaciado entre
+extremos de ventana en vez de entre inicios da 10; exigir además espaciado con `3utr:819`
+da 9; y un recuento voraz respetando el espaciado entre los propios candidatos da 3.
+
+**No se le asigna causa** (principio nº 3): puede ser un conjunto distinto, otra
+definición de espaciado o un desliz al contar, y ninguna de las tres se puede comprobar
+desde aquí. Lo que se hace es emitir el número CON su definición al lado, que es lo que
+permite que la próxima vez se vea en qué difieren las dos cuentas en vez de discutirlas.
+
+Y las dos listas se emiten por separado, porque son dos preguntas: los mejores del tramo
+a ≥50 de su propio vecino, y los que además caben con todo el panel. En el tercio
+proximal **no coinciden**, que es donde se ve que no eran la misma.
+
+---
+
+## 117 — `mvm_sin_criptico` declara las mitades del MVM y NO EXISTE
+
+Cazado al generalizar `locate_intron`, **antes de que mordiera**. El responsable del
+proyecto lo señaló como el hallazgo de la tanda (2026-09-06):
+
+> *«Declara las mitades del MVM y no existe, así que localizarlo habría devuelto una
+> identificación falsa con la forma correcta.»*
+
+`intron_boundaries(intron)` resuelve por dónde buscar cada intrón: si se ensambla de
+piezas versionadas, por sus dos mitades; si llega entero, por sus extremos. La primera
+versión miraba **cómo se busca** antes de **si existe**:
+
+```python
+if registro.five_piece and registro.three_piece:   # ← mvm_sin_criptico entra aquí
+    return PIECES[...], PIECES[...]
+if not registro.provided:
+    registro.require_sequence()                    # ← nunca llega
+```
+
+`mvm_sin_criptico` declara `five_piece="MVM5"` y `three_piece="MVM3"` porque **es una
+variante del MVM**: cuando exista, tendrá esas dos mitades. Pero **lo diseña la app por
+candidato** y hoy no existe (`provided` es `False`, y se DERIVA precisamente para que
+nadie pueda declararlo a mano). Buscarlo por las mitades del MVM habría encontrado…
+**el MVM**, y devuelto un `IntronLocation` con `intron_name="mvm_sin_criptico"` sobre
+coordenadas del otro.
+
+### Por qué es el patrón del proyecto y no un despiste
+
+El resultado no habría dado error: coordenadas válidas, dinucleótidos `GT`/`AG`
+correctos, longitud plausible. **Un intrón identificado como el que no es, con la forma
+correcta** — la misma familia que el 3'UTR de 1246 nt anunciado como 1242, que el `mmu-`
+por defecto sobre una guía de conejo, y que el «Alu 0 %» obtenido sin buscar Alu.
+
+Y con una vuelta de tuerca: el campo que lo habría delatado —`provided`— **ya estaba
+derivado y no declarado**, justo por esta razón. La contramedida existía y la consulta
+llegaba tarde.
+
+### La contramedida, que es lo que generaliza
+
+**Comprobar que la cosa EXISTE antes de mirar CÓMO se busca.** Dos líneas invertidas:
+
+```python
+if not registro.provided:
+    registro.require_sequence()     # PRIMERO si existe
+if registro.five_piece and registro.three_piece:
+    return ...                      # y LUEGO cómo se busca
+```
+
+No es una comprobación más: es un ORDEN. Toda función que elija una estrategia según las
+propiedades declaradas de un objeto tiene que preguntar primero si el objeto está — o la
+estrategia se aplicará a los campos de algo que no existe, y esos campos suelen ser
+verosímiles porque describen lo que existirá.
+
+---
+
+## 118 — La tasa base describía un conjunto y el veredicto otro
+
+Reportado con la corrida delante (2026-09-06): `window=2-7`, `level=nucleo`, la cabecera
+anunciando que **el 31 % colisionaría por azar** y el resultado **1 de 176**.
+
+> *«La tasa base se calcula sobre los 1.988 maduros mmu- y el veredicto se emite sólo
+> contra los diez del núcleo. La cifra que acompaña al resultado no describe lo que el
+> resultado mide, y engaña en la dirección tranquilizadora.»*
+
+`base_rate` contaba TODOS los maduros de la especie; `run_scan` filtraba las colisiones
+por `level`. Dos conjuntos, y la cifra que viajaba pegada al veredicto era la del grande.
+
+**Y la dirección importa.** Una tasa base inflada convierte un `LIMPIO` trivial en un
+`LIMPIO` notable: hace parecer excepcionalmente limpio algo que sólo se comparó contra
+diez secuencias. Un error hacia el lado incómodo se investiga; éste se celebra.
+
+Ahora `base_rate` recibe el `level` y filtra **por el mismo camino** que el veredicto
+—`mirna.core_hits`—, no por una segunda definición de qué es el núcleo: con dos, la tasa
+podría volver a describir un conjunto y el veredicto otro. La cifra dice contra qué
+conjunto se comparó, en el párrafo y en la celda, y el nivel viaja con ella al almacén.
+
+---
+
+## 119 — La ventana 2-7 estaba en la cabecera y no en el veredicto
+
+Del mismo reporte. La seed son las posiciones 2-8 **por definición del bolsillo de Ago2**;
+en 2-7 el espacio pasa de 16.384 a 4.096, así que **un LIMPIO significa mucho menos** —
+hay cuatro veces más sitio donde no chocar.
+
+Estaba marcado como «ajuste modificado» en la cabecera de parámetros, que se lee una vez.
+El veredicto se lee siempre **y se descarga**: es la misma lección que puso la tasa base
+en la fila, aplicada a la ventana. `SeedResult.verdict` lleva ahora la ventana pegada
+cuando no es la estándar; `level` sigue siendo el estado a secas, que es lo que leen los
+almacenes y el semáforo.
+
+**El hallazgo de esa corrida se sostiene igual**: `3utr:1761` guía, `CTTTGG`, colisión con
+`mmu-miR-9-5p` — que está en `CORE_ABUNDANT`. No está en el panel.
+
+---
+
+## 120 — Verde en el panel y NOT_RUN en el veredicto: la tercera vez
+
+Reportado el 2026-09-06 con la pantalla delante. `transcriptoma_3utr.fa` estaba en el
+depósito, figuraba **conectado y en verde**, y el modal de off-targets **abortaba**: a su
+línea del manifiesto le faltaban los cuatro campos de procedencia de la tabla que
+`offtarget.Provenance` exige.
+
+> *«Es el caso de `refseq_rna.fa` otra vez: verde en el panel y NOT_RUN en el veredicto.»*
+
+`_estado_de` daba `CERRADO` con un solo hecho —«está en el depósito»— y hay dos: estar, y
+traer lo que su frente exige. `manager_rows` YA calculaba cuáles faltan
+(`falta_procedencia`, errata nº 87): el dato estaba y el estado no lo miraba.
+
+### La segunda consecuencia, que es peor que la primera
+
+Una fila `CERRADO` va **colapsada**. Así que las cuatro acciones —Ver, Reemplazar,
+Borrar, Descargar— y la caja de «completar la procedencia» quedaban detrás de un gesto, y
+el gestor se leía desde fuera como una lista de nombres. **El estado equivocado escondía
+exactamente la salida del problema.**
+
+Y había un tercer eslabón: la rama abierta del panel llamaba a `_fila_ausente`
+**siempre**. Mientras «presente» implicaba «CERRADO» y «CERRADO» implicaba «colapsada»,
+la combinación presente + abierta no existía y el fallo no se veía. Al crear el estado
+nuevo aparece, y es justo donde hay que poder declarar y reemplazar.
+
+### Lo que se cambia
+
+- Estado propio, **`SIN PROCEDENCIA`**, con su color y su marca en la leyenda. No es
+  `CERRADO` y no es `FALTA`: el fichero está, y volver a subir 84 MB no es lo que hace
+  falta — la salida es declarar los campos sobre el que ya está.
+- **No se colapsa**, porque su arreglo vive dentro de la fila.
+- La barra de progreso y el semáforo cuentan los que **CIERRAN**, no los que están: si
+  sólo se arregla la fila, la fila dice ámbar y la barra sigue diciendo cerrado.
+- Y dos conjuntos separados donde había uno: `cierran` decide los estados, `en_disco`
+  decide qué botones se pintan. Fundirlos deja un fichero que está sin sus cuatro
+  acciones, que es lo que hay que poder hacer con él.
+
+---
+
+## 121 — `3utr:1398` era `tx:1398`: el aviso del multiplexado nombraba a dos candidatos que no existen
+
+**Encontrada (2026-09-06)** contestando otra pregunta: al comprobar si el undécimo del
+panel comparte núcleo de seed con alguno de los diez, el aviso que salió decía
+
+> «**3utr:1398** y **3utr:1967** comparten el núcleo TACTAA…»
+
+y ninguna de las dos está en el panel. Son `tx:1398` y `tx:1967`, o sea **`3utr:449` y
+`3utr:1018`** — el par que la propia nota del multiplexado pone de ejemplo cuatro líneas
+más abajo, escrito bien allí y mal aquí, en el mismo párrafo.
+
+`selection_warnings` construía la etiqueta con una f-string, `f"3utr:{uno}"`, sobre un
+`start` que va en el marco de LO TILADO. Con el 3'UTR pelado coincide; con el transcrito
+entero —que es lo que tila la página y lo que tila el CLI— no.
+
+### Por qué el invariante de rango no podía cazarla
+
+Y no por descuido: es el **corolario ya escrito** del principio nº 9. `3utr:1398` sobre un
+3'UTR murino de 1242 nt es una posición imposible, pero `coords.max_utr3()` se **deriva**
+del 3'UTR más largo que el proyecto conoce —**1606**, que lo pone el humano— así que 1398
+cabe y no aborta. *El invariante caza lo imposible, no lo equivocado.* Es la misma frontera
+que dejó pasar `3utr:1185` en su día.
+
+### Por qué esta vez es peor que las cinco anteriores de la familia
+
+Las otras cinco eran una etiqueta mal escrita en un bloque de informe. Ésta está en un
+**aviso rojo que se lee justo antes de decidir qué se sintetiza**, y sobre el ÚNICO eje que
+el espaciado no ve — el parecido de seed. Quien lo lee no puede recalcularlo de cabeza y no
+encuentra los candidatos que nombra: la salida natural es dar el aviso por roto y seguir,
+que es exactamente perder la advertencia que este aviso existe para dar.
+
+### LA LECTURA BUENA, y no es la que se dio primero
+
+La primera versión de esta entrada decía que el fallo sobrevivió porque los goldens corren
+sobre una configuración que no es la de uso —principio nº 18—. **Es falso, y la corrección
+es de Joaquín Castilla**, que rehízo la cuenta: los goldens sobre el 3'UTR pelado son
+**dos** (`ficha_raton_200.txt` e `informe_documento.md`), no tres, y **`raton_informe.txt`
+corre sobre el transcrito entero y emitía la línea CORRECTA** (`tx:1398 y tx:1967`).
+
+Así que lo que hay debajo es otra cosa, y es peor: **cuatro sitios renderizan este mismo
+conflicto** —`outputs.py`, `informe_doc.py`, `dossier.py` y `presentation.py`— y **tres
+derivaban el marco bien**. Es la familia de los **pares duplicados**: no código repetido
+que se vea en un `grep`, sino la misma cantidad calculada en varios sitios donde el arreglo
+llegó a unos y no a otros.
+
+**Y hay evidencia de que el arreglo ya se había hecho una vez.** `outputs.py` lleva escrito,
+en el sitio exacto, el comentario que lo explica:
+
+> «Las dos etiquetas salen del MARCO del informe, no de un prefijo escrito dentro de
+> `describe()`: sobre un informe del transcrito completo eso imprimía `3utr:` para
+> coordenadas de transcrito, sin dar ningún error.»
+
+O sea: **este fallo se encontró, se entendió y se arregló — en tres llamadores de cuatro.**
+El cuarto se quedó con el código viejo, con el comentario de la lección tres módulos más
+allá. Es el principio nº 31 exacto —*un comentario protege su clase; un mecanismo protege
+la siguiente*— y aquí ni siquiera protegió a las hermanas contemporáneas.
+
+**Consecuencia de método**: cuando aparece un fallo de esta forma, la pregunta no es «¿qué
+artefacto debería haberlo cazado?» sino **«¿cuántos sitios calculan esto, y a cuántos llegó
+el arreglo?»**. La primera lleva a rediseñar los goldens; la segunda, al fallo.
+
+### El arreglo, y por qué no es cambiar la cadena
+
+La etiqueta se **pide** a `presentation._start_label`, que saca el marco de la anatomía que
+viaja con la selección; `_candidate_label` pasa a colgar de él, así que hay **una sola
+definición del marco** en vez de dos. No se puede volver a escribir `3utr:` a mano aquí
+porque ya no se escribe ninguna etiqueta a mano.
+
+### El test, con el control por el OTRO lado
+
+`tests/test_los_AVISOS_de_la_seleccion_llevan_su_marco.py`, escrito antes y **comprobado
+que falla con el código de antes** (3 de 5). Y con el control adversario que importa:
+tilando el 3'UTR pelado, las etiquetas tienen que ser `3utr:` y **no** `tx:`. Sin esa
+segunda mitad, un arreglo que escribiera `tx:` a pelo pasaría el primer test y estaría
+igual de mal — sería el mismo fallo con la otra etiqueta.
+
+---
+
+## 122 — La ficha sobre el transcrito: `3utr:1149-221`, un intervalo con un extremo en cada marco
+
+**Encontrada (2026-09-06) por la propia variante de golden que se acababa de crear**, en
+su primera generación. Es la mejor prueba de que la variante hacía falta, y por eso la
+entrada va con ella y no aparte.
+
+`build_dossier` recibe `start` en el marco de LO TILADO —así encuentra al candidato,
+`c.start == start`— y devolvía `end=elegido.end - desfase`, o sea el final **convertido al
+3'UTR**. Sobre el 3'UTR pelado el desfase es 0 y los dos coincidían, así que la mezcla era
+**invisible**. Sobre el transcrito la ficha imprimía:
+
+```
+═══ Ficha del candidato — raton 3utr:1149 ═══
+  sitio      3utr:1149-221
+```
+
+Un intervalo cuyo inicio es mayor que su final, con la etiqueta equivocada en los dos.
+
+### Y no era uno, eran CUATRO en la misma ficha
+
+Al medirlo salieron cuatro sitios independientes con la misma forma, todos invisibles con
+desfase 0:
+
+1. **la cabecera y el intervalo** — `3utr:` escrito a mano sobre una posición del tilado;
+2. **los hexámeros cercanos** — `NearbyHexamer.describe()` con `3utr:` a pelo: `AATATA`
+   salía en `3utr:1185` cuando es `tx:1185`, o sea `3utr:236`. Es **exactamente** la
+   coordenada de la errata que ya está registrada por este mismo motivo;
+3. **los sitios en la propia diana** — `SelfSite.describe()`, igual;
+4. **y uno que NO era de etiqueta sino de CONTENIDO**: `self_sites` recibía
+   `target=<transcrito entero>` y `window=(inicio_3utr, fin_3utr)`. Con los marcos
+   cruzados, la ventana caía 949 nt más allá y **su propia diana salía marcada «SEGUNDO
+   SITIO»** en vez de «el suyo». Ése no se veía como una etiqueta rara: se leía como un
+   hallazgo biológico — un candidato con un sitio de seed extra en su propio mensajero,
+   que es justo la clase de dato que este proyecto anota y discute.
+
+### Lo que esto añade a la familia del marco
+
+Las seis anteriores producían **una etiqueta mal escrita**. Aquí, además, hay:
+
+- **un intervalo imposible** (`1149-221`), que ningún invariante cazó porque
+  `audit.Span.check()` no interviene en la ficha; y
+- **un cambio de SIGNIFICADO**: «el suyo» frente a «SEGUNDO SITIO» no es una etiqueta —
+  es un veredicto distinto sobre la biología del candidato.
+
+### EL PEOR DE LOS CUATRO, Y POR QUÉ — y qué hay que volver a mirar
+
+Con las palabras del responsable del proyecto (2026-09-06):
+
+> *«Un fallo de marco que marca la propia diana como SEGUNDO SITIO no se lee como error
+> de formato — se lee como un hallazgo biológico, y en su día lo interpretamos como
+> COOPERATIVIDAD. Que quede anotado que cualquier "segundo sitio" medido antes de este
+> arreglo hay que volver a mirarlo.»*
+
+Es la distinción que separa este caso de los otros tres: una etiqueta con el marco
+equivocado **se ve rara**; un `SEGUNDO SITIO` falso **encaja** en algo que este proyecto
+ya sabe nombrar —dos sitios en el mismo mensajero, cooperatividad, un rendimiento por
+encima de lo esperado— y por eso no se investiga: se explica. Un fallo que produce un
+resultado plausible en el vocabulario del proyecto es el que más tarda en salir.
+
+### LA RE-MEDIDA, hecha y no afirmada
+
+El hallazgo registrado —**4 del panel murino con un segundo sitio de seed en el 3'UTR de
+Prnp**— se volvió a medir con el código arreglado, y **SIGUE EN PIE, idéntico**:
+
+| candidato | sitios (posición, clase, ¿el suyo?) |
+|---|---|
+| `3utr:449` | `464` 7mer-m8 **el suyo** · `1033` 7mer-A1 SEGUNDO |
+| `3utr:553` | `460` 6mer SEGUNDO · `568` 7mer-m8 **el suyo** |
+| `3utr:819` | `148` 7mer-m8 SEGUNDO · `834` 7mer-m8 **el suyo** |
+| `3utr:1018` | `464` 6mer SEGUNDO · `1033` 8mer **el suyo** |
+
+**Y la razón por la que no estaba contaminado es la misma que hacía invisible el fallo**:
+se midió sobre el **3'UTR pelado**, donde el desfase es 0 y el cruce de marcos es
+**inerte**. O sea que el hallazgo se salvó por dónde se midió, no porque el código
+estuviera bien. Queda fijado con test, incluido el control de que **cada uno de los cuatro
+marca exactamente UNA ventana como propia** — que es el síntoma que tendría un caso
+contaminado.
+
+### Y AL VOLVER A MIRARLO SALIÓ LA OTRA MITAD, que no es un fallo
+
+`self_sites` barre **lo que se le pase como `target`**, así que sobre el 3'UTR y sobre el
+transcrito entero contesta preguntas **distintas**: con el transcrito aparecen sitios en el
+CDS y en el 5'UTR —reales, y de otra naturaleza, porque la represión por seed opera sobre
+todo en el 3'UTR—. Medido: `3utr:143` gana un 6mer fuera del 3'UTR que en la lectura del
+3'UTR no existe.
+
+Eso no se arregla eligiendo un alcance: se **declara**. La ficha emite ahora
+`buscados en 3utr:1-1242` o `buscados en tx:1-2191`, **derivado de lo que se barrió de
+verdad** — escrito, diría «el 3'UTR» sobre una ficha generada con el transcrito delante,
+que es la forma exacta del fallo que esto viene a hacer legible. Sin alcance declarado, la
+ficha lo dice con esas palabras en vez de dar un número mudo.
+
+**El arreglo es el mismo de siempre y ya no admite excepción**: el marco se **recibe**,
+`start` y `end` van los **dos** en él, y toda posición se imprime con `coords.label`. Se
+comprobó midiendo que el golden del 3'UTR pelado **no cambia ni un byte** — porque ahí el
+desfase es 0 y las dos lecturas coinciden —, que es lo que demuestra que el arreglo es
+consistente y no un ajuste para que cuadre la variante nueva.
+
+---
+
+## 123 — El test comprobaba la clave que YO había roto, no las que la caja consume
+
+**Reportado (2026-09-06)** con la traza entera y con la cita de lo que yo mismo había
+escrito el día anterior:
+
+> *«Es exactamente lo que dijiste que habías evitado: "la fila del modal no traía
+> `especie`, así que la caja se habría pintado perfectamente y habría reventado al
+> pulsar". Comprobaste `especie` y no `etiqueta` — la contramedida se escribió para la
+> clave concreta que habías encontrado, no para el conjunto de claves que la caja
+> necesita.»*
+
+`KeyError: 'etiqueta'`, y **al PINTARSE**, no al pulsar: el modal entero se cae. **Es peor
+que antes del arreglo** — el `PARA` anterior al menos decía a dónde ir.
+
+### Los dos fallos, y ninguno es el que yo creía haber cubierto
+
+**1. `procedencia` eran DOS COSAS con el mismo nombre** (principio nº 27, literal):
+
+| fila | qué es | forma |
+|---|---|---|
+| gestor (`refinement_panel`) | los campos **que hay que pedir** | `clave` / `etiqueta` / `ayuda` |
+| modal (`deposit_file`) | los campos **ya declarados**, para enseñarlos | `campo` / `valor` |
+
+La misma caja sobre las dos filas no podía funcionar, y el nombre compartido es lo que
+hizo que pareciera que sí. Se **renombra**, no se amplía: `procedencia_pedida` y
+`procedencia_declarada`, y la fila del modal trae ahora las dos —lo pedido sale de
+`gestor._procedencia_pedida`, la misma función que usa el gestor—.
+
+**2. El test miraba UN SOLO NIVEL.** Derivaba las claves del cuerpo de
+`_declarar_procedencia` y ahí sólo aparece `especie`; `etiqueta` la lee
+`_casillas_de_procedencia`, a la que la caja **le pasa la fila**. Ahora el barrido es
+**transitivo** —el cuerpo de la caja más el de todo ayudante que reciba `fila`— y mira
+también las claves de **cada elemento** de las listas que recorre, que es donde vivía
+`campo["etiqueta"]`.
+
+**3. Y el fixture no reproducía el estado del fallo**: probaba sobre `data/reference/`,
+donde el transcriptoma **no está**, así que `falta_procedencia` salía vacío y la caja ni
+se pintaba. El test pasaba sin ejecutar la rama que revienta (principio nº 18).
+
+### La lección, y es del que lo reportó
+
+**Un guardia escrito sobre el caso que ya se conoce no cubre el conjunto, y no puede
+delatarse a sí mismo: el caso conocido siempre pasa.** Es el principio nº 34 —un guardia
+se calibra midiendo— por el lado que no se ve: allí el riesgo era un criterio demasiado
+ancho que se acaba apagando; aquí, uno tan estrecho que sólo reconoce el ejemplar que lo
+motivó. La calibración se mide contra **el conjunto que el consumidor necesita**, derivado
+de él, no contra el fallo que se acaba de arreglar.
+
+---
+
+## 124 — Dos definiciones de «se ha diseñado», y el paso 5 no se pintaba nunca con un proyecto retomado
+
+**Reportado en la misma tanda**: *«el paso 5 sigo sin verlo»*, con la caja del modal ya
+presente — o sea, con el despliegue nuevo y descartada la hipótesis del despliegue viejo.
+
+En `ui/streamlit_app.py` había **dos**:
+
+```python
+línea 1871:  designed = st.session_state.get("accion") == "diseñar"
+línea 1987:  accion   = "diseñar" if retomado is not None else st.session_state.get("accion")
+```
+
+La segunda decide si se corre el diseño y se pintan los resultados y los cuatro modales, y
+**sabe** que retomar un proyecto es ver su resultado. La primera decide si el paso 5 es
+visible, y **no lo sabe**. Con un proyecto retomado: modales sí, «Ficheros de referencia»
+no. Y `refinement_panel` estaba perfecto — nunca llegaba a llamarse.
+
+**Es `resolve.py` otra vez**: la misma pregunta contestada en dos sitios, uno se entera de
+un camino nuevo y el otro no. Lo que lo hace caro aquí es CUÁNDO se cobra: el paso 5 es la
+**única vía alternativa** cuando un modal falla, así que los dos fallos se sumaron —el
+modal reventaba y la alternativa no existía—.
+
+`presentation.design_action(stored, resumed=…)` lo resuelve en un sitio, y las dos
+acciones dejan de ser literales sueltos en la página (`ACCION_DISENAR`, `ACCION_ESTIMAR`):
+la comparación a mano es lo que permitió que hubiera dos definiciones. Con test de que la
+página no vuelve a comparar la acción por su cuenta.
+
+---
+
+## 125 — «0 sitios» era el resultado ESPERADO de una pasajera, y salía como anomalía: siete de once
+
+**Reportado (2026-09-06)** con la corrida buena delante — las once guías dando lo esperado
+y los cuatro segundos sitios sobreviviendo a la re-medida — y con el argumento que lo
+decide:
+
+> *«La guía es ANTISENTIDO a la diana: su seed encuentra su sitio por construcción. La
+> pasajera es SENTIDO — tiene la misma secuencia que la diana, no la complementaria — así
+> que su seed no tiene por qué encontrar nada ahí. Cero es el resultado esperado para una
+> pasajera. Y las tres que sí tienen sitio —1092, 1149, 1768— son las que merecen mirarse,
+> no al revés.»*
+
+`SelfCount.expected` valía **1** y no dependía de la hebra. El texto que salía —«si la
+hebra no tiene su propio sitio en la diana, esa hebra NO sale de esa diana; comprueba que
+la secuencia analizada es la que se cree»— es **correcto para una guía** y manda a buscar
+un fallo que no existe cuando quien lo lee es una pasajera.
+
+### Es `ANTISENSE` en el BLAST otra vez (errata nº 57)
+
+Un criterio correcto **movido a la otra hebra sin el supuesto que lo sostenía**. Allí, el
+descarte por orientación era correcto en nuestro escáner y, copiado al `-outfmt 6`, tiraba
+el acierto legítimo de la pasajera **contra su propia diana**. Aquí, el «esperado: 1» es
+correcto para la guía y convierte en anomalía lo normal de la pasajera. **La misma
+geometría, el mismo sitio del código, y la segunda vez en un mes.**
+
+### Y SIETE DE ONCE ES LO QUE APAGA UN GUARDIA
+
+No es que sobre un aviso: es que con esa proporción de falsos positivos **la próxima
+anomalía real de pasajera se lee como ruido**. El proyecto ya tiene escrito que un guardia
+con falsos positivos se acaba apagando; esto es el caso con número.
+
+### EL COROLARIO, y es lo que generaliza (del responsable del proyecto)
+
+> *«Guía y pasajera van separadas en todos los frentes desde hace semanas, y aquí van
+> separadas en el conteo pero comparten el valor esperado. **Separar la medida no basta si
+> el criterio de lectura sigue siendo uno.**»*
+
+Es el principio nº 29 —una dimensión del modelo que la consulta no atraviesa— aplicado a
+**la lectura y no a la medida**: `verdict_for` es por hebra, el almacén es por hebra, la
+ficha son dos filas… y el número contra el que se comparan las dos era el mismo. La
+separación se declaró en el eje del dato y no en el eje del criterio.
+
+**El arreglo**: `EXPECTED_SELF_COUNT` —guía 1, pasajera 0—, `expected_self_count()`
+**aborta** con una hebra no declarada (dos geometrías distintas; una tercera no tiene
+valor por defecto que valga), la hebra viaja hasta `self_count`, y la lectura se
+**invierte** para la pasajera: lo que se destaca es que SÍ tenga sitio, con el motivo —la
+propia diana lleva el núcleo de la pasajera, así que la pasajera cargada reprimiría también
+el mensajero que se quiere medir—.
+
+---
+
+## 126 — El bloque exportable se contradecía a sí mismo: `3utr:1398` y `3utr:464` en el mismo fichero
+
+**Reportado (2026-09-06)** pegando la corrida entera y preguntando «¿esto está bien?».
+Los datos sí —las 22 seeds recalculadas cuadran una a una— y **las etiquetas no**.
+
+La tabla de hebras decía `3utr:1398 guia`, y **doce líneas más abajo, en el mismo
+fichero**, el autoconteo de esa misma guía decía que su sitio propio está en `3utr:464`.
+Un sitio propio cae dentro de la ventana del candidato: si 1398 fuera 3'UTR, 464 no podría
+serlo. **El fichero se delata solo.**
+
+Y las dos mitades discrepan por una razón concreta: las del autoconteo salen de
+`self_sites` con el marco **derivado** —lo que arregló la errata nº 122— y las de la tabla
+de un `f"3utr:{self.start}"` **escrito a mano** en `LoadResult.describe()`. O sea que el
+arreglo del marco llegó a un lado del mismo módulo y no al otro: **el patrón de la errata
+nº 121 dentro de un solo fichero**.
+
+Séptima vez de la familia, y en el peor sitio de todos: este bloque es *«material para
+defender la selección»*, el que se lee **sin la app delante** y se pega en un documento.
+Quien lo abra dentro de un año buscará `3utr:959` en un 3'UTR de 1242 nt y encontrará otro
+sitio — o ninguno.
+
+**Arreglado igual que siempre**: `LoadResult` recibe el marco, derivado de la anatomía que
+viaja con la selección, y la etiqueta la pone `coords.label`.
+
+### Y LA SEGUNDA MITAD ES UN FALLO DE LA TANDA ANTERIOR, no del reporte
+
+Al leer el fichero completo salieron **cuatro** pasajeras con sitio, no tres: falta
+`3utr:449`, que además es la peor —**dos sitios `7mer-A1`**, en `3utr:824` y `3utr:1089`—.
+Y no se veía porque **el aviso de la pasajera no graduaba por clase**:
+
+| candidato | sitios de la pasajera | lectura correcta |
+|---|---|---|
+| `3utr:143` | 1 × 7mer-m8 | no marginal |
+| `3utr:200` | 1 × 6mer | **marginal** |
+| `3utr:449` | 2 × 7mer-A1 | no marginal, y son dos |
+| `3utr:819` | 1 × 6mer | **marginal** |
+
+La rama de la GUÍA sí gradúa —«un 8mer o un 7mer-m8 de más dan cooperatividad real; un
+6mer es marginal»— y la de la pasajera decía «MERECE MIRARSE» igual para las cuatro.
+
+**Es el corolario de la errata nº 125 aplicándose una segunda vez, un nivel más abajo, y
+sobre el arreglo de la nº 125.** Allí quedó escrito que *«separar la medida no basta si el
+criterio de lectura sigue siendo uno»* — y al separar el **valor esperado** por hebra dejé
+sin separar el **criterio de la clase**. La lección no se aprendió del todo la primera vez:
+se aplicó al eje que el reporte señalaba y no al eje que la frase describe.
+
+## 127 — Una prueba del hub se puso roja sola al cambiar de mes, y cinco días nadie la miró
+
+**Encontrada el 2026-09-06**, al correr `npm test` para poder fusionar. No la encontró
+nadie mirándola: llevaba **cinco días en rojo**.
+
+`GET /asignacion/api/overview` mide `has_month_period` contra `thisMonth()` — el **mes en
+curso**. La prueba `overview lists the person with their plan and month status` creaba sus
+periodos en `'2026-08'`, escrito, como todo su bloque, y afirmaba `has_month_period ===
+true`. Cierto durante agosto de 2026. **Falso desde el día 1 de septiembre**, sin que nadie
+tocara una línea.
+
+No es un valor esperado sacado del código: es un valor esperado sacado **del calendario
+del día en que se escribió**. Principio nº 11 —la prosa se queda atrás— aplicado al test,
+con el agravante de que aquí no se movió el código: se movió el mundo. Queda como
+**principio nº 48**.
+
+### Lo que lo hizo durar, que es lo peor de la errata
+
+Está **fuera de la zona de shmiR**, y las dos partes lo dimos por ajeno sin abrirlo. Con
+las palabras del responsable del proyecto:
+
+> *«Un fallo persistente fuera de tu zona se convierte en ruido de fondo, y a partir de ahí
+> ya no informa de nada. Eso es lo mismo que un guardia con falsos positivos, en la escala
+> de la suite entera.»*
+
+Una suite con un rojo permanente no dice «hay un fallo»: dice «hay un rojo». El coste no
+es el fallo que tapa — es que a partir de él ningún rojo se atiende.
+
+### El arreglo tiene DOS mitades, y la segunda es la que vale
+
+Mover el periodo al mes en curso arregla el síntoma:
+
+```js
+const mesEnCurso = `${hoy.getFullYear()}-${String(hoy.getMonth() + 1).padStart(2, '0')}`;
+asigDb.getOrCreatePeriod(personId, mesEnCurso);
+```
+
+…y deja el agujero abierto: si mañana el endpoint midiera contra otra cosa —el último
+periodo, el mes de la ficha—, la prueba volvería a pasar **sin comprobar nada**. Lo que la
+ata al criterio es la línea de al lado:
+
+```js
+assert.equal(data.month, mesEnCurso, 'el overview informa del mes que mide');
+```
+
+Con ella, un cambio de criterio **se declara** como un fallo que dice cuál es. Sin ella,
+saldría como un verde.
+
+### Y el barrido, que es un experimento
+
+`test/calendario.test.js` vuelve a correr la suite del hub **con el reloj 400 días por
+delante**, dentro de `npm test`. Comprobado que **caza el caso original**: con la versión
+anterior al arreglo falla y nombra la prueba. Con el arreglo, las 345 pasan a +400 días.
+
+La suite de `apps/shmir-design/` se barrió igual, a mano y a +40, +400 y +4000 días: las
+**4796 pasan**. Lo que lo sostiene es que aquí el tiempo **entra por parámetro** y sólo un
+sitio mira el reloj (`presentation.today_text()`), y eso lo mantiene ahora
+`tests/test_el_TIEMPO_llega_por_PARAMETRO.py`.
+
+## 128 — No eran cinco instancias del prefijo tecleado: eran treinta y siete, y cuatro estaban rotas
+
+**Cerrada el 2026-09-06.** Es el desenlace de la errata nº 121, y empieza por una
+corrección del responsable del proyecto sobre su propio diagnóstico:
+
+> *«Dije "la quinta instancia" y eran treinta y siete. Arreglar el quinto habría dejado
+> treinta y dos.»*
+
+Las cinco conocidas eran las cinco que habían **producido un síntoma**, y el síntoma de
+esta familia es raro por construcción: un `f"3utr:{start}"` sólo delata si la corrida es
+sobre el transcrito —sobre el 3'UTR pelado el desfase es 0 y la etiqueta sale bien— **y**
+alguien mira esa línea. Las otras treinta y dos estaban igual de rotas sin haber tenido
+ocasión de decirlo. Queda como **principio nº 49**: contar lo visto no estima el total,
+porque lo visto es lo que además fue observable.
+
+Con 5 instancias, la decisión correcta es arreglar. Con 37, arreglar una a una **es
+reproducir el problema** — la treinta y ocho se escribe mañana. Por eso el arreglo es un
+guardia (`tools/auditar_marcos.py`) y no seis parches.
+
+### LOS CUATRO QUE NADIE HABÍA VISTO, y cómo aparecieron
+
+No aparecieron leyendo los 37: los cuatro se leían perfectamente. Aparecieron **al
+reescribirlos**, porque el invariante de rango de `coords` los rechazó. Con las palabras
+del responsable del proyecto, que es la formulación que queda (**principio nº 50**):
+
+> *«Un literal no puede fallar; una llamada sí.»*
+
+| dónde | qué imprimía |
+|---|---|
+| `SpliceStore.verdict_for` | `3utr:1684` — ver abajo |
+| `presentation.splice_guide_dependent_rows` | recuperaba el número partiendo el nombre de la construcción por la cadena «3utr» y le volvía a pegar el prefijo a mano. Además de etiquetar mal, ataba el formato del nombre para siempre |
+| `informe_doc._section_5` | titulaba `### 3utr:1149` **encima** de una ficha cuyo cuerpo dice `mouse tx:1149`. El bloque contradiciéndose a sí mismo, igual que la errata nº 126 |
+| `informe_doc`, tabla de 2 contra 3 cambios | «medido sobre la guía de `3utr:959`» |
+
+### El de `SpliceStore.verdict_for` merece mención propia
+
+Es el peor de los cuatro y no por el número. El literal vivía en **el motivo de un
+`NOT_RUN`**:
+
+```
+No hay ninguna corrida de predicción de sitios de splicing para 3utr:1684 x mvm_actual.
+NOT_RUN no es PASS: no se ha consultado, que no es lo mismo que salir limpio.
+```
+
+Con las palabras del responsable del proyecto:
+
+> *«Un error dentro del mensaje de un frente que aún no ha corrido, que es donde menos se
+> mira. Un NOT_RUN con una etiqueta falsa dentro nadie lo lee dos veces.»*
+
+Un `PASS` se contrasta, un `FAIL` se investiga; **un `NOT_RUN` se acepta y se pasa de
+página**, porque su contenido informativo es «aquí todavía no hay nada». El texto que lo
+acompaña se lee una vez, para saber de qué frente habla, y nunca más. Es el sitio del
+informe con menos lectores por línea escrita — y por tanto donde una etiqueta falsa vive
+más tiempo.
+
+Y hay un agravante de mecanismo: el marco de un candidato para el que **no hay corrida**
+no se puede heredar de ninguna corrida. Estaba tecleado porque no había de dónde sacarlo.
+El arreglo no es derivarlo mejor: es que `frame` pase a ser un **parámetro obligatorio** de
+`verdict_for`. Un valor por defecto `UTR3` habría dejado el fallo exactamente igual y con
+mejor aspecto — quien pregunta tiene la anatomía delante y ahora tiene que decir en qué
+espacio pregunta.
+
+### Lo que cambió y lo que no
+
+Un solo golden se movió —`informe_documento__transcrito.md`, dos líneas: el título de la
+sección 5 y el origen de la tabla de cambios— y los otros siete no cambiaron ni un byte.
+Que la configuración sobre el 3'UTR pelado no se moviera es lo que prueba que el arreglo es
+consistente y no una reescritura.
+
+El registro de empalme guarda ahora el marco en disco (`candidate_frame`). Sin eso, una
+corrida sobre el transcrito se relee como si fuera del 3'UTR y vuelve a imprimir el mismo
+fallo semanas después, esta vez desde un fichero.
+
+## 129 — Se emitía con un casete y se validaba con otro, y sólo se sabía al gastar la corrida
+
+**Reportada el 2026-09-06** desde un FASTA descargado de producción a las 18:17:
+
+```
+>mvm_actual__3utr959 md5=778b1daf… longitud=5384 contexto5=3133 contexto3=1955
+ contexto_origen=casete:md5=a9f6ac140d33f504313dc03ba7805b1f:5170nt
+ panel=22de22 estado=COMPLETO
+```
+
+El casete del depósito —`aav_casete.fa`, el que subió su autor— mide **5.282 nt**. Al
+subir el resultado de SpliceAI, la app lo rechazó por longitud. Es el mismo desajuste de
+112 nt que apareció el 2026-09-05 y que se dio por cerrado con `contexto_origen` en la
+cabecera: **la mitigación funcionó** —es lo que permitió verlo— pero la causa seguía viva.
+
+### Lo MEDIDO, que descarta la explicación fácil
+
+`aav_casete.fa` versionado: **5.282 nt, md5 `74f3fd79…`** — el mismo md5 que declara su
+autor haber subido. Con él, montando el panel murino de verdad:
+
+| casete | contexto5 | contexto3 | construcción |
+|---|---|---|---|
+| el del depósito, entero (5282) | 3133 | **2067** | **5496** nt |
+| el mismo cortado 112 nt por el 3' (5170) | 3133 | **1955** | **5384** nt |
+| el mismo cortado 112 nt por el 5' (5170) | **3021** | 2067 | 5384 nt |
+
+La geometría del FASTA de producción —3133 / 1955 / 5384— la reproduce **exactamente** un
+casete de 5.170 nt con el mismo flanco 5' y 112 nt menos por el 3'. Pero su md5 sería
+`0bfe9ea6…` y el de producción es `a9f6ac14…`: **no es el fichero del depósito truncado al
+leerlo**. Es OTRA MOLÉCULA, con el intrón en la misma posición y un 3' distinto — o sea,
+otra versión del plásmido, no un fallo del lector.
+
+Y **no está en el repositorio**: barridos todos los `.fa`/`.gb`/`.tsv`, ni un fichero de
+5.170 nt ni ninguna aparición de ese md5. Vive sólo en el volumen de producción, que desde
+aquí no se ve. **No se le asigna causa** — decir «era esto» sin comprobarlo es el
+principio nº 3, y un diagnóstico equivocado cuesta más que ninguno.
+
+Lo que sí se puede nombrar es el **mecanismo que permite que sobreviva**: la siembra del
+volumen *copia lo que no está y respeta lo que ya está* (a propósito, para no pisar lo
+subido), y `_transgen` valida el fichero contra **el md5 del propio manifiesto del
+volumen**. Los dos son autoconsistentes, así que un casete viejo en el volumen es
+**invisible por construcción**: nada compara el depósito con lo versionado.
+
+### Los dos fallos de la app, que son independientes de qué fichero sea
+
+1. **La comprobación estaba en el sitio equivocado.** Existía —`parse_result` rechaza un
+   resultado cuyo md5 no cuadra— pero llega **después de la corrida de SpliceAI**, que son
+   horas fuera de esta app. Rechazar bien un resultado que costó una corrida no es una
+   salida: es una autopsia. Principio nº 47, otra vez: *la salida va donde está el
+   bloqueo*, y aquí el bloqueo se fabrica al emitir.
+2. **`estado=COMPLETO` no hablaba del casete.** «Completo» se refiere al PANEL —cuántas
+   construcciones de las anunciadas salieron— y se lee como «todo en orden». Dos ejes
+   distintos con una sola palabra, que es la errata nº 126 otra vez.
+
+### El arreglo
+
+`presentation.cassette_deposit_check()` compara, **antes de montar nada**, el casete en
+uso con el que hay en el depósito **en ese momento**, leyéndolo por el mismo cargador que
+usa el rol `transgen` —comparar una lectura cruda con una normalizada daría «no coincide»
+siempre y por el motivo equivocado—. Tres estados, no un booleano: `COINCIDE`,
+`NO_COINCIDE` y `SIN_COMPROBAR`. El nombre del fichero se le pide a `manifest.ROLES`.
+
+Con el caso real, la página ahora **para antes del botón de descarga**:
+
+> **PARA** — El casete con el que se iban a montar las construcciones NO es el de
+> `aav_casete.fa`: en uso 5170 nt (md5 `0bfe9ea6…`) y en el depósito 5282 nt (md5
+> `74f3fd79…`), 112 nt de diferencia. Las construcciones saldrían de un casete y el
+> resultado se validaría contra el otro, así que la corrida de SpliceAI se perdería.
+
+Los **dos md5 y las dos longitudes** van en el motivo a propósito: «no coincide» a secas
+no se puede investigar, y lo que hace falta para investigarlo es justo lo que la
+comprobación ya ha calculado.
+
+Y el veredicto **viaja en cada cabecera del FASTA** (`casete_del_deposito=…`), también
+cuando coincide y también cuando no se pudo mirar: por defecto `SIN_COMPROBAR`, porque el
+silencio se leía como «coincide» — que es exactamente lo que pasó.
+
+### El eje que faltaba, y por qué no lo miraba nadie
+
+Lo más útil de esta errata no es la causa —que queda **no determinada**, ver
+`preguntas-abiertas.md`— sino lo que la hacía imposible de ver. Con las palabras del
+responsable del proyecto:
+
+> *«La siembra respeta lo que está, el rol valida contra el manifiesto del volumen, y
+> nadie compara el depósito con lo versionado. Los dos autoconsistentes, el desajuste
+> invisible por construcción.»*
+
+Queda como **principio nº 52**. Y de ahí salió la pregunta que lo generaliza: *si el
+depósito puede tener un fichero distinto del versionado sin que nada lo diga, ¿pasa con
+los otros?*
+
+`presentation.deposit_vs_versioned()` la contesta: abre los dos directorios y compara
+todos los ficheros que existan en cualquiera de los dos. **INFORME, no guardia** — que el
+depósito tenga un fichero más nuevo es para lo que existe el depósito, así que el número
+correcto no es cero.
+
+Distingue **otra molécula** de **otro formato**: un FASTA reenvuelto a otro ancho tiene
+otro md5 de fichero y la misma secuencia, y esa es la diferencia entre «hay que
+reemplazarlo» y «da igual». Para lo que no es FASTA no se inventa una respuesta.
+
+**En local no puede decir nada y lo dice**: sin `SHMIR_REFERENCE_DIR` los dos directorios
+son EL MISMO, así que devuelve `MISMO_DIRECTORIO` en vez de «todos iguales», que sería un
+verde sin haber mirado (principio nº 51). La respuesta a «¿era el casete el único?» sólo
+se puede leer **en producción**, y por eso la comparación va en el panel de ficheros.
+
+Comprobado sobre un volumen simulado —sembrado desde lo versionado y con el casete de
+5.170—: 24 ficheros comparados, **1 distinto**, y es el casete, con `misma_secuencia=False`.
+
+### El arreglo no veía el caso que lo motivó, y eso es un asiento aparte (2026-09-07)
+
+`cassette_deposit_check` compara **lo que se va a usar** contra **lo que hay en el
+depósito**, y las dos cosas salen de LA MISMA lectura del MISMO fichero
+(`reference_dir()/aav_casete.fa`). Caza un reemplazo a mitad de sesión. **No puede cazar
+un depósito que tiene el fichero equivocado — por construcción.**
+
+Lo enseñó el propio caso: el 2026-09-06 la app emitía con el casete de 5.170 y **no salía
+ningún aviso**, porque era verdad que lo que se usaba era lo que había en el depósito. La
+comprobación decía la verdad y no servía.
+
+Es el **principio nº 52 aplicándose a mi propio arreglo**: una tercera comprobación que
+también es autoconsistente con una de las dos que ya existían. Y el eje que sí lo ve
+—`deposit_vs_versioned`, depósito contra versionado— estaba en **otra pantalla**, el panel
+de ficheros. Principio nº 47: la salida tiene que estar donde está el bloqueo, y el
+bloqueo se fabrica al emitir.
+
+**Ahora los tres ejes van juntos, delante del botón.** El tercero es un AVISO y nunca un
+bloqueo —un depósito más nuevo que lo versionado es legítimo, para eso existe— y dice
+además si cambia la SECUENCIA o sólo el formato, que es la diferencia entre «hay que
+reemplazarlo» y «da igual». Con el caso real:
+
+```
+·  El casete en uso es aav_casete.fa del depósito (5170 nt, md5 de la secuencia 0bfe9ea6…).
+⚠  El aav_casete.fa del depósito NO es el versionado: en el depósito 5170 nt (md5 del
+   fichero 81be9a31…) y versionado 5282 nt (md5 del fichero e49521f7…). Y la SECUENCIA es
+   OTRA: las construcciones que salgan de aquí no son las que saldrían del versionado.
+```
+
+**Y un homónimo que salió al pintarlo**: las dos líneas decían «md5» y son md5 DISTINTOS
+—el de la secuencia normalizada y el del fichero—, uno debajo del otro en la misma
+pantalla. Comparar los dos números y no ver que miden cosas distintas es el principio
+nº 27 en su forma más barata de cometer. Cada uno dice ahora de qué es.
+
+La comparación no se reimplementa: `deposit_vs_versioned` acepta acotarse a un fichero.
+Dos comparaciones sobre el mismo hecho es lo que ya pasó entre `auditar_fixtures` y
+`auditar_claves` (principio nº 26).
+
+## 130 — La descarga se queda colgada y no baja nada — NO REPRODUCIDA, sin causa asignada
+
+**Reportada el 2026-09-06**, y bloqueaba el último frente del panel: sin el FASTA de
+construcciones no se puede correr SpliceAI. Con el dato que faltaba desde el 2026-09-05:
+**el botón equivalente del modal de colisión de seed también se colgó**, y antes lo había
+hecho el de off-targets. Tres botones distintos, así que el reporte apunta al patrón y no
+al contenido — que es la lectura correcta y la que hacía falta.
+
+### La hipótesis era la errata nº 76, y está DESCARTADA por medida
+
+La 76 dejó el mecanismo escrito: `zipfile` estampa la hora, los bytes cambian en cada
+construcción, `MemoryMediaFileStorage` deriva el id **del contenido**, y al terminar el
+rerun `remove_orphaned_files` borra el id que ya no referencia nadie — el que el navegador
+está descargando. Si el FASTA se regenerara distinto en cada repintado, sería lo mismo.
+
+**No se regenera distinto.** Recorriendo el camino real de la página —`splice_constructions`
+y `splice_query_text`— tres veces seguidas:
+
+```
+repintado 1: 66893 bytes  md5=09339c06f9e12cf0a3925eb0a00fa80f
+repintado 2: 66893 bytes  md5=09339c06f9e12cf0a3925eb0a00fa80f
+repintado 3: 66893 bytes  md5=09339c06f9e12cf0a3925eb0a00fa80f
+```
+
+Mismos bytes → mismo id → el rerun lo vuelve a referenciar y no queda huérfano. **El
+mecanismo de la 76 no aplica aquí.**
+
+### Y tampoco se reprodujo con el cliente real
+
+Con Chromium de verdad (Playwright), contra una app de Streamlit arrancada **igual que en
+producción** —`--server.baseUrlPath=/shmir`, modo desarrollo apagado— y con un
+`download_button` de **130 kB regenerado en cada repintado**:
+
+| camino | resultado |
+|---|---|
+| directo contra Streamlit | **OK**, 130.004 bytes |
+| **por el proxy real del hub** (`apps/shmir/proxy.js`) | **OK**, 130.004 bytes |
+
+La URL de medios sale correctamente prefijada (`/shmir/media/<id>.txt`) y el proxy la
+reenvía. **No se reprodujo, así que NO SE LE ASIGNA CAUSA** (principio nº 3). Decir «era
+esto» sin comprobarlo es lo que costó la errata nº 76, donde el botón diagnosticado no era
+el que fallaba.
+
+### Lo que SÍ se puede afirmar, y es lo que se arregla
+
+**Había una sola vía para sacar cada uno de esos ficheros.** Cuando esa vía falla, no
+queda ninguna — y el frente entero se para. Es el principio nº 47 con el corolario que
+costó tres días en la errata nº 124: *una vía y su alternativa no pueden compartir el
+mecanismo que falla*.
+
+Los cuatro ficheros que salen de la app hacia un servicio externo y vuelven —BLAST, seed,
+off-targets y empalme— llevan ahora, al lado del botón, un bloque **copiable** con el
+mismo contenido y el nombre que hay que ponerle. No comparte nada con `download_button`:
+es texto en la página.
+
+Y el contenido se calcula **una sola vez** para los dos caminos. Antes el botón lo
+construía dentro de su propia llamada, así que la vía alternativa podría haber pintado un
+contenido distinto del que descarga el botón — que es la peor forma posible de tener dos
+vías (errata nº 47).
+
+`tests/test_una_DESCARGA_no_puede_ser_la_UNICA_via.py` lo fija: cada `download_button` de
+la página o tiene bloque copiable, o está declarado con el motivo por el que no lo
+necesita —los ZIP y los ficheros del depósito, que ya tienen segunda vía—.
+
+### Lo que queda por saber
+
+La causa. Si vuelve a pasar, lo que la distinguiría es **si el navegador llega a pedir la
+URL de medios**: con la pestaña de red abierta, una petición a `/shmir/media/…` que no
+responde señala al transporte; ninguna petición señala al cliente. Hasta entonces, el
+bloque copiable hace que la respuesta a esa pregunta no bloquee ningún frente.
+
+## 131 — El resultado se rechazaba por una fila del borde, y el mensaje mandaba al sitio equivocado
+
+**Reportada el 2026-09-06.** Un TSV de SpliceAI con las 22 construcciones correctas —md5
+buenos, casete bueno— se rechazó entero con:
+
+```
+RECHAZADO — fila 2: la posición -1 se sale de la construcción
+mvm_actual__3utr959 (5496 nt); se aborta.
+```
+
+Su autor concluyó, razonablemente, que el parser leía **la cabecera de columnas como
+dato**: en su fichero la línea 2 ES la cabecera, porque la 1 es `# convencion: spliceai`.
+
+**No era eso, y que lo pareciera es el fallo.** Reproducido: la cabecera se salta bien.
+Lo que había eran **tres** cosas, ninguna visible en el mensaje.
+
+### 1. `fila 2` no era la línea 2 del fichero
+
+El número contaba filas **ya filtradas** —sin comentarios—, así que con una línea `#`
+delante los dos números se separan: la «fila 2» era la **línea 3**. Es la errata nº 121
+en otro espacio: *un número impreso sin decir de qué espacio es*. Y aquí el único espacio
+que le sirve a quien abre el fichero es la línea del fichero.
+
+### 2. El −1 salía de la CONVERSIÓN, no del fichero
+
+La fila declara `posicion=1`, `tipo=aceptor`. En la convención de SpliceAI el aceptor
+apunta dos bases más allá, así que traerla a la nuestra es `1 − 2 = −1`. **El fichero no
+traía ningún −1**, y el mensaje lo enseñaba como si sí. Ahora dice las dos posiciones y de
+dónde sale la resta:
+
+> línea 3: la posición 99999 declarada en la convención 'spliceai' para un aceptor se
+> convierte a 99997 en la nuestra (99999 +2 invertido), y la construcción tiene 5496 nt.
+
+Y un campo no numérico **nombra el texto y la columna** — antes pegaba el
+`invalid literal for int()` de Python y decía «posición o puntuación», sin decir cuál ni
+qué ponía:
+
+> línea 3: en la columna de posición hay 'posicion', que no es un número entero.
+
+### 3. Y lo que bloqueaba de verdad: una fila del borde tumbaba el fichero entero
+
+**SpliceAI puntúa TODAS las posiciones**, también la 1 y la 2. Una puntuación de
+`1,57e-07` en la posición 1 es ruido legítimo — pero al convertirla cae fuera de la
+construcción. Abortar 22 construcciones buenas por ella no defiende nada.
+
+Ahora se distingue: una posición fuera de rango **como viene declarada** sigue abortando
+—es la señal de un fichero de otra corrida, que es lo que el guardia existe para cazar— y
+una que sólo se sale **después** de convertirla, y como mucho por el desplazamiento de la
+convención, se salta. `EDGE_TOLERANCE` se **deriva** de `TO_SPLICEAI`: un `2` escrito
+sería la misma cifra en dos sitios, y el día que discreparan toleraríamos un fichero
+equivocado.
+
+**Y lo saltado se dice**, con su línea y su posición. Saltarse filas en silencio sería
+peor que rechazar el fichero: quien lo sube tiene que saber que su resultado no entró
+entero. Si NINGUNA fila deja sitio, se aborta — eso ya no es un borde, es otro fichero.
+
+### La lección, que es sobre el mensaje y no sobre el parser
+
+El diagnóstico que hizo su autor era el único que el mensaje permitía. **Un error que
+describe el síntoma en los términos del contenido —«la posición −1 se sale»— manda a
+mirar el contenido**, y aquí lo que había que mirar era la conversión. Es la misma
+familia que el 503 de `/shmir` que mandaba a comprobar la instalación de Streamlit: un
+diagnóstico equivocado cuesta más que ninguno.
+
+La regla operativa que queda: **cuando un mensaje nombra un valor que el fichero no
+contiene, tiene que decir de dónde salió ese valor.**
+
+## 132 — `empalme_sitios` no podía salir de NOT_RUN, y el análisis no decía si estaba guardado
+
+**Reportada el 2026-09-07**, después de **tres corridas de SpliceAI**: el TSV entró, el
+análisis se pintó completo, y ni la corrida aparecía en el historial ni `empalme_sitios`
+dejaba el `NOT_RUN` en la tabla de candidatos.
+
+### 1. El frente no podía cerrarse — y no era un descuido
+
+`selection.blocking_fronts` añade `empalme_sitios` con un motivo `NOT_RUN` escrito a mano
+e **incondicionalmente**; nunca consulta el almacén. Y el único camino que cierra un frente
+—`closed_by_panel`, construido desde `panel_states_by_front` → `STORE_FOR_FRONT`— **lo
+excluye**, porque está en `NO_CABE_COLUMNA_POR_CANDIDATO` —que entonces se llamaba
+`FRONTS_WITHOUT_COLUMN`, y ése fue medio problema (ver el corolario del principio nº 53)—.
+
+Esa exclusión se declaró para otra cosa: «no cabe en una columna por candidato, porque su
+unidad es el par». Motivo correcto y bien escrito. Pero **no tener columna acabó
+significando no poder cerrarse**, y eso no lo decidió nadie. Queda como **principio nº 53**.
+
+**Las dos decisiones van ahora separadas.** `NO_CABE_COLUMNA_POR_CANDIDATO` sigue diciendo
+lo suyo —si hay columna por candidato— y `PAIR_UNIT_FRONTS` dice lo otro: **con qué almacén se cierra y por qué**.
+Un candidato queda contestado en cuanto **alguno de sus pares** lo está, que es lo que
+significa haber corrido SpliceAI sobre ese cassette; el que no estuvo en la corrida sigue
+sin contestar, que también es la verdad. Y un frente no puede estar en las dos listas: dos
+caminos para cerrar lo mismo son dos criterios que un día discrepan.
+
+### 2. Y el análisis no decía si estaba guardado
+
+Del guardado en sí no hubo forma de saber si se llegó a pulsar el botón, y ahí está el
+segundo fallo, que es de forma y cuesta igual. Con las palabras de quien lo sufrió:
+
+> *«El resultado aparece completo y convincente arriba, y lo que lo hace permanente está
+> tres pantallas más abajo. Es fácil darlo por hecho. Un análisis que se ve entero y no
+> está guardado es indistinguible de uno que sí.»*
+
+**El formulario NO se ha movido**: guardar antes de haber visto lo que se guarda sería
+peor. Lo que faltaba no era el botón — era saber, **mirando el resultado**, si ese
+resultado existe fuera de la pantalla. Ahora, pegado al análisis:
+
+> ⚠ SIN GUARDAR todavía. Este análisis está completo en pantalla y NO está en el
+> registro: al cerrar la pestaña se pierde. El formulario para guardarlo está al final
+> de este modal.
+
+Tres estados y no dos: **sin proyecto abierto no es que no esté guardada, es que no puede
+estarlo**, y eso se arregla con otra cosa. Se compara por la **huella del resultado**
+(`result_md5`) — la fecha y el nombre los teclea una persona y no atan nada. Y de qué
+almacén sale el estado de cada frente **se declara**: `empalme_sitios` se guarda en
+`splice`, y deducirlo del nombre habría dado «no guardada» siempre y en silencio.
+
+## 133b — El aborto del duplicado tumbaba la página, y el proyecto quedaba MUERTO
+
+*(Numerado como 137 en el registro de `CLAUDE.md`; aquí queda con la nota que se pidió
+añadir el 2026-09-07, después de arreglarlo.)*
+
+**No era un bloqueo de sesión: era un proyecto muerto.** Va escrito con esas palabras
+porque la diferencia decide qué se hace. Un bloqueo se sale recargando, cerrando la
+pestaña o volviendo mañana; esto no se salía **nunca**:
+
+1. el log es **append-only**, y la segunda subida del mismo fichero **escribía** una
+   segunda línea con el mismo `run_id`;
+2. esa línea es **imborrable** — quitarla rompe la cadena de md5, que es lo único que
+   hace auditable el registro;
+3. y `load_stores` abortaba **en cada repintado, para siempre**, desde `_bloque_especie`
+   y fuera de todo `try`, así que la excepción subía al `try` de `main()` y la página
+   terminaba en el mensaje rojo.
+
+O sea: **un fichero soltado dos veces convertía el registro de decisiones de un proyecto
+en un fichero que la app ya no podía abrir.** El daño no era el rato perdido: era el
+historial.
+
+## 138 — El marco no sobrevivía al log, y el defecto lo reponía en `3utr`
+
+Reportado el 2026-09-07 con la página cortada por la mitad:
+
+> *«`3utr:1768 no cabe en ningún 3'UTR conocido del proyecto: el más largo mide 1606 nt`.
+> Y el propio mensaje acierta: es `tx:1768`, que es `3utr:819`. Está en la tabla que se ve
+> justo encima, fila 2. Sale después de la tabla de candidatos y del bloque de
+> percentiles, y corta todo lo que va debajo: modales, descargas, paso 5. Esto es la
+> novena o décima instancia de la misma familia. No arregles sólo éste: encuéntrala.»*
+
+Y con las dos sospechas puestas por escrito, las dos correctas: *«o el prefijo se obtiene
+de `coords.Frame` correctamente pero con el marco equivocado, o la posición se pasa a una
+función que ya trae el marco por defecto»*.
+
+### LA VÍA, y por qué los tres guardias no podían verla
+
+No es un literal ni un prefijo tecleado: la etiqueta se fabricaba **bien** —con
+`coords.label` y un miembro de `coords.Frame`— y lo que estaba mal era el MARCO. Ninguno
+de los tres guardias mira eso: `Position` impide imprimir un entero desnudo,
+`auditar_marcos` impide teclear el prefijo, y los 37 literales estaban corregidos.
+
+**Dos rutas, y las dos medidas:**
+
+- **El marco se perdía al ESCRIBIR el log.** `save_offtarget_run` y `save_seed_run` no
+  guardaban el campo, y al releer `LoadResult` y `SeedResult` lo reponían con su valor
+  por defecto, que era `Frame.UTR3`. Medido sobre el proyecto real:
+
+      marcos al crear la corrida:  {'tx'}
+      marcos tras releer el log:   {'3utr'}
+
+  Así que la errata nº 122 —«el bloque de off-targets no miente en el marco»— estaba
+  arreglada **sólo mientras el objeto viviera en memoria**: la capa de persistencia
+  reconstruía el mismo objeto sin la contramedida, y podía hacerlo en silencio porque el
+  campo tenía defecto. Va como **segundo corolario del principio nº 50**: un valor por
+  defecto es un literal por la puerta de atrás, y una contramedida puesta al emisor **no
+  sobrevive a un viaje por disco** si el campo lo tiene.
+- **Y el emisor concreto lo ESCRIBÍA porque no tenía de dónde sacarlo.**
+  `seed_load_highlights(stores, species, starts)` recibe enteros pelados: sin anatomía y
+  sin la corrida delante, la única salida era `Frame.UTR3`. La corrida sí lo sabe —
+  `run_scan` guarda el marco del tilado en cada `LoadResult`— y desde hoy sobrevive al log,
+  así que la etiqueta se **deriva** del resultado que la trae.
+
+### Lo que hace que se vea tarde, y es la mitad peor
+
+El techo de `coords` es **1606** —el 3'UTR humano, el más largo que conoce el proyecto—,
+así que de los once candidatos del panel murino sobre el TRANSCRITO **sólo abortan los
+cuatro que pasan de 1606**. Los otros siete se imprimen mal Y EN SILENCIO: `3utr:1398` por
+`tx:1398`, que es `3utr:449`. **El invariante caza lo imposible, no lo equivocado**
+(principio nº 9), y por eso el fallo aparece de uno en uno, en orden distinto cada vez, y
+cada arreglo destapa el siguiente en la misma pantalla.
+
+Y de ahí sale el criterio del test: **el techo dejaba pasar la mitad del fallo**, así que
+lo que se exige no es el techo del invariante sino **el límite real de la entrada que hay
+delante** — los 1242 nt del 3'UTR de ese proyecto, derivados de su anatomía. Eso convierte
+las siete silenciosas en siete fallos ruidosos (principio nº 58).
+
+### Por qué ningún test lo cazó (principio nº 22)
+
+Los fixtures de off-targets y de seed tilan el **3'UTR PELADO** —`tile_utr(load_3utr(...))`—
+y ahí `tiled_frame` ya es `UTR3`. Sobre ese fixture, un `Frame.UTR3` escrito a mano y uno
+derivado son **INDISTINGUIBLES**. Un fixture que hace coincidir los dos marcos no puede
+delatar a quien confunde los dos marcos, corran los tests que corran — y lo mismo pasaba
+con el golden de la página, que se genera con el **proyecto vacío**: todo lo que sólo
+aparece con corridas guardadas no lo pintaba nadie.
+
+### El barrido: 21 sitios, no uno
+
+`Frame.UTR3` era el valor por defecto en **veinte** sitios —campos de dataclass, firmas de
+función y un `.get(clave, Frame.UTR3.value)` al releer el log— más el emisor. Ninguno daba
+error al omitirse: daban una posición de otro sitio, bien formada y callada. Todos
+retirados: el marco es ahora **obligatorio**, y omitirlo es un `TypeError` en el sitio del
+fallo.
+
+### El mecanismo, en tres piezas
+
+1. **`tools/auditar_marcos.py` gana dos categorías, las dos a cero y sin excepciones**: el
+   marco no puede venir POR DEFECTO —en una firma, en un campo o al releer— y no se puede
+   ESCRIBIR dentro de una función que recibe `start`/`starts`. La segunda es la forma
+   exacta del emisor. Con control adversario de las tres formas que había el 2026-09-07.
+2. **El marco viaja en el log** y, cuando un registro viejo no lo trae, se **DERIVA de la
+   anatomía que el propio proyecto guarda** (`store.marco_del_panel`). No es un defecto
+   nuevo con otro nombre: el proyecto sabe sobre qué frontera tiló, así que el marco de sus
+   corridas es una consecuencia y no un supuesto — y para el log del transcrito contesta
+   `tx`, que es lo que un defecto no podía hacer.
+3. **Y se pinta la página ENTERA con las corridas dentro**
+   (`tests/test_la_pagina_se_PINTA_HASTA_EL_FINAL.py`, con el Streamlit de verdad): sin
+   `**PARA**`, llegando hasta Descargas y el paso 5, y con la exigencia que caza la mitad
+   silenciosa — **ninguna etiqueta `3utr:N` puede pasar de los 1242 nt del 3'UTR de ESTE
+   proyecto**, que es mucho más estricto que el techo de 1606.
+
+### La corrección de método, que va con mi nombre
+
+Dije que *«el aborto se recoge en la frontera del modal y no tumba el resto (errata
+nº 89)»* y era falso. Lo miré en `_guardar_corrida` —donde sí hay un `try`— y no comprobé
+por dónde salía de verdad. La lección quedó escrita en la errata nº 137 y se repite aquí
+porque volvió a aplicar: **un `try` que cubre el camino que uno tiene en la cabeza no dice
+nada del camino que corre**, y la única forma de saberlo es reproducir la secuencia entera.
+
+---
+
+## 139 — El botón que se veía no era el nuestro, y el nuestro no existía
+
+Reportado como «el export sigue teniendo 46 columnas sin `empalme_sitios` ni
+`offtarget_seed`, y sin `# BUILD:`». Se investigó como un fallo de despliegue durante
+días, con dos fusiones de por medio. **No era ni el código ni el despliegue.**
+
+### Lo que pasaba
+
+El fichero que se descargaba se llamaba `2026-09-07T10-48_export.csv`. Ese nombre lo
+construye Streamlit en el navegador —está en su bundle,
+`streamlit/static/static/js/DataFrame.*.js`—:
+
+```js
+`${new Date().toISOString().slice(0,16).replace(":","-")}_export.csv`
+```
+
+Es el icono de descarga que `st.dataframe` pinta en la esquina de **toda** tabla al pasar
+el ratón. Genera el CSV **en el navegador, con la tabla ya pintada**: no pasa por Python,
+así que no puede llevar el sello `# BUILD:` ni las columnas de frente, y lleva las
+columnas de la VISTA.
+
+Y el export bueno **no tenía botón**: `tsv_selected` llegaba a la interfaz por un único
+camino, `output_bundle`, o sea dentro del zip. Sobre esa tabla el único botón visible era
+el que no es nuestro.
+
+### Las tres pistas, y cuál era la buena
+
+| pista | ¿es evidencia? |
+|---|---|
+| 46 columnas sin los frentes | **sí** — pero de que ese fichero no es el nuestro, no de que el despliegue vaya atrasado |
+| sin `# BUILD:` | **no** — esa línea se había fusionado minutos antes; un despliegue al día tampoco la tendría |
+| misma marca de tiempo en descargas seguidas | **no** — el nombre tiene resolución de MINUTO, dos clics en el mismo minuto dan el mismo nombre |
+
+Las tres se contaron como síntomas del mismo fallo. Dos no lo eran.
+
+### El dato que estaba a la vista desde el primer día
+
+**El nombre.** La app no emite ni un solo `.csv` —emite `.tsv`, `.txt`, `.zip`, `.fasta`,
+`.gb`, `.docx`/`.pdf`—; el único `.csv` del proyecto es
+`mirarchitect_prnp_export_buena.csv`, que es un fichero de ENTRADA. Un vistazo a la
+extensión habría cerrado esto el primer día. Queda como **principio nº 60**.
+
+### El arreglo
+
+1. `presentation.selected_export_file` — el export como entregable, con nombre, etiqueta,
+   datos y mime (regla 6: la página no decide ninguno).
+2. El botón va **ANTES** de la tabla, con `type="primary"`, y hay un test sobre el orden
+   del fuente: es lo único que se puede perder sin que nadie lo note.
+3. `EXPORT_VS_ICONO_NOTE` dice cuál es cuál y nombra el patrón `…_export.csv`. El icono
+   **no se tapa**: quien ya lo tenga en Descargas necesita poder identificarlo.
+
+Queda como **principio nº 59**: *no lo escribimos nosotros, pero lo servimos nosotros.*
+
+### Y un defecto que salió por debajo, de la misma familia
+
+La especie que llega de la página es el nombre CIENTÍFICO (`species_options` pone
+`especie.scientific`), así que las salidas se llamaban **`Mus musculus_seleccionados.tsv`,
+con el espacio dentro**. En el zip se disimula; en la carpeta de Descargas, pegado en una
+consola o citado en un correo, no. Y una de esas cadenas es una **orden para pegar en una
+consola** —la línea de BLAST del informe—, donde el espacio la parte en dos argumentos.
+
+Se barrió la familia entera, no sólo el emisor que se vio (la lección de la errata
+nº 138): `outputs.output_stem` es ahora el único sitio que decide cómo la especie entra
+en un nombre de fichero, y lo usan el zip, el botón suelto, los bloques, los fragmentos y
+la línea de BLAST. Un test exige que **ninguna** entrada del zip lleve un espacio.
+
+---
+
+## 140 — El botón nuevo del export no tenía segunda vía, y la exención que lo tapaba nombraba otra descarga
+
+Reportado el 2026-09-07, horas después de fusionar el botón: *«NO DESCARGA. La información
+llega al navegador pero se queda dando vueltas sin bajar ni un solo byte»*, y con el
+contexto que lo clasifica: *«viene siendo ya habitual»*.
+
+### Lo que NO es, medido antes de decir nada
+
+**No es la errata nº 76.** El contenido es determinista: tres construcciones del export
+por el camino real de la página dan el mismo md5 (`b8f2e1bf…`), así que el mecanismo de
+«bytes distintos → id distinto → fichero huérfano a media descarga» no aplica aquí, igual
+que no aplicaba en la errata nº 130.
+
+**La causa sigue SIN ASIGNAR** (errata nº 130, principio nº 3): no se reprodujo entonces
+—con un navegador de verdad, por el proxy real del hub, con un botón de 130 kB regenerado
+en cada repintado, bajó entero— y no se ha reproducido ahora.
+
+### Lo que SÍ es, y es un fallo mío del mismo día
+
+El botón que se añadió esa mañana **era la única vía** para su fichero. El guardia que
+existe exactamente para eso —`test_una_DESCARGA_no_puede_ser_la_UNICA_via`, escrito el
+2026-09-06 tras el bloqueo del frente de empalme— **lo dejó pasar**, porque vive en
+`bloque_especie` y esa función está en `SIN_ALTERNATIVA`.
+
+**Y su motivo declarado era falso en el peor sentido posible**: decía que los entregables
+del diseño *«van TAMBIÉN en el ZIP de resultados: ésa es la segunda vía»*. **El ZIP es otro
+`st.download_button`**, o sea exactamente el mecanismo que se cuelga. Es el corolario de la
+errata nº 124 —*una vía y su alternativa no pueden compartir el mecanismo que falla*—
+**incumplido por escrito, dentro del test que lo hace cumplir**. Lo mismo en la entrada de
+`main`.
+
+Una exención que se apoya en el mecanismo que falla no exime de nada, y como está escrita
+se lee como si lo hiciera: el guardia daba verde sobre el hueco que existía para cerrar.
+
+### El arreglo
+
+1. **`_tambien_para_copiar` en el export**, entre el botón y la tabla, con el mismo
+   contenido y el nombre del fichero. No comparte nada con `st.download_button`: es texto
+   en la página y el botón de copiar lo pone el navegador.
+2. **Las dos exenciones se reescriben** para no apoyarse en otra descarga: lo que exime al
+   informe es que su contenido íntegro está en el `.md` de al lado y en la pantalla; lo
+   que exime al ZIP es que cada fichero que empaqueta tiene su propio botón suelto.
+3. **`test_NINGUNA_exencion_nombra_otra_DESCARGA_como_alternativa`**, para que la forma de
+   este fallo no se pueda volver a escribir.
+
+### Y un ancla equivocada en el test nuevo, cazada al primer rojo
+
+La primera versión comparaba la posición del bloque copiable contra la **primera**
+`st.dataframe` de la función —que es la de la anatomía, cientos de líneas más arriba— en
+vez de contra la tabla del panel. Daba rojo sobre código correcto. **Un ancla al elemento
+equivocado no señala nada**, y es la misma familia que buscar `st.rerun()` y encontrarlo
+dentro del comentario que lo explica (errata nº 54).
+
+### Lo que queda por saber, y es lo mismo que en la nº 130
+
+La causa. Lo que la distinguiría sigue siendo **si el navegador llega a pedir la URL de
+medios**: con la pestaña de red abierta, una petición a `/shmir/media/…` que no responde
+señala al transporte; ninguna petición señala al cliente.
+
+---
+
+## 141 — Un frente CERRADO con su columna diciendo `NOT_RUN` en los once
+
+Reportado el 2026-09-07 leyendo el export bueno: `fraccion_isoforma_larga` sale `NOT_RUN`
+en los once mientras el frente está cerrado con `polya_db_mouse.tsv` desde hace semanas.
+
+### Y NO era «la pantalla y el export sin el mismo estado»
+
+Medido antes de tocar nada: los dos decían `NOT_RUN`. **Coincidían.** Lo que discrepaba
+era el FRENTE —`blocking=False`, «CERRADO. 8 de 11 candidatos quedan por detrás del
+corte»— con **su propia columna**, que es peor de leer: dos cifras del mismo suceso, una
+al lado de la otra y las dos con pinta de medida (errata nº 51).
+
+### La causa
+
+`front_columns` deriva una columna por frente, y quien la resuelve es `_filter_columns`
+—los filtros de la VENTANA— o `STORE_FOR_FRONT` —los almacenes—. Este frente no tiene
+ninguna de las dos cosas, **y no por descuido**: la tabla de APA medido se aplica **por
+md5 del 3'UTR**, así que «¿está medida la fracción de isoforma larga?» es una pregunta del
+TRANSCRITO y se contesta una vez para todos. Sin resolutor, la celda caía al `NOT_RUN` por
+defecto.
+
+Es la errata nº 68 en su **tercera forma**. Las dos primeras eran ejes POR CANDIDATO
+resueltos mal —el fichero contra el panel, y el eje guía/pasajera—; ésta es un eje que
+**no es por candidato** y al que se le pedía una respuesta por candidato.
+
+### El arreglo
+
+`ESTADO_GLOBAL_NO_POR_CANDIDATO` declara los frentes cuya respuesta es de la corrida
+entera, y `global_front_states` la saca de **`blocking_fronts`** — el único sitio donde se
+decide si un frente está contestado. Recalcularlo habría sido la segunda regla para la
+misma pregunta, que es exactamente lo que la nº 68 dejó escrito.
+
+- **Los globales se aplican SIEMPRE**, haya almacenes o no: el `if not stores` de
+  `_with_stores` era lo que dejaba esa celda sin tocar nunca.
+- **`PASS` y no un techo**: el APA **no veta** (`TECHO`, no `FAIL`), y el techo POR
+  CANDIDATO ya tiene columna propia, `riesgo_APA`. Emitirlo aquí sería una segunda
+  definición de la misma cantidad.
+- **Sólo las dos tablas con columnas de frente** lo necesitan. Medido: `candidate_rows` y
+  `window_rows` no tienen esa columna, así que la frontera es limpia y no hay que declarar
+  ninguna excepción.
+
+### El control adversario tuvo que cambiar de palanca, y eso es medida
+
+La primera versión quitaba los recursos y esperaba que el frente bloqueara. **No bloquea:**
+`tile_utr` resuelve la tabla por su cuenta y la aplica por md5, así que entra igual sin
+recursos. La palanca declarada es `apa.ApaExcluded` con su motivo, que además es la forma
+que tendrá cualquier especie sin tabla. Sin ese control, «no dice NOT_RUN» y «la columna no
+mira nada» darían el mismo verde.
+
+### Y el golden lo enseñó entero
+
++270 `PASS`, exactamente una columna por fila y ninguna otra tocada, con el `veredicto`
+siguiendo en `INCOMPLETE` porque los otros frentes siguen abiertos.
+
+---
+
+## 140b — El barrido de los botones: quedaban DOS, y una exención repetía el defecto
+
+Al pedir «mira si algún otro botón sufre lo mismo», el inventario dio dos:
+
+- **`_gestionar_proyectos`** (el registro de un proyecto) — exento con el motivo *«se
+  lleva entero por el ZIP de la copia de seguridad, que es la vía alternativa»*. **El ZIP
+  es otro `st.download_button`**: es literalmente el mismo defecto de la nº 140, en la
+  exención que no se tocó al arreglar las otras dos.
+- **Los ficheros sueltos de «Descargas»** — el módulo, el casete, la hoja de pedido, los
+  fragmentos, la comparativa y el export. Ninguno tenía bloque copiable, así que la
+  alternativa del ZIP era el botón suelto y la del botón suelto, ninguna.
+
+Los dos llevan ahora `_tambien_para_copiar`. **Quedan dos exenciones y las dos son de
+verdad**: `_descargar_todo` y `_fila_presente`, por `ORIGEN_EXTERNO`.
+
+### Y el guardia deja de ser una lista negra de frases
+
+Prohibir «va también en el ZIP» sólo prohibía esa redacción. Ahora cada exención **declara
+su MECANISMO** de un conjunto cerrado —`ORIGEN_EXTERNO`, `TEXTO_EN_PANTALLA`,
+`OTRO_FICHERO_COPIABLE`— que **no contiene `DESCARGA`**, con control adversario de que no
+lo contiene. La forma del fallo deja de poder escribirse.
+
+**Lo que este guardia NO puede hacer, y va dicho**: la tabla se indexa por FUNCIÓN, y
+`bloque_especie` tiene dos descargas de naturaleza distinta —los informes binarios y el
+export de texto—, así que sale a la vez como exenta y como copiable. Un test que lo
+prohibiera daría rojo sobre código correcto; se escribió, dio ese rojo y se retiró.
+
+---
+
+## 142 — El sello arriba del todo hacía que Excel se comiera la cabecera
+
+El `# BUILD:` se puso arriba del todo el 2026-09-07 con este motivo: *«es lo primero que
+hace falta cuando el fichero no cuadra con lo que se esperaba»*. **El motivo sigue siendo
+cierto y el sitio era el equivocado.**
+
+**Excel toma la primera línea como fila de títulos.** Con el sello ahí, la cabecera de
+columnas baja una fila y **todas las columnas se leen corridas**, sin dar ningún error.
+Costó dos rondas: se reportó un `FAIL` en «la columna 12 de 16», luego en «la 10», y
+ninguna de las dos era una columna de estado —la 10 de `<especie>_seleccionados.tsv` es
+`penalizacion`, un número—. El fallo no estaba en el fichero: estaba en que las columnas
+que se estaban contando no eran las que el fichero tiene.
+
+### Se mueve al FINAL, no se quita
+
+`presentation.tsv_header` y `tsv_rows` saltan los comentarios **estén donde estén**, así
+que para quien lo lee con la app no cambia nada; para Excel, la cabecera vuelve a la fila
+1. Lo que se pierde es «arriba del todo», y a cambio el fichero se abre bien en la
+herramienta con la que se lee de verdad.
+
+### Y se aplica TAMBIÉN a la prosa de la comparativa
+
+`comparativa.tsv` llevaba además un bloque de prosa delante de la cabecera —la que explica
+la columna `knockdown_medido` vacía y que `score_externo` es informativo—. El motivo es el
+mismo y dejarla delante habría dejado ese fichero **exactamente igual de roto**: media
+medida. Va entera y en el mismo orden, detrás de los datos.
+
+**El FASTA de empalme conserva el sello arriba**, y eso no es una excepción olvidada: no
+se abre en una hoja de cálculo, y en un FASTA la cabecera de comentarios es su sitio.
+
+### El guardia se DERIVA del paquete
+
+`tests/test_NINGUN_TSV_empieza_por_comentario.py` recorre los `.tsv` que emite
+`output_bundle` y exige que la primera línea sea la cabecera de columnas — no sólo que no
+empiece por `#`, sino que **sea** la que devuelve `tsv_header`. Un TSV nuevo queda cubierto
+sin que nadie se acuerde, y hay control de que el detector ha encontrado ficheros
+(principio nº 51) y de que el sello **sigue estando**: sin eso, «no empieza por comentario»
+se cumpliría borrándolo.
+
+### Seis tests fijaban la decisión anterior, y cambian con ella
+
+Afirmaban que el sello está en la primera línea. La decisión cambió a propósito, así que lo
+que fijan pasa a ser lo que sí es invariante: **que el sello esté y que la primera línea
+sea la cabecera**. Es el principio nº 56 por su lado bueno — un test que fija una decisión
+tiene que moverse cuando la decisión se mueve, no bloquearla.
+
+---
+
+## 143 — Ocho tests rojos a mitad de suite, justo después de un cambio, y la causa era el disco
+
+Al comprobar el cambio del sello (errata nº 142) la suite sacó **ocho fallos del CLI**,
+todos a la vez, en mitad de la corrida y **justo después** de tocar los ficheros que esos
+mismos tests leen. Todo lo que se ve desde fuera apunta al cambio.
+
+**No era el cambio: el disco del contenedor estaba lleno.** Con espacio libre, las 5096
+pasan sin tocar una línea más.
+
+### Por qué esto es del principio nº 3 y no una anécdota de infraestructura
+
+El principio nº 3 dice que **un mensaje que explica una causa tiene que haberla
+comprobado**. Aquí el mensaje no lo escribía el código: lo iba a escribir yo, en el
+informe al responsable — «los ocho fallos son del cambio del sello, lo reviso». Habría
+sido un diagnóstico plausible, servicial y falso, de la misma familia que «Alu 0 %»: manda
+a mirar al sitio equivocado, y quien lo lee gasta el tiempo ahí antes de sospechar del
+diagnóstico.
+
+Y encaja en el **tercer peldaño**, el peor: no era un dato incómodo suelto, era un dato
+**interpretable en el vocabulario del proyecto**. «Cambiaste dónde se escribe la cabecera
+y se rompieron los tests que leen la cabecera» es una explicación *correcta como
+mecanismo* —existe, este proyecto la sabe nombrar, y predice justo lo que se veía—. Por
+eso no chirriaba. Es exactamente la forma del `SEGUNDO SITIO` explicado como
+cooperatividad.
+
+### La correlación temporal es evidencia DÉBIL, y ese es el punto
+
+Lo que empujaba hacia el cambio era **el orden de los sucesos**: tocar algo y ver rojo a
+continuación. Eso no distingue «lo rompí» de «se rompió mientras trabajaba», y en una
+sesión larga **todo** ocurre justo después de algo que acabo de hacer. La evidencia fuerte
+no estaba en la cronología: estaba en **el espacio libre del disco**, un número que se lee
+en un comando.
+
+| evidencia | qué distinguía | coste de comprobarla |
+|---|---|---|
+| «falló justo después del cambio» | nada — siempre es cierto | cero, y no vale nada |
+| ocho fallos **a la vez**, no uno | un cambio local no suele romper ocho ficheros de golpe | mirar la lista |
+| `df` con el disco agotado | la causa real | un comando |
+| **la suite entera en verde tras liberar espacio** | lo cierra | volver a correrla |
+
+La tercera y la cuarta son las que deciden, y las dos eran baratas. **La barata no era la
+cronología: era `df`.**
+
+### Un síntoma que se lee mal: `df` engaña en este contenedor
+
+El disco escribible es un cupo por sesión, así que **`Avail` a cero con `Used` bajo no
+significa que la máquina esté rota** — significa que el cupo se agotó. Un fallo de escritura
+por cupo lleno **no se parece a un fallo de disco**: se parece a un test roto, porque lo
+que se ve es un `assert` que no cuadra sobre un fichero que se escribió a medias.
+
+### La contramedida, y por qué no es un test
+
+No hay guardia que escribir: un test no puede comprobar que el disco no se llenará en
+mitad de la siguiente corrida. Lo que queda es una **regla de lectura**, del mismo tipo que
+la del principio nº 3:
+
+> **Varios fallos simultáneos en zonas que el cambio no toca se comprueban contra el
+> ENTORNO antes de atribuirlos al cambio.** Un fallo suele ser el cambio; ocho a la vez,
+> casi nunca.
+
+Y su corolario, que es el que evita la ronda perdida: **la atribución se verifica
+volviendo a correr**, no razonando. Ocho rojos que desaparecen sin tocar una línea son la
+prueba de que no eran del diff; ninguna cantidad de leer el diff lo habría demostrado.

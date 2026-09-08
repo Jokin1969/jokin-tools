@@ -114,6 +114,12 @@ class IntronLocation:
     acceptor_end: int
     donor: str
     acceptor: str
+    #: QUE intron se ha localizado. No es decorado: `empty` compara contra el vacio de
+    #: ESTE intron, y con la arquitectura escrita dentro del localizador esa comparacion
+    #: solo valia para uno.
+    intron_name: str = "mvm_actual"
+    #: Longitud del intron VACIO del que se ha declarado. Se pasa derivada del registro.
+    empty_length: int = 0
 
     @property
     def length(self) -> int:
@@ -121,31 +127,100 @@ class IntronLocation:
 
     @property
     def empty(self) -> bool:
-        """¿Es el intron VACIO del parental — las dos mitades MVM y nada en medio?"""
-        return self.length == (
-            len(blocks.PIECES["MVM5"].sequence) + len(blocks.PIECES["MVM3"].sequence)
-        )
+        """¿Es el intron VACIO — sin nada intercalado— del intron DECLARADO?"""
+        return self.length == self.empty_length
 
     def describe(self) -> str:
-        que = (
-            f"VACÍO (las dos mitades MVM pegadas, sin módulo)"
-            if self.empty
-            else f"con módulo dentro"
-        )
+        que = "VACÍO (sin módulo)" if self.empty else "con módulo dentro"
         return (
-            f"Intrón MVM en {self.plasmid_name}: donante {self.donor} en "
+            f"Intrón {self.intron_name} en {self.plasmid_name}: donante {self.donor} en "
             f"casete:{self.donor_start}, aceptor {self.acceptor} en "
             f"casete:{self.acceptor_end}, {self.length} nt, {que}."
         )
 
 
-def locate_intron(sequence: str, *, name: str) -> IntronLocation:
-    """Localiza el intron buscando las piezas de `blocks.PIECES`, no por coordenada.
+#: Cuantos nt de cada extremo se buscan cuando el intron llega ENTERO y no tiene piezas.
+#: 20 basta para ser unico en un plasmido de 5,5 kb —comprobado con test sobre los dos
+#: intrones del registro— y es corto de sobra para no pisar el modulo, que va por dentro.
+BOUNDARY_LENGTH = 20
 
-    Aborta si falta una pieza, si aparece mas de una vez o si el aceptor va por delante
-    del donante: en cualquiera de esos casos lo que hay no es este casete, y emitir
+WHY_THE_LOCATOR_TAKES_THE_INTRON = (
+    "El localizador RECIBE qué intrón busca; no lo lleva escrito dentro. Buscaba las dos "
+    "piezas fijas del MVM, así que sobre un casete con el intrón quimérico no encontraba "
+    "nada — y de aquí salen las VENTANAS DE CEBADOR con las que se mide la eficiencia de "
+    "empalme. La arquitectura que gana en las cinco métricas de SpliceAI era la única sin "
+    "medida de banco de su propio frente, y el frente del empalme es el único BINARIO del "
+    "proyecto. No era un cálculo mal hecho: era la arquitectura escrita dentro de una "
+    "herramienta que se usa con las dos."
+)
+
+
+def intron_boundary_labels(intron: str) -> tuple[str, str]:
+    """Cómo se LLAMAN los dos extremos por los que se busca ese intrón.
+
+    Existe porque el mensaje de un aborto tiene que decir qué es lo que no encuentra, y
+    con un intrón ensamblado eso es el nombre de la pieza —`MVM5`, `MVM3`—, no «el
+    extremo 5'». Un mensaje que pierde el nombre de la pieza hace más difícil mirar el
+    fichero, que es lo único que se puede hacer con él.
+    """
+    from .introns import get  # noqa: PLC0415
+
+    registro = get(intron)
+    if registro.five_piece and registro.three_piece:
+        return (f"la pieza {registro.five_piece}", f"la pieza {registro.three_piece}")
+    return (
+        f"los primeros {BOUNDARY_LENGTH} nt",
+        f"los últimos {BOUNDARY_LENGTH} nt",
+    )
+
+
+def intron_boundaries(intron: str) -> tuple[str, str]:
+    """Las dos secuencias por las que se localiza ESE intrón, 5' y 3'.
+
+    Un intrón que se ensambla de piezas versionadas tiene dos mitades que buscar; uno que
+    llega entero no tiene piezas — llega como una sola secuencia. Lo que los DOS tienen
+    son EXTREMOS, y el módulo va por dentro sin tocarlos, así que el mismo criterio vale
+    con el intrón vacío y con el montado.
+
+    Se DERIVAN del registro, no se teclean: un intrón nuevo se localiza sin tocar esto.
+    """
+    from .introns import get  # noqa: PLC0415  (ciclo: `introns` importa `blocks`)
+
+    registro = get(intron)
+    # PRIMERO si existe, y luego cómo se busca. Al revés, `mvm_sin_criptico` —que
+    # declara las mitades del MVM pero LO DISEÑA la app y todavía no existe— se
+    # localizaría encontrando el MVM: una identificación falsa con la forma correcta.
+    if not registro.provided:
+        registro.require_sequence()
+    if registro.five_piece and registro.three_piece:
+        return (
+            blocks.PIECES[registro.five_piece].sequence,
+            blocks.PIECES[registro.three_piece].sequence,
+        )
+    vacio = registro.empty_sequence
+    if len(vacio) < 2 * BOUNDARY_LENGTH:
+        raise ShmirDesignError(
+            f"El intrón {intron!r} mide {len(vacio)} nt y los dos extremos de "
+            f"{BOUNDARY_LENGTH} nt que se buscan se solaparían. Se aborta en vez de "
+            f"localizar con un ancla que se pisa a sí misma."
+        )
+    return vacio[:BOUNDARY_LENGTH], vacio[-BOUNDARY_LENGTH:]
+
+
+def locate_intron(
+    sequence: str, *, name: str, intron: str = "mvm_actual"
+) -> IntronLocation:
+    """Localiza el intron DECLARADO buscando sus extremos, y lee sus dinucleotidos.
+
+    Ver `WHY_THE_LOCATOR_TAKES_THE_INTRON`: la arquitectura llega por parametro, no
+    escrita dentro.
+
+    Aborta si falta un extremo, si aparece mas de una vez o si el aceptor va por delante
+    del donante: en cualquiera de esos casos lo que hay no lleva ESE intron, y emitir
     coordenadas sobre otra cosa es exactamente el fallo que hay que evitar.
     """
+    from .introns import get  # noqa: PLC0415
+
     limpia = "".join(sequence.split()).upper()
     if not limpia:
         raise MissingSequenceError(
@@ -153,9 +228,10 @@ def locate_intron(sequence: str, *, name: str) -> IntronLocation:
             f"intrón ni emitir ninguna coordenada de cebador. Se aborta (regla 1)."
         )
 
+    cinco, tres = intron_boundaries(intron)
+    nombre5, nombre3 = intron_boundary_labels(intron)
     posiciones = {}
-    for pieza in ("MVM5", "MVM3"):
-        motivo = blocks.PIECES[pieza].sequence
+    for etiqueta, motivo, como in (("5'", cinco, nombre5), ("3'", tres, nombre3)):
         encontradas = []
         i = limpia.find(motivo)
         while i >= 0:
@@ -163,21 +239,23 @@ def locate_intron(sequence: str, *, name: str) -> IntronLocation:
             i = limpia.find(motivo, i + 1)
         if not encontradas:
             raise ShmirDesignError(
-                f"{name}: no contiene la pieza {pieza} del intrón "
-                f"({len(motivo)} nt, procedencia «{blocks.PIECES[pieza].source}»), así "
-                f"que no es el casete intrónico y no se emite ninguna coordenada. "
-                f"Se aborta el paso «empalme del intrón»."
+                f"{name}: no contiene el extremo {etiqueta} del intrón {intron!r} "
+                f"—{como}, {len(motivo)} nt—, así que no lleva ESE intrón y no se emite "
+                f"ninguna "
+                f"coordenada. Si el casete lleva otra arquitectura, se declara cuál: el "
+                f"localizador la recibe, no la supone. Se aborta el paso «empalme del "
+                f"intrón»."
             )
         if len(encontradas) > 1:
             raise ShmirDesignError(
-                f"{name}: la pieza {pieza} aparece {len(encontradas)} veces "
-                f"({encontradas}); no identifica un intrón y se aborta en vez de "
-                f"quedarse con la primera."
+                f"{name}: el extremo {etiqueta} del intrón {intron!r} ({como}) aparece "
+                f"{len(encontradas)} veces ({encontradas}); no identifica un intrón y se "
+                f"aborta en vez de quedarse con la primera."
             )
-        posiciones[pieza] = encontradas[0]
+        posiciones[etiqueta] = encontradas[0]
 
-    donante = posiciones["MVM5"]
-    aceptor = posiciones["MVM3"] + len(blocks.PIECES["MVM3"].sequence) - 1
+    donante = posiciones["5'"]
+    aceptor = posiciones["3'"] + len(tres) - 1
     if aceptor <= donante:
         raise ShmirDesignError(
             f"{name}: el aceptor (casete:{aceptor}) queda por delante del donante "
@@ -191,6 +269,8 @@ def locate_intron(sequence: str, *, name: str) -> IntronLocation:
         acceptor_end=aceptor,
         donor=limpia[donante - 1:donante + 1],
         acceptor=limpia[aceptor - 2:aceptor],
+        intron_name=intron,
+        empty_length=len(get(intron).empty_sequence),
     )
     for etiqueta, leido, esperado in (
         ("donante", sitio.donor, DONOR_DINUCLEOTIDE),
@@ -391,13 +471,20 @@ def splice_rtpcr_plan(
     sequence: str,
     *,
     name: str,
+    intron: str = "mvm_actual",
     therapeutic_intron_length: int = blocks.INTRON_LENGTH,
     window: int = PRIMER_WINDOW,
     margin: int = JUNCTION_MARGIN,
 ) -> SplicingRtPcr:
-    """Las coordenadas de la lectura 1, derivadas de la union y nunca tecleadas."""
+    """Las coordenadas de la lectura 1, derivadas de la union y nunca tecleadas.
+
+    `intron` es la ARQUITECTURA que lleva el casete. Va aquí y no dentro del localizador
+    porque las ventanas de cebador son la única medida de banco del frente del empalme, y
+    con la arquitectura escrita dentro sólo se podían emitir para una de las dos: la que
+    NO gana en lo medido. Ver `WHY_THE_LOCATOR_TAKES_THE_INTRON`.
+    """
     limpia = "".join(sequence.split()).upper()
-    sitio = locate_intron(limpia, name=name)
+    sitio = locate_intron(limpia, name=name, intron=intron)
 
     arriba_fin = sitio.donor_start - margin - 1
     arriba_inicio = arriba_fin - window + 1
@@ -579,7 +666,10 @@ def splicing_front(plan: SplicingRtPcr | None = None) -> SplicingFront:
     )
 
 
-def plan_from_records(records, *, therapeutic_intron_length: int = blocks.INTRON_LENGTH):
+def plan_from_records(
+    records, *, intron: str = "mvm_actual",
+    therapeutic_intron_length: int = blocks.INTRON_LENGTH,
+):
     """El plan a partir de la base del transgen, o `(None, motivo)` con el motivo escrito.
 
     No captura excepciones para decidir: COMPRUEBA antes si el registro trae las dos
@@ -591,24 +681,27 @@ def plan_from_records(records, *, therapeutic_intron_length: int = blocks.INTRON
             "No hay casete cargado (--transgen), así que no se emiten coordenadas de "
             "cebador. NOT_RUN no es PASS: el frente sigue igual de abierto."
         )
-    mvm5 = blocks.PIECES["MVM5"].sequence
-    mvm3 = blocks.PIECES["MVM3"].sequence
+    cinco, tres = intron_boundaries(intron)
+    nombre5, nombre3 = intron_boundary_labels(intron)
     for nombre, secuencia in records.items():
         limpia = "".join(str(secuencia).split()).upper()
-        if limpia.count(mvm5) == 1 and limpia.count(mvm3) == 1:
+        if limpia.count(cinco) == 1 and limpia.count(tres) == 1:
             return (
                 splice_rtpcr_plan(
                     limpia,
                     name=nombre,
+                    intron=intron,
                     therapeutic_intron_length=therapeutic_intron_length,
                 ),
                 "",
             )
     return None, (
         f"El casete cargado ({', '.join(list(records)[:3])}) no contiene UNA sola copia "
-        f"de las piezas MVM5 y MVM3 del intrón, así que no se puede localizar la union y "
-        f"no se emiten coordenadas. O no es el casete intrónico, o lleva el intrón "
-        f"repetido; en los dos casos hay que mirarlo antes de pedir nada."
+        f"de los dos extremos del intrón {intron!r} ({nombre5} y {nombre3}), así que no "
+        f"se puede localizar la "
+        f"union y no se emiten coordenadas. O no es el casete intrónico, o lleva otra "
+        f"ARQUITECTURA de intrón —que se declara, no se supone—, o lo lleva repetido; en "
+        f"los tres casos hay que mirarlo antes de pedir nada."
     )
 
 

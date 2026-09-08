@@ -90,8 +90,8 @@ class TestLaGuiaSaleDeLaVENTANA(unittest.TestCase):
             scaffold=SGEP_SCAFFOLD,
         )
 
-    def test_salen_las_DIEZ_con_el_transcrito_entero_tilado(self):
-        self.assertEqual(len(self._construcciones()), 10)
+    def test_salen_TODAS_con_el_transcrito_entero_tilado(self):
+        self.assertEqual(len(self._construcciones()), 11)
 
     def test_cada_guia_es_la_de_SU_ventana(self):
         for construccion in self._construcciones():
@@ -124,7 +124,7 @@ class TestUnaSolaRotaNoTumbaLasDemas(unittest.TestCase):
             self.corrida.selection, intron_names=("mvm_actual",),
             scaffold=SGEP_SCAFFOLD,
         )
-        self.assertEqual(len(resultado.constructions), 10)
+        self.assertEqual(len(resultado.constructions), 11)
         self.assertEqual(resultado.failed, ())
 
     def test_con_una_guia_VACIA_salen_las_demas_y_se_DICE_cual_falta(self):
@@ -132,7 +132,7 @@ class TestUnaSolaRotaNoTumbaLasDemas(unittest.TestCase):
         resultado = spliceai.build_panel(
             rota, intron_names=("mvm_actual",), scaffold=SGEP_SCAFFOLD,
         )
-        self.assertEqual(len(resultado.constructions), 9)
+        self.assertEqual(len(resultado.constructions), 10)
         self.assertEqual(len(resultado.failed), 1)
         fallo = resultado.failed[0]
         # EL MENSAJE DICE DE QUE CANDIDATO Y DE DONDE SE LEYO. «La guía mide 0 nt»

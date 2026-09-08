@@ -247,6 +247,14 @@ def role_for(species: Species, filename: str) -> Role | None:
 #: que seguir preguntando.
 PROVENANCE_FIELDS = ("assembly", "table", "table_date", "representative")
 
+#: El estado de un fichero que ESTÁ en el depósito y NO CIERRA su frente, porque a su
+#: línea del manifiesto le faltan campos que el veredicto exige (errata nº 120). Vive
+#: aquí y no en `presentation` porque el HECHO que lo produce se calcula aquí
+#: —`DepositFile.missing_provenance`— y quien lo nombra son los dos: el panel para
+#: pintarlo y este módulo para decir en qué fila hay que ir a buscarlo. Dos literales
+#: acabarían discrepando y el aviso mandaría a un estado que no existe.
+INCOMPLETE_PROVENANCE = "SIN PROCEDENCIA"
+
 #: Como se llama cada uno en el manifiesto. La columna es castellano porque el
 #: manifiesto se lee con `cat`; el campo es el de `Provenance`, para poder cruzarlos.
 MANIFEST_COLUMN_FOR = {
@@ -662,8 +670,9 @@ class DepositFile:
         if not self.registered:
             lineas.append(
                 "Está en el directorio y NO tiene línea en el manifiesto, así que no "
-                "hay procedencia que adjuntar al veredicto. Vuelve a subirlo por el "
-                "gestor para registrarlo."
+                "hay procedencia que adjuntar al veredicto. Súbelo por el gestor "
+                "(«Ficheros de referencia») para registrarlo: sin línea no hay nada "
+                "que completar."
             )
             return " ".join(lineas)
         if self.stale_md5:
@@ -683,10 +692,19 @@ class DepositFile:
         if procedencia:
             lineas.append(" · ".join(procedencia) + ".")
         if self.missing_provenance:
+            # EL PASO QUE CIERRA ESTO, por su nombre. Aquí ponía «reemplázalo por el
+            # gestor», y desde la errata nº 120 ése es el consejo EQUIVOCADO: lo que
+            # falta no es el fichero, son cuatro campos de su línea, y
+            # `declare_provenance` los escribe SOBRE el que ya está. Mandar a resubir
+            # decenas de megas por cuatro metadatos es justo lo que este proyecto
+            # decidió que no hacía falta — y un aviso que nombra un paso que no cierra
+            # el problema es peor que uno que no nombra ninguno, porque se sigue.
             lineas.append(
                 f"Le falta procedencia de tabla ({', '.join(self.missing_provenance)}): "
-                f"se registró antes de que se pidiera. Reemplázalo por el gestor para "
-                f"declararla."
+                f"se registró antes de que se pidiera. NO hace falta volver a subirlo: "
+                f"en el gestor («Ficheros de referencia»), la fila de este fichero sale "
+                f"en {INCOMPLETE_PROVENANCE} y trae la caja para declarar esos campos "
+                f"sobre la línea que ya existe, sin volver a subirlo."
             )
         return " ".join(lineas)
 

@@ -1,0 +1,58 @@
+# GOLDEN — se genera con: la MISMA ficha sobre el TRANSCRITO ENTERO, que es lo que tilan la pagina y el CLI: sin ella, esta salida no se leia nunca en el marco de uso.
+
+═══ Ficha del candidato — raton tx:1149 ═══
+
+  sitio      tx:1149-1170
+  guía       TTTAGCACTGGCTGATGACAGA
+  pasajera   CCTGTCATCAGCCAGTGCTAAA
+  veredicto  INCOMPLETE
+
+── Frentes (14) ──
+  frente                          estado    fecha        procedencia
+  empalme_intron                  NOT_RUN   —            frente abierto del informe
+  empalme_sitios:intron_quimerico NOT_RUN   —            sin corrida en el almacen
+  empalme_sitios:mvm_actual       NOT_RUN   —            sin corrida en el almacen
+  empalme_sitios:mvm_sin_criptico NOT_RUN   —            sin corrida en el almacen
+  especificidad                   NOT_RUN   —            sin corrida en el almacen
+  fraccion_isoforma_larga         PASS      —            frente CERRADO del informe
+  offtarget_seed:guia             NOT_RUN   —            sin corrida en el almacen
+  offtarget_seed:pasajera         NOT_RUN   —            sin corrida en el almacen
+  repeticion_polimorfica          NOT_RUN   —            frente abierto del informe
+  repeticiones                    NOT_RUN   —            frente abierto del informe
+  seed                            NOT_RUN   —            frente abierto del informe
+  seed_colision:guia              NOT_RUN   —            sin corrida en el almacen
+  seed_colision:pasajera          NOT_RUN   —            sin corrida en el almacen
+  transgen                        NOT_RUN   —            frente abierto del informe
+
+── Asimetría — las TRES cifras, que son magnitudes distintas ──
+  cruda +3.80   penalizacion 0.00   neta +3.80
+
+── Techo de APA ──
+  sin techo — tx:1-1200  sin techo            por delante de todos los cortes medidos: la diana está en TODAS las isoformas. INMUNE.
+
+── Sitios de esta seed en la PROPIA diana ──
+  buscados en tx:1-2191
+  tx:1164 7mer-m8 [3'UTR] (el suyo)
+
+── Multiplexado: núcleo de seed compartido ──
+  Con ningún otro candidato del panel. En este eje es independiente.
+
+── Hexámeros cercanos ──
+  AATATA  tx:1185  APA_POSIBLE/medida a 15 nt por delante
+
+── Bloques ──
+  módulo NheI-SacI (149 nt):
+    GCTAGCGAAGGCTCGAGAAGGTATATTGCTGTTGACAGTGAGCGCCTGTCATCAGCCAGT
+    GCTAAATAGTGAAGCCACAGATGTATTTAGCACTGGCTGATGACAGATGCCTACTGCCTC
+    GGACTTCAAGGGGCTAGAATTCGGAGCTC
+  cassette MluI-AgeI (318 pb):
+    ACGCGTAAGAGGTAAGGGTTTAAGGGATGGTTGGTTGGTGGGGTATTAATGTACAATGAT
+    CCAAATCAAGAGCTAGCGAAGGCTCGAGAAGGTATATTGCTGTTGACAGTGAGCGCCTGT
+    CATCAGCCAGTGCTAAATAGTGAAGCCACAGATGTATTTAGCACTGGCTGATGACAGATG
+    CCTACTGCCTCGGACTTCAAGGGGCTAGAATTCGGAGCTCATGGATTTGTGTAAAGATCC
+    AGTGCCTATGTATTGTTGGAAAGTATTTAATTACCTGGAGCACCTGCCTGAAATCACTTT
+    TTTTCAGGTTGGACCGGT
+  ⚠  No está el plásmido SGEP depositado, así que los contextos del módulo (5' GAAGGCTCGAGAAGGTATAT en 1739-1758, 3' CTTCAAGGGGCTAGAATTCG en 1856-1875) NO se han contrastado con el vector real. NO pidas el gBlock con esto sin resolver.
+
+── Historial de BLAST ──
+  SIN CORRIDAS. El frente de especificidad sigue en NOT_RUN, y NOT_RUN no es PASS.

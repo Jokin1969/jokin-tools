@@ -75,6 +75,24 @@ degrada_como = "No se degrada: se recalcula de la secuencia cargada."
 revalida = "Se revalida a sí mismo en cada carga."
 
 [[guardia]]
+guardia = "El MISMO resultado no se registra dos veces, aunque sea otro día"
+implementa = ["store._rechaza_si_es_el_mismo_fichero"]
+protege = "Que el historial de un proyecto no diga que una medida se comprobó dos veces cuando lo que hubo fue el mismo fichero subido dos veces. El `run_id` lleva la fecha (errata nº 48), así que el mismo `result_md5` en dos días da dos ids y entraba sin dar ningún error — en los cuatro almacenes."
+momento = "INGESTA"
+puede_degradar = false
+degrada_como = "No se degrada: el `result_md5` se compara contra el log entero en cada escritura, y el log es append-only."
+revalida = "Se comprueba en cada `append`, que es el único sitio por el que se escribe en el log. NO se comprueba al LEER a propósito: los cargadores replayan el log con `add`, y abortar ahí dejaría sin poder abrir un proyecto que ya tiene el duplicado escrito."
+
+[[guardia]]
+guardia = "Una retirada declarada se aplica al 3'UTR que dice, y retira ALGO"
+implementa = ["retirados.aplicar"]
+protege = "Las dos mitades de una decisión escrita en `data/candidatos_retirados.toml`. Que caiga sobre la secuencia que nombra —se compara el `md5_utr3` declarado con el del informe, así que sobre otro 3'UTR no retira nada—, y que UNA VEZ que esa secuencia coincide, la posición nombrada exista entre las ventanas elegibles: una retirada que no retira nada es una decisión perdida, y dejaría al candidato dentro del panel con el motivo escrito al lado."
+momento = "CADA_CORRIDA"
+puede_degradar = false
+degrada_como = "No se degrada: la tabla es un fichero VERSIONADO —no vive en el volumen— y el md5 del 3'UTR se recalcula del informe de cada corrida, no se guarda."
+revalida = "Se comprueba en cada selección: la tabla se relee del fichero versionado y se cruza contra los inicios elegibles de ESA corrida."
+
+[[guardia]]
 guardia = "El md5 del 3'UTR decide si la tabla de APA medido aplica"
 implementa = ["apa.resolve_measured"]
 protege = "Que unas coordenadas de un gen no se anclen sobre OTRO 3'UTR. El ruido ancla si se le deja sitio."
@@ -397,3 +415,21 @@ como_actua = "ABORTA"
 puede_degradar = false
 degrada_como = "—. Lo comprobado es el propio fichero que se está leyendo, y no cambia entre la comprobación y el uso: `require_frame` corre dentro del mismo bucle que después lee las puntuaciones."
 revalida = "No hace falta: corre POR CONSTRUCCIÓN en cada `scan_from_result`, sobre el mismo fichero que se va a leer. No hay ventana entre la comprobación y el uso."
+
+[[guardia]]
+guardia = "El FASTA de fragmentos es el que emitió la app"
+implementa = ["montaje.parse_fragments_fasta"]
+protege = "Que lo que se compara con el plásmido montado sea lo que la app emitió y no una copia retocada por el camino. La cabecera de cada registro lleva el md5 de su secuencia y aquí se RECALCULA: si no cuadra, aborta antes de comparar nada."
+momento = "INGESTA"
+puede_degradar = false
+degrada_como = "No se degrada: el md5 se recalcula de la secuencia que se acaba de leer, y el fichero se relee entero en cada comprobación de montaje. No hay intervalo entre la comprobación y el uso."
+revalida = "Se revalida a sí mismo en cada comprobación de montaje."
+
+[[guardia]]
+guardia = "El `.dna` de SnapGene cumple lo que él mismo declara"
+implementa = ["montaje.snapgene_sequence"]
+protege = "Que de un binario cuyo formato está DECLARADO y no verificado contra ningún fichero real de este repositorio no salga una secuencia plausible. Se comprueban la cabecera, que la longitud declarada de cada segmento quepa en el fichero y que lo leído sea ADN; cualquiera de las tres que falle ABORTA."
+momento = "INGESTA"
+puede_degradar = false
+degrada_como = "No se degrada: las tres comprobaciones corren sobre los bytes que tiene delante, en cada lectura. Lo que SÍ queda pendiente es otra cosa —validar el FORMATO con un `.dna` real, que hoy sólo prueba un fixture sintético declarado— y está escrito en `montaje.SNAPGENE_FORMAT_DECLARED`."
+revalida = "Se revalida a sí mismo en cada lectura."

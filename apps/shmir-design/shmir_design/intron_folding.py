@@ -207,3 +207,199 @@ def fold_intron(
         unpaired=desapareado,
         branch_detail=detalle,
     )
+
+
+#: EL ELEMENTO MENOS ACCESIBLE SE DERIVA DE LA MEDIDA, no se escribe en el codigo.
+#: Hoy es el punto de ramificacion en las dos arquitecturas que hay, y por bastante; con
+#: un intron distinto puede ser otro. Una constante que dijera «el punto de ramificacion
+#: es el mas fragil» seria cierta hoy y falsa sin avisar el dia que entre un tercero —el
+#: principio nº 13 sobre una conclusion en vez de sobre un dato—. Se calcula, y el
+#: control adversario esta escrito: con unas filas donde el mas bajo es el donante,
+#: `weakest_element` tiene que decir «donante».
+WEAKEST_IS_DERIVED = (
+    "Cuál es el elemento menos accesible se DERIVA de lo plegado, no está escrito en el "
+    "código: con otro intrón puede ser otro, y una constante que lo nombrara sería "
+    "cierta hoy y falsa sin avisar."
+)
+
+#: LA CIFRA DEL PUNTO DE RAMIFICACION ES EL PEOR CASO DE SUS CANDIDATOS, y las dos
+#: arquitecturas no tienen los mismos: el MVM tiene UNO (`TTAAT`) y el quimerico DOS
+#: (`CTTAC` y `CTGAC`). `fold_intron` da el minimo —elegir el mejor seria elegir por
+#: nuestra cuenta justo donde el criterio dice que no se elige— asi que comparar los dos
+#: numeros es comparar un unico candidato contra el peor de dos. Decirlo importa porque
+#: **bajo la otra lectura el resultado no cambia**: con el mejor de cada uno el quimerico
+#: sigue por delante. Que el sentido de la comparacion no dependa de cual se coja es
+#: exactamente lo que hay que poder afirmar, y no se puede afirmar sin contar los
+#: candidatos.
+BRANCH_IS_A_WORST_CASE = (
+    "La cifra del punto de ramificación es el PEOR de sus candidatos, y las dos "
+    "arquitecturas no tienen los mismos: por eso sale también cuántos hay y cuál es el "
+    "mejor de cada una. El sentido de la comparación no depende de cuál de las dos "
+    "lecturas se coja."
+)
+
+#: LA GUIA NO MUEVE ESTOS NUMEROS, y decirlo es la mitad del dato. Medido sobre las 22:
+#: la dispersion entre las once guias es del 0,8 % en el peor caso —el punto de
+#: ramificacion del MVM— y CERO en el quimerico. O sea que este eje **no discrimina entre
+#: candidatos** y venderlo como desempate seria dar por criterio algo que da el mismo
+#: numero a todos. Lo que si discrimina es la ARQUITECTURA, que es la comparacion para la
+#: que sirve. Y no es que el analisis sea ciego: el control adversario esta medido y
+#: escrito —un modulo complementario al extremo 5' del intron lleva el donante de 0,89 a
+#: 0,00—, asi que cazaria una guia que secuestrara un elemento; lo que dicen estos
+#: numeros es que ninguna de las once lo hace.
+THE_GUIDE_DOES_NOT_MOVE_IT = (
+    "La guía NO mueve la accesibilidad de ninguno de los cuatro elementos: entre las "
+    "construcciones de una misma arquitectura la dispersión se queda por debajo del "
+    "1 %. Este eje NO discrimina entre candidatos — lo que compara son las "
+    "ARQUITECTURAS. Y no es que sea ciego: un módulo complementario al extremo 5' del "
+    "intrón lleva el donante de 0,89 a 0,00, así que cazaría una guía que secuestrara "
+    "un elemento. Lo que dice esta medida es que ninguna lo hace."
+)
+
+CONTRAST_NEEDS_TWO = (
+    "Con una sola arquitectura no hay contraste que emitir: este número compara "
+    "intrones, no candidatos. No se elige ganador."
+)
+
+#: TOLERANCIA DE EMPATE, declarada como parametro y NO citada. Por debajo de esto las dos
+#: arquitecturas no se distinguen en ese elemento y declarar un ganador seria inventar
+#: una precision que el plegado no tiene: media centesima es ya el ultimo digito que este
+#: proyecto imprime de una fraccion de apareamiento. No decide ningun veredicto — decide
+#: si se escribe un nombre en la columna «gana» o se deja vacia.
+TIE_TOLERANCE = 0.005
+
+
+def _medidos(rows, element: str) -> list[float]:
+    """Los valores de ese elemento que SE MIDIERON. Lo no medido no es cero (regla 3)."""
+    return [
+        float(fila[element]) for fila in rows
+        if fila.get(element) is not None
+    ]
+
+
+def _arquitecturas(rows) -> list[str]:
+    """En orden de aparicion, no alfabetico: el orden lo pone quien monto el panel."""
+    vistas: list[str] = []
+    for fila in rows:
+        nombre = fila.get("intron")
+        if nombre is not None and nombre not in vistas:
+            vistas.append(nombre)
+    return vistas
+
+
+def weakest_element(rows) -> str | None:
+    """El elemento MENOS accesible sobre las filas dadas. Derivado, nunca escrito.
+
+    Devuelve `None` si no hay ni una medida: sin plegar, no hay elemento mas fragil que
+    nombrar — y decir uno seria justo lo que la regla 3 prohibe.
+    """
+    medias = {}
+    for elemento in ELEMENTS:
+        valores = _medidos(rows, elemento)
+        if valores:
+            medias[elemento] = sum(valores) / len(valores)
+    if not medias:
+        return None
+    return min(medias, key=lambda e: (medias[e], e))
+
+
+def element_stats(rows) -> tuple[dict[str, object], ...]:
+    """Por elemento y arquitectura: cuantas se midieron, el rango y la dispersion.
+
+    `sin_medir` va aparte de `n` a proposito: una construccion que no se pudo plegar no
+    baja la media, y no contarla en ningun sitio la haria invisible.
+    """
+    salida = []
+    for arquitectura in _arquitecturas(rows):
+        suyas = [f for f in rows if f.get("intron") == arquitectura]
+        for elemento in ELEMENTS:
+            valores = _medidos(suyas, elemento)
+            media = sum(valores) / len(valores) if valores else None
+            salida.append({
+                "elemento": elemento,
+                "arquitectura": arquitectura,
+                "n": len(valores),
+                "sin_medir": len(suyas) - len(valores),
+                "min": min(valores) if valores else None,
+                "max": max(valores) if valores else None,
+                "media": media,
+                # En PORCENTAJE de la media, que es lo que hace comparable la dispersion
+                # de un elemento que ronda 0,25 con la de uno que ronda 0,99.
+                "dispersion": (
+                    (max(valores) - min(valores)) / media * 100
+                    if valores and media else None
+                ),
+            })
+    return tuple(salida)
+
+
+def architecture_contrast(rows) -> tuple[dict[str, object], ...]:
+    """Elemento a elemento: que arquitectura lo deja MAS accesible.
+
+    Mas desapareado es mejor: un elemento secuestrado dentro de un tallo no esta
+    disponible para el espliceosoma. Con una sola arquitectura no se elige ganador, y
+    con dos que empatan por debajo de `TIE_TOLERANCE` tampoco.
+    """
+    arquitecturas = _arquitecturas(rows)
+    salida = []
+    for elemento in ELEMENTS:
+        medias = {}
+        for arquitectura in arquitecturas:
+            valores = _medidos(
+                [f for f in rows if f.get("intron") == arquitectura], elemento
+            )
+            if valores:
+                medias[arquitectura] = sum(valores) / len(valores)
+        gana, motivo, diferencia = None, "", None
+        if len(medias) < 2:
+            motivo = CONTRAST_NEEDS_TWO
+        else:
+            mejor = max(medias, key=lambda a: (medias[a], a))
+            peor = min(medias, key=lambda a: (medias[a], a))
+            diferencia = medias[mejor] - medias[peor]
+            if diferencia < TIE_TOLERANCE:
+                motivo = (
+                    f"Empatan por debajo de {TIE_TOLERANCE}: no se elige ganador, que "
+                    f"sería inventar una precisión que el plegado no tiene."
+                )
+            else:
+                gana = mejor
+                motivo = f"{mejor} lo deja más accesible que {peor}."
+        salida.append({
+            "elemento": elemento,
+            "medias": medias,
+            "gana": gana,
+            "diferencia": diferencia,
+            "motivo": motivo,
+        })
+    return tuple(salida)
+
+
+def contrast_reading(rows) -> dict[str, object]:
+    """La LECTURA del contraste, con sus dos mitades pegadas.
+
+    Que una arquitectura gane en el elemento mas fragil es un eje a su favor; que pierda
+    en otro es un CONTRAPESO, y las dos frases van juntas o mienten las dos. Es la misma
+    forma que «rebaja, no descarta» y que el «QUE MIDE / QUE NO MIDE» del ensayo de
+    RT-qPCR: sola, la primera deja la decision pareciendo tomada.
+    """
+    contraste = architecture_contrast(rows)
+    fragil = weakest_element(rows)
+    por_elemento = {f["elemento"]: f for f in contraste}
+    gana_el_fragil = por_elemento[fragil]["gana"] if fragil else None
+    # SIN GANADOR EN EL ELEMENTO MAS FRAGIL NO HAY CONTRAPESOS QUE NOMBRAR: un
+    # contrapeso lo es DE ALGO, y sin eje a favor la lista serian los ganadores sueltos
+    # de los demas elementos presentados como si compensaran una ventaja que nadie ha
+    # medido.
+    contrapesos = tuple(
+        f["elemento"] for f in contraste
+        if gana_el_fragil is not None
+        and f["gana"] is not None and f["gana"] != gana_el_fragil
+    )
+    return {
+        "mas_fragil": fragil,
+        "gana_el_mas_fragil": gana_el_fragil,
+        "contrapesos": contrapesos,
+        "empates": tuple(f["elemento"] for f in contraste if f["gana"] is None),
+        "contraste": contraste,
+    }

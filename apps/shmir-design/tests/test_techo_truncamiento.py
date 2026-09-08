@@ -21,6 +21,7 @@ Datos reales: el 3'UTR verificado de NM_011170.3 (1242 nt, md5 canonico 19f5fa2a
 import unittest
 from pathlib import Path
 
+from shmir_design.coords import Frame
 from shmir_design.polya import (
     CLEAVAGE_MAX,
     CLEAVAGE_MIN,
@@ -31,8 +32,23 @@ from shmir_design.polya import (
     Window,
     find_polya_signals,
     polya_risk,
-    rtqpcr_amplicons,
+    rtqpcr_amplicons as _rtqpcr_amplicons,
 )
+
+
+#: EL MARCO DE ESTE FICHERO, declarado UNA vez: aqui todo se mide sobre el 3'UTR PELADO,
+#: asi que las posiciones van en su espacio. Es una propiedad del FIXTURE y no de cada
+#: llamada, y por eso se escribe aqui y no en las nueve. Ver la errata nº 138: en el
+#: nucleo el marco dejo de tener valor por defecto porque alli un olvido da una posicion
+#: de otro sitio; aqui es una afirmacion sobre esta entrada.
+MARCO_DEL_FIXTURE = Frame.UTR3
+
+
+def rtqpcr_amplicons(*args, **kwargs):
+    """`polya.rtqpcr_amplicons` con el marco de este fichero. Ver `MARCO_DEL_FIXTURE`."""
+    kwargs.setdefault("frame", MARCO_DEL_FIXTURE)
+    return _rtqpcr_amplicons(*args, **kwargs)
+
 
 DIR = Path(__file__).resolve().parent.parent / "data" / "reference"
 RATON = DIR / "NM_011170.3.fa"

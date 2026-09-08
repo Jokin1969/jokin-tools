@@ -29,6 +29,8 @@ Regla 5: escritos antes.
 
 import unittest
 
+from shmir_design.coords import Frame
+
 from shmir_design import presentation
 from shmir_design.anatomy import Anatomy, RegionSource
 from shmir_design.reference import REFERENCES, fixture_available, load_reference
@@ -112,8 +114,8 @@ class TestLaTarjetaYLaColumnaNOpuedenDiscrepar(unittest.TestCase):
     def test_NINGUN_frente_con_columna_puede_estar_abierto_con_el_panel_contestado(self):
         """La invariante entera, no sólo los dos del reporte."""
         # Sólo los frentes que SON una columna de la tabla: `empalme_intron` y
-        # `empalme_sitios` no lo son —lo declara `FRONTS_WITHOUT_COLUMN`— así que de
-        # ellos no hay columna con la que comparar.
+        # `empalme_sitios` no lo son —lo declara `NO_CABE_COLUMNA_POR_CANDIDATO`— así
+        # que de ellos no hay columna con la que comparar.
         for frente, tarjeta in self.tarjetas.items():
             if frente not in self.filas[0]:
                 continue
@@ -136,7 +138,7 @@ class TestUnaVentanaSINveredictoDEJAelFrenteABIERTO(unittest.TestCase):
 
     def test_un_solo_NOT_RUN_del_panel_basta_para_no_cerrar(self):
         cerrados = presentation.fronts_closed_over_panel(
-            {"transgen": {10: "PASS", 20: "NOT_RUN"}}, starts=(10, 20)
+            {"transgen": {10: "PASS", 20: "NOT_RUN"}}, starts=(10, 20), frame=Frame.UTR3
         )
         self.assertNotIn("transgen", cerrados)
 
@@ -145,14 +147,14 @@ class TestUnaVentanaSINveredictoDEJAelFrenteABIERTO(unittest.TestCase):
         # el sustituto en NOT_RUN, así que no es una laguna. `NO_APLICA` tampoco: la
         # pregunta no se le hace a ese candidato.
         cerrados = presentation.fronts_closed_over_panel(
-            {"seed": {10: "SUSTITUIDO", 20: "NO_APLICA"}}, starts=(10, 20)
+            {"seed": {10: "SUSTITUIDO", 20: "NO_APLICA"}}, starts=(10, 20), frame=Frame.UTR3
         )
         self.assertIn("seed", cerrados)
 
     def test_SIN_CONSULTAR_no_es_una_respuesta(self):
         cerrados = presentation.fronts_closed_over_panel(
             {"seed_colision": {10: "PASS", 20: presentation.SIN_CONSULTAR}},
-            starts=(10, 20),
+            starts=(10, 20), frame=Frame.UTR3,
         )
         self.assertNotIn("seed_colision", cerrados)
 
@@ -216,7 +218,7 @@ class TestUnFrentePORHEBRAtambienSeCierraPorCorrida(unittest.TestCase):
         )
         self.assertNotIn(
             "seed_colision",
-            presentation.fronts_closed_over_panel(estados, starts=(10, 20)),
+            presentation.fronts_closed_over_panel(estados, starts=(10, 20), frame=Frame.UTR3),
         )
 
 

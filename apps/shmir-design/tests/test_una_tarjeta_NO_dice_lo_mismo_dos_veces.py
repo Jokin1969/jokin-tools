@@ -22,6 +22,8 @@ Regla 5: escrito antes.
 
 import sys
 import unittest
+
+from shmir_design.coords import Frame
 from pathlib import Path
 
 RAIZ = Path(__file__).resolve().parent.parent
@@ -37,7 +39,7 @@ from shmir_design.reference import (  # noqa: E402
 RATON = REFERENCES["NM_011170.3"]
 HAY = fixture_available(RATON)
 
-PANEL = (10, 60, 143, 200, 449, 553, 652, 735, 819, 1018)
+PANEL = (10, 60, 143, 200, 449, 553, 652, 735, 819, 1018, 1071)
 
 
 class TestElAVANCE_es_solo_de_lo_PARCIAL(unittest.TestCase):
@@ -45,14 +47,14 @@ class TestElAVANCE_es_solo_de_lo_PARCIAL(unittest.TestCase):
 
     def test_cubierto_ENTERO_no_deja_avance(self):
         estados = {"especificidad": {s: "PASS" for s in PANEL}}
-        fila = presentation.run_coverage(estados, starts=PANEL)["especificidad"]
+        fila = presentation.run_coverage(estados, starts=PANEL, frame=Frame.UTR3)["especificidad"]
         self.assertTrue(fila["cerrado"])
         self.assertEqual(fila["avance"], "")
 
     def test_cubierto_A_MEDIAS_si(self):
         # El caso que motivó `avance`: 6 de 10 no se pinta como uno sin tocar.
         estados = {"especificidad": {s: "PASS" for s in PANEL[:6]}}
-        fila = presentation.run_coverage(estados, starts=PANEL)["especificidad"]
+        fila = presentation.run_coverage(estados, starts=PANEL, frame=Frame.UTR3)["especificidad"]
         self.assertFalse(fila["cerrado"])
         self.assertTrue(fila["avance"].strip())
         self.assertIn("6", fila["avance"])
@@ -61,7 +63,7 @@ class TestElAVANCE_es_solo_de_lo_PARCIAL(unittest.TestCase):
         # Lo que se quita es la COPIA en ámbar, no la información: el motivo del
         # cierre viaja igual y es el que la tarjeta pinta en verde.
         estados = {"especificidad": {s: "PASS" for s in PANEL}}
-        fila = presentation.run_coverage(estados, starts=PANEL)["especificidad"]
+        fila = presentation.run_coverage(estados, starts=PANEL, frame=Frame.UTR3)["especificidad"]
         self.assertIn("CERRADO", fila["motivo"])
 
 

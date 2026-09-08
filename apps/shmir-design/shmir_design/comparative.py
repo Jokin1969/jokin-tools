@@ -23,7 +23,8 @@ Python 3.11+, solo libreria estandar (regla 6).
 from __future__ import annotations
 
 from .anatomy import Anatomy
-from .coords import Frame, bound_of, frame_of, label
+from .coords import Frame, bound_of, label, tiled_frame
+from .identidad import build_line
 from .external_score import (
     FEATURE_COLUMNS,
     MIRARCH_COLUMNS,
@@ -202,7 +203,7 @@ def comparative_rows(
         stores=stores, species=species,
         starts=[c.start for c in selection.selection.chosen],
     )
-    marco = frame_of(anatomy) if anatomy is not None else Frame.UTR3
+    marco = tiled_frame(anatomy)
     # Cada fila convierte a 3'UTR restando el desfase. Con el tope real,
     # una resta mal hecha aborta en la fila en vez de salir en el TSV.
     tope_utr3 = bound_of(anatomy)
@@ -341,7 +342,16 @@ def comparative_tsv(
         f"# {l}\n"
         for l in (coordinate_note(anatomy) + "\n" + CONVENTION_NOTE).splitlines()
     )
-    return CABECERA + nota + cuerpo
+    # LA PROSA Y EL SELLO VAN DETRÁS DE LOS DATOS (2026-09-07, errata nº 142). Iban
+    # delante —el sello arriba del todo, «lo primero que hace falta cuando el fichero no
+    # cuadra»— y ahí los toma Excel como fila de títulos: la cabecera de columnas baja una
+    # fila y todo se lee corrido, sin dar ningún error.
+    #
+    # Se mueve TAMBIÉN la prosa y no sólo el sello: el motivo es el mismo y dejar la prosa
+    # delante habría dejado este fichero exactamente igual de roto. No se recorta nada —va
+    # entera y en el mismo orden—, y `tsv_header` / `tsv_rows` saltan los comentarios estén
+    # donde estén, así que ningún lector de la app se entera.
+    return cuerpo + "\n" + CABECERA + nota + build_line()
 
 
 #: Columnas que se enseñan en el bloque legible del informe. La tabla entera no cabe en

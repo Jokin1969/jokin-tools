@@ -223,9 +223,15 @@ def longest_contiguous(guide: str, target: str) -> int:
 
 def seed_sites_in(guide: str, target: str) -> tuple:
     """Los sitios de seed de `guide` en `target`, con su clase. Cero es lo que se busca."""
+    from .coords import Frame
     from .offtarget import self_sites
 
-    return self_sites(_dna(guide).replace("T", "U"), target=_dna(target))
+    # `target` es la diana del control —el 3'UTR o el casete—, asi que las posiciones
+    # van en su espacio. Aqui solo se CUENTAN: lo que se busca es cero. Se afirma igual
+    # porque `self_sites` ya no pone el marco por defecto.
+    return self_sites(
+        _dna(guide).replace("T", "U"), target=_dna(target), frame=Frame.UTR3
+    )
 
 
 def adversarial_guide() -> str:

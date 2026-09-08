@@ -18,10 +18,11 @@ Python 3.11+, solo libreria estandar (regla 6).
 from __future__ import annotations
 
 from .conservation import ConservationReport, single_shmir_verdict
+from .errors import ShmirDesignError
 from .accessibility import CONTEXT_WINDOWS, DISCREPANCY
 from .filters import FilterState, Verdict
 from .folding import VIENNA_AVAILABLE
-from .coords import bound_of, Frame, frame_of, label, span
+from .coords import bound_of, Frame, label, span, tiled_frame
 from .transgene import carries_scaffold_module
 from .mirna import SEED_SPACE
 from . import splicing
@@ -40,6 +41,7 @@ from .selection import (
     promotion_clearance,
     is_eligible,
     tercio_counts,
+    tercio_coverage,
     coverage_report,
     ReportSelection,
     penalty_sensitivity,
@@ -99,18 +101,67 @@ def _sin_correr(selection: ReportSelection) -> str:
     )
 
 
-def tsv_selected(selection: ReportSelection, *, species: str) -> str:
-    """Los candidatos, con el estado de CADA filtro en su columna.
+#: El mime del TSV. Lo pide el botón de descarga, y va aquí porque quien decide QUÉ
+#: formato tiene el fichero es quien lo escribe, no quien lo pinta (regla 6).
+TSV_MIME = "text/tab-separated-values"
+
+
+def output_stem(species: str) -> str:
+    """El trozo de nombre de fichero que aporta la especie. SIN espacios.
+
+    La especie que llega de la página es el nombre CIENTÍFICO —`species_options` pone
+    `especie.scientific` en el desplegable—, así que los seis ficheros del zip se
+    llamaban `Mus musculus_seleccionados.tsv`, con el espacio dentro. En el zip se
+    disimula; en la carpeta de Descargas y pegado en una consola, no.
+
+    Va en `outputs` y no en la página porque el que nombra un fichero es el que lo
+    escribe: aquí lo usan el zip, el botón suelto y el CLI, y así los tres no pueden
+    discrepar. Un fichero con dos nombres es el mismo fallo que dos ficheros con uno.
+    """
+    limpio = "_".join(str(species).split())
+    if not limpio:
+        raise ShmirDesignError(
+            "La especie llega vacía y de ahí sale el nombre de los ficheros de salida. "
+            "Se aborta en vez de emitir `_seleccionados.tsv`, que no dice de qué corrida "
+            "es y se confunde con el de cualquier otra."
+        )
+    return limpio
+
+
+def tsv_selected(
+    selection: ReportSelection,
+    *,
+    species: str,
+    tiling,
+    stores=None,
+) -> str:
+    """Los candidatos, con el estado de CADA filtro Y DE CADA FRENTE en su columna.
 
     Quien abra este fichero tiene que poder ver que filtro falta sin abrir otro: un
     `INCOMPLETE` a secas invita a decidir sin saber que le falta al candidato.
+
+    **Y las columnas se piden a `presentation.export_states`, no se montan aqui**
+    (2026-09-07). Se montaban de `window.filters` —los filtros de la VENTANA— y este
+    fichero no recibia los almacenes nunca, asi que `offtarget_seed` no tenia columna,
+    `empalme_sitios` tampoco, y las que si salian eran estados de filtro y no veredictos
+    de frente con la corrida guardada encima. **El export decia MENOS que la pantalla**, y
+    eso es peor que al reves: la pantalla se mira con la app delante y esto es lo que se
+    manda por correo y se lee dentro de un año.
+
+    `tiling` es OBLIGATORIO y no tiene valor por defecto: los frentes salen de
+    `blocking_fronts`, que lo necesita. Con un `None` por defecto habria DOS formas de
+    montar este fichero —una con frentes y otra sin ellos— y nada que dijera cual salio;
+    los dos llamadores lo tienen delante, asi que no hace falta la segunda.
     """
+    from .identidad import build_line  # noqa: PLC0415
+    from .presentation import export_states, verdict_with_stores  # noqa: PLC0415
+
     chosen = list(selection.selection.chosen)
     marco = (
-        frame_of(selection.anatomy) if selection.anatomy is not None else Frame.UTR3
+        tiled_frame(selection.anatomy)
     )
-    filtros = (
-        [r.name for r in selection.window_of(chosen[0]).filters] if chosen else []
+    filtros, por_candidato = export_states(
+        tiling, selection, species=species, stores=stores,
     )
     rows = [
         [
@@ -139,7 +190,7 @@ def tsv_selected(selection: ReportSelection, *, species: str) -> str:
     sin_correr = _sin_correr(selection)
     for choice in chosen:
         window = selection.window_of(choice)
-        estados = {r.name: r.state.value for r in window.filters}
+        estados = por_candidato[int(choice.start)]
         rows.append(
             [
                 species,
@@ -158,13 +209,29 @@ def tsv_selected(selection: ReportSelection, *, species: str) -> str:
                 str(window.bandera_polyA_debil),
                 str(window.biofisicos_ok),
                 str(window.riesgo_APA),
-                window.verdict.value,
+                # EL VEREDICTO CUENTA LO MISMO QUE LAS CELDAS. Con los almacenes leidos,
+                # `window.verdict` es el del informe de tilado: la fila podria decir
+                # `especificidad: PASS` y `veredicto: INCOMPLETE`, las dos con pinta de
+                # medida (errata nº 51, dentro del export).
+                verdict_with_stores(estados),
                 window.evaluation.sequence,
                 window.evaluation.guide,
                 sin_correr,
             ]
         )
-    return _tsv(rows)
+    # EL SELLO DE LA VERSIÓN, DELANTE. Este fichero se descarga, se manda por correo
+    # y se lee dentro de un año, y la primera pregunta cuando algo no cuadra es «¿qué
+    # versión lo produjo?» — la hizo el 2026-09-07 quien tenía delante un export sin
+    # las columnas de dos frentes y no podía distinguir «no está arreglado» de «el
+    # despliegue va por detrás». Va como comentario `#`, así que la cabecera de
+    # columnas sigue siendo la primera línea de datos.
+    # EL SELLO VA AL FINAL, y no es una preferencia de formato (2026-09-07, errata
+    # nº 142). Arriba lo tomaba Excel como fila de títulos y la cabecera real bajaba una
+    # fila: todas las columnas se leen corridas, sin dar ningún error. `tsv_header` y
+    # `tsv_rows` saltan los comentarios ESTÉN DONDE ESTÉN, así que para quien lo lee con
+    # la app no cambia nada. Se pierde «arriba del todo» y se gana que el fichero se abra
+    # bien en la herramienta con la que se lee de verdad.
+    return _tsv(rows) + "\n" + build_line()
 
 
 def fasta_guides(selection: ReportSelection, *, species: str) -> str:
@@ -258,7 +325,7 @@ def text_report(
     # El espacio de coordenadas de TODO lo que se imprima aqui. Sale de la anatomia, no
     # se elige: `tx:1018` y `3utr:1018` son dos sitios distintos y el entero solo no
     # distingue cual es.
-    marco = frame_of(anatomia) if anatomia is not None else Frame.UTR3
+    marco = tiled_frame(anatomia)
     desfase = anatomia.utr3[0] - 1 if anatomia is not None and anatomia.utr3 else 0
     # La longitud REAL del 3'UTR de esta especie. Afina el techo global de `coords`:
     # cualquier posicion que se emita en `3utr` y no quepa aqui es un desfase mal
@@ -460,6 +527,11 @@ def text_report(
 
     lines.extend(["", "── Cobertura por tercios ──"])
     lines.extend(f"  {l}" for l in tercio_counts(tiling).describe())
+    # Y el MARGEN, que es otra pregunta: cuánto queda en cada tramo y cuál sería el
+    # siguiente. La cuota se decidió por tercios, así que si se cumple tiene que verse.
+    lines.append("")
+    for tramo in tercio_coverage(tiling, selection, config):
+        lines.extend(f"  {l}" for l in tramo.describe())
 
     lines.extend(["", "── Especificidad ──"])
     if tiling.specificity_db is None:
@@ -478,7 +550,11 @@ def text_report(
             f"  BLAST remoto de inspeccion (NUNCA fuente del veredicto), solo para los "
             f"{len(selection.selection.chosen)} supervivientes:"
         )
-        lines.append(f"    {blast_command(f'{species}_guias.fasta', species)}")
+        # POR `output_stem`: esta linea es una ORDEN PARA PEGAR EN UNA CONSOLA, y
+        # `Mus musculus_guias.fasta` se parte en dos argumentos al pegarla.
+        lines.append(
+            f"    {blast_command(f'{output_stem(species)}_guias.fasta', species)}"
+        )
         lines.append("    Etiqueta de NCBI: una sumision cada ~10 s, polling >= 60 s.")
     elif selection.selection.chosen:
         lines.append(
@@ -1281,6 +1357,15 @@ def text_report(
         lines.append("  arreglando una:")
         for fila in triple_motive:
             lines.extend(f"    {l}" for l in _envolver(fila.describe(), 84))
+
+    # UNA DECISION REGISTRADA NO ES UN AVISO, y por eso tiene bloque propio y va ANTES.
+    # Un candidato retirado del panel sale en todas las corridas de esa secuencia: bajo
+    # «Avisos» dejaria un ⚠ permanente, y a partir de ahi los avisos de verdad —los que
+    # dicen que algo pedido no se pudo dar— se leen como fondo.
+    if selection.selection.decisions:
+        lines.extend(["", "── Decisiones sobre la selección ──"])
+        for decision in selection.selection.decisions:
+            lines.extend(f"  {l}" for l in _envolver(decision, 84))
 
     lines.extend(["", "── Avisos ──"])
     avisos: list[str] = []

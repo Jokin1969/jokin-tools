@@ -191,15 +191,18 @@ class TestLasDosREGLAS_DE_LA_SELECCION(unittest.TestCase):
         self.assertEqual(default_config().apa_immune_quota, DEFAULT_IMMUNE_QUOTA)
         self.assertEqual(default_config(n_candidates=2).apa_immune_quota, 2)
 
-    def test_el_panel_por_defecto_son_DIEZ_como_el_del_proyecto(self):
+    def test_el_panel_por_defecto_es_el_del_proyecto(self):
         from shmir_design.selection import DEFAULT_CANDIDATES
 
-        self.assertEqual(DEFAULT_CANDIDATES, 10)
+        # ONCE desde el 2026-09-06: la plaza once es el segundo distal.
+        self.assertEqual(DEFAULT_CANDIDATES, 11)
 
     def test_sin_cuota_de_inmunes_el_panel_pierde_uno(self):
         """El hecho que motiva la cuota, medido y fijado."""
         from shmir_design import presentation
-        from shmir_design.selection import SelectionConfig, default_config
+        from shmir_design.selection import (
+            DEFAULT_IMMUNE_QUOTA, SelectionConfig, default_config,
+        )
 
         secuencia, anatomia = _entrada()
         sin = presentation.page_run(
@@ -213,7 +216,10 @@ class TestLasDosREGLAS_DE_LA_SELECCION(unittest.TestCase):
         inmunes_sin = presentation.immune_count(sin.tiling, sin.selection)
         inmunes_con = presentation.immune_count(con.tiling, con.selection)
         self.assertLess(inmunes_sin, inmunes_con)
-        self.assertGreaterEqual(inmunes_con, 4)
+        # La cuota se pide a la constante, no se transcribe: bajó de 4 a 3 el 2026-09-07
+        # por geometría y un número escrito aquí habría hecho fallar este test por el
+        # cambio de cuota, que es justo lo que NO mide (principio nº 13).
+        self.assertGreaterEqual(inmunes_con, DEFAULT_IMMUNE_QUOTA)
         # El hecho concreto: sin cuota entra `3utr:359` (+4,82) y con ella `3utr:200`
         # (+3,80). Los dos son proximales, así que la cuota de tercios se cumple igual y
         # nada delataba el cambio.

@@ -31,7 +31,7 @@ from dataclasses import dataclass, field, replace
 from enum import StrEnum
 from pathlib import Path
 
-from .coords import Frame, frame_of, label, span
+from .coords import Frame, label, span, tiled_frame
 from .errors import InvalidSequenceError, MissingSequenceError
 from .filters import FilterResult, FilterState, Verdict, overall_verdict
 
@@ -228,7 +228,7 @@ class PolyASignal:
     def forbidden_end(self) -> int:
         return min(self.utr_length, self.end + self.flank)
 
-    def describe(self, *, frame: Frame = Frame.UTR3) -> str:
+    def describe(self, *, frame: Frame) -> str:
         """`frame` es el espacio de `position`: el de LO TILADO.
 
         Por defecto `3utr` porque las coordenadas de una señal son 1-based sobre el
@@ -454,7 +454,7 @@ class Report:
     avisos: tuple[Aviso, ...] = field(default=())
     signals_available: bool = True
     #: Espacio de coordenadas de las posiciones de este informe.
-    frame: Frame = Frame.UTR3
+    frame: Frame = field(kw_only=True)
 
     def format_text(self) -> str:
         lines = [f"3'UTR de {self.utr_length} nt"]
@@ -691,7 +691,7 @@ def annotate_3utr(
     # Sin anatomia, quien llama ha declarado que lo que analiza ES un 3'UTR: es el
     # contrato de este modulo (`utr_length`, posiciones 1-based sobre el 3'UTR). Con
     # anatomia, el marco sale de ella.
-    marco = Frame.UTR3 if anatomy is None else frame_of(anatomy)
+    marco = tiled_frame(anatomy)
     return Report(
         utr_length=utr_length,
         signals=tuple(signals or ()),
@@ -705,7 +705,7 @@ def annotate_3utr(
 def _avisos_apa(
     signals: list[PolyASignal] | None,
     annotated: list[AnnotatedWindow],
-    frame: Frame = Frame.UTR3,
+    frame: Frame,
 ) -> list[Aviso]:
     """Un AVISO destacado por cada APA proximal detectado (apartado B).
 
@@ -794,6 +794,23 @@ def analyze_3utr(
 
 CLEAVAGE_MIN = 10   # nt aguas abajo del final del hexamero
 CLEAVAGE_MAX = 30
+
+
+def cleavage_band(signal: "PolyASignal") -> tuple[int, int]:
+    """La banda donde CAE EL CORTE que dirige esta señal.
+
+    UNA definición para una cantidad que se usaba en tres sitios —el veredicto de
+    truncamiento, el elemento GU/U-rico de aguas abajo y el mapa—: escrita tres veces,
+    corregir el margen en una y no en las otras dejaría el mapa dibujando una banda que
+    el veredicto no usa, sin que fallara nada.
+
+    La convención es la que YA IMPRIME el veredicto de truncamiento: `end + CLEAVAGE_MIN`
+    a `end + CLEAVAGE_MAX`. Como índices 0-based de la secuencia del 3'UTR, esos dos
+    números son exactamente el corte `secuencia[desde:hasta]`, que es como lee la banda
+    `_dse_downstream`. Y el corte NO ocurre en el hexámero: cae aguas ABAJO de su final,
+    y esa asimetría es justo lo que se pierde al reescribirla.
+    """
+    return (signal.end + CLEAVAGE_MIN, signal.end + CLEAVAGE_MAX)
 
 #: Lo que publica PolyA_DB como «PAS» es el SITIO DE CORTE, NO EL HEXAMERO, y lo dice su
 #: propia leyenda. No es una interpretacion nuestra: si el hexamero se BUSCA aguas arriba
@@ -894,8 +911,7 @@ def _dse_context(
     """
     if sequence is None:
         return None
-    inicio = signal.end + CLEAVAGE_MIN
-    fin = signal.end + CLEAVAGE_MAX
+    inicio, fin = cleavage_band(signal)
     if fin > len(sequence):
         return None
     tramo = sequence[inicio:fin].upper()
@@ -969,7 +985,7 @@ class PolyAAnnotation:
     #: pagina no. Dos sitios que hacen lo mismo y uno se olvida: el patron de los dos
     #: contadores que discrepan. Ahora la etiqueta la pone la anotacion, que es quien
     #: sabe de que posicion habla.
-    frame: Frame = Frame.UTR3
+    frame: Frame = field(kw_only=True)
 
     def as_columns(self) -> dict[str, str]:
         if self.posicion_rel is None:
@@ -1301,7 +1317,7 @@ def annotate_polya(
     sequence: str | None = None,
     mode: PolyAMode = PolyAMode.ESCALONADO,
     fraccion_isoforma_larga: float | None = None,
-    frame: Frame = Frame.UTR3,
+    frame: Frame,
 ) -> PolyAAnnotation:
     """Anota una ventana: cinco campos, y solo uno es un veredicto.
 
@@ -1535,7 +1551,7 @@ class AmpliconPlan:
     utr_length: int
     #: Espacio en que van TODAS las coordenadas de este plan. Un 334 no dice por si
     #: solo si es del transcrito o del 3'UTR, y esa confusion ya costo una tanda.
-    frame: Frame = Frame.UTR3
+    frame: Frame = field(kw_only=True)
     #: OTRAS señales APA_POSIBLE cuyas bandas de corte ATRAVIESA cada amplicon. Un
     #: amplicon partido por un corte no da producto en la isoforma cortada, asi que
     #: cruzar una banda cambia lo que la razon mide — y el plan no puede callarselo.
@@ -1716,7 +1732,7 @@ def rtqpcr_amplicons(
     signal: PolyASignal,
     *,
     utr_length: int,
-    frame: Frame = Frame.UTR3,
+    frame: Frame,
     first_position: int = 1,
     avoid: list[tuple[int, int]] | tuple[tuple[int, int], ...] = (),
     length: int = RTQPCR_AMPLICON_LENGTH,

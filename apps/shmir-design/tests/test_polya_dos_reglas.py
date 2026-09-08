@@ -18,6 +18,8 @@ Datos reales: el 3'UTR verificado de NM_011170.3.
 """
 
 import unittest
+
+from shmir_design.coords import Frame
 from pathlib import Path
 
 from shmir_design.filters import FilterState
@@ -80,6 +82,9 @@ class TestSobreElTranscritoReal(unittest.TestCase):
             utr_length=len(self.utr3),
             sequence=self.utr3,
             mode=modo,
+            # Este fichero mide sobre el 3'UTR PELADO: ese es el marco de sus
+            # posiciones, y por eso se afirma en vez de heredarse de un defecto.
+            frame=Frame.UTR3,
         )
 
     def test_las_dos_columnas_salen_pase_lo_que_pase(self):

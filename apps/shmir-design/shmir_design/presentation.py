@@ -12,6 +12,7 @@ from __future__ import annotations
 
 import inspect
 import re
+import textwrap
 from dataclasses import dataclass, field
 from html import escape
 from pathlib import Path, PurePosixPath
@@ -32,11 +33,19 @@ from .conservation import (
 from .errors import ShmirDesignError
 from .hard_filters import DEFAULT_THRESHOLDS, Thresholds
 from .filters import FilterState
-from .outputs import fasta_guides, text_report, tsv_all_windows, tsv_oligos, tsv_selected
+from .outputs import (
+    TSV_MIME,
+    fasta_guides,
+    output_stem,
+    text_report,
+    tsv_all_windows,
+    tsv_oligos,
+    tsv_selected,
+)
 from .reference import ReferenceTranscript
 from .resources import ResourceSet
-from .scaffold import ScaffoldSpec
-from .polya import POLYA_COLUMNS, normalize_sequence
+from .scaffold import ScaffoldSpec, build_hairpin
+from .polya import POLYA_COLUMNS, cleavage_band, normalize_sequence
 from .selection import ReportSelection
 from .tiling import TiledWindow, TilingReport
 
@@ -200,6 +209,17 @@ def status_light(selection: ReportSelection, *, resueltos=()) -> StatusLight:
 # ─── Tablas ──────────────────────────────────────────────────────────────────
 def _filter_columns(window: TiledWindow) -> dict[str, str]:
     return {r.name: r.state.value for r in window.filters}
+
+
+def _filter_names(window: TiledWindow) -> list[str]:
+    """Solo los NOMBRES de los filtros de una ventana. No emite ningun estado.
+
+    Existe para que quien necesite la lista de columnas no llame a `_filter_columns`:
+    esa funcion emite ESTADOS y el guardia exige que todo el que la llame los envuelva
+    con `_with_stores`. Pedir nombres y pedir estados son dos cosas, y confundirlas
+    obligaria a relajar el guardia — que es como un guardia deja de morder.
+    """
+    return [r.name for r in window.filters]
 
 
 def candidate_rows(
@@ -553,7 +573,386 @@ def map_svg(
     return "\n".join(parts)
 
 
+# ─── El mismo mapa, en caracteres, para el informe ───────────────────────────
+#
+# El SVG se ve en la pagina y no entra en el documento: el informe sale en markdown,
+# `.docx` y `.pdf`, y ese PDF se escribe a mano con las fuentes base-14 — no incrusta
+# imagenes. Al documento llegaba un RESUMEN (cuantos elementos por tipo), que deja ver
+# que un mapa se quedo sin candidatos y NO deja ver lo unico para lo que el mapa sirve:
+# si los candidatos estan repartidos o apelotonados y que tramos quedan vacios.
+#
+# Un mapa de caracteres se dibuja UNA vez y sale igual en los tres formatos, que es
+# exactamente la garantia que se pide: todo a la misma escala, y la misma escala en los
+# tres. Y por eso es ASCII puro — el PDF codifica en WinAnsi y sustituye lo que no
+# tiene, asi que un simbolo fuera de tabla desalinearia las columnas en un formato y no
+# en los otros.
+
+#: Columnas de la pista. Con el `pre` del PDF a cuerpo 7 caben 120 caracteres por linea;
+#: 100 de pista mas la etiqueta del carril entra sin partirse, y una linea partida deja
+#: de estar a escala, que es el mapa roto.
+MAP_TEXT_WIDTH = 100
+
+#: Ancho de la etiqueta del carril. Fijo: si cada carril rotula con lo que le cabe, los
+#: carriles dejan de empezar en la misma columna y la escala se pierde.
+MAP_TEXT_GUTTER = 8
+
+WHY_THE_MAP_IS_CHARACTERS = (
+    "El mapa del informe es de CARACTERES y no el SVG de la página: el PDF de este "
+    "proyecto se escribe con las fuentes base-14 y no incrusta imágenes, así que un "
+    "mapa dibujado saldría en un formato y no en los otros. En caracteres se dibuja una "
+    "vez y sale igual en los tres — todo a la misma escala, y la misma escala en "
+    "markdown, en `.docx` y en `.pdf`."
+)
+
+
+def _map_columns(utr_length: int) -> list[float]:
+    """La escala, en UN solo sitio: nt por columna."""
+    return [utr_length / MAP_TEXT_WIDTH]
+
+
+def map_text(
+    report: TilingReport,
+    selection: ReportSelection,
+    conservation: ConservationReport | None = None,
+    species: str | None = None,
+) -> str:
+    """El mapa del 3'UTR en caracteres. Todos los carriles, a la MISMA escala.
+
+    Mismo marco y misma frontera que `map_svg` —salen de `report.frame` y
+    `report.utr3_of`— y por el mismo motivo: lo tilado puede ser el transcrito entero.
+    Ver `WHY_THE_MAP_RECEIVES_THE_FRAME`.
+    """
+    largo = report.utr3_length
+    marco = report.frame
+    escala = largo / MAP_TEXT_WIDTH
+
+    def columna(posicion: int) -> int:
+        return min(
+            MAP_TEXT_WIDTH - 1,
+            max(0, round((posicion - 1) / max(1, largo - 1) * (MAP_TEXT_WIDTH - 1))),
+        )
+
+    def carril(etiqueta: str, marcas: dict[int, str], relleno: str = " ") -> str:
+        pista = [relleno] * MAP_TEXT_WIDTH
+        for col, ch in sorted(marcas.items()):
+            if 0 <= col < MAP_TEXT_WIDTH:
+                pista[col] = ch
+        return f"  {etiqueta:<{MAP_TEXT_GUTTER}}" + "".join(pista)
+
+    fuera = 0
+
+    def en_utr3(posicion: int) -> int | None:
+        return report.utr3_of(posicion)
+
+    def nota(texto: str) -> list[str]:
+        """Parte una nota para que NINGUNA linea se salga del ancho del mapa.
+
+        Una linea que el PDF parte deja de estar a escala, y con ella se descoloca todo
+        lo que va debajo. El limite es el del mapa, no el del PDF: asi las tres salidas
+        —markdown, `.docx` y `.pdf`— parten por el mismo sitio.
+        """
+        limite = MAP_TEXT_WIDTH + MAP_TEXT_GUTTER - 2
+        return ["  " + l for l in textwrap.wrap(texto, limite) or [""]]
+
+    lineas: list[str] = []
+
+    # Escala: una regla con la posicion cada diez columnas.
+    regla = [" "] * MAP_TEXT_WIDTH
+    numeros = [" "] * MAP_TEXT_WIDTH
+    for col in range(0, MAP_TEXT_WIDTH, 10):
+        regla[col] = "|"
+        texto = str(max(1, round(col * escala) + 1))
+        for i, ch in enumerate(texto):
+            if col + i < MAP_TEXT_WIDTH:
+                numeros[col + i] = ch
+    lineas.append(f"  {'nt':<{MAP_TEXT_GUTTER}}" + "".join(numeros))
+    lineas.append(f"  {'':<{MAP_TEXT_GUTTER}}" + "".join(regla))
+
+    # Tercios, con su frontera EN LA COLUMNA que le toca.
+    # LOS LIMITES SALEN DE `tercio_counts`, no se vuelven a dividir aquí: dos cuentas
+    # del mismo corte pueden separarse, y entonces el mapa dibujaría una frontera que
+    # la cuota no usa. Es el mismo criterio que la banda de corte.
+    from .selection import tercio_counts  # noqa: PLC0415
+
+    limites_tercios = tercio_counts(report).bounds
+    tercios = [" "] * MAP_TEXT_WIDTH
+    cortes = [columna(limites_tercios[0][1]), columna(limites_tercios[1][1])]
+    tramos = [(0, cortes[0]), (cortes[0] + 1, cortes[1]), (cortes[1] + 1, MAP_TEXT_WIDTH - 1)]
+    for (a, b), nombre in zip(tramos, ("proximal", "medio", "distal"), strict=True):
+        ancho = b - a + 1
+        etiqueta = nombre if len(nombre) <= ancho - 2 else nombre[: max(0, ancho - 2)]
+        relleno = "-" * ancho
+        if etiqueta:
+            hueco = (ancho - len(etiqueta)) // 2
+            relleno = "-" * hueco + etiqueta + "-" * (ancho - hueco - len(etiqueta))
+        for i, ch in enumerate(relleno):
+            tercios[a + i] = ch
+    for corte in cortes:
+        tercios[corte] = "|"
+    lineas.append(f"  {'tercios':<{MAP_TEXT_GUTTER}}" + "".join(tercios))
+
+    # Zonas enmascaradas.
+    if report.mask is not None:
+        mascara: dict[int, str] = {}
+        for inicio, fin in report.mask.intervals:
+            u1, u2 = en_utr3(inicio), en_utr3(min(fin, report.utr_length))
+            if u1 is None and u2 is None:
+                fuera += 1
+                continue
+            u1 = 1 if u1 is None else u1
+            u2 = largo if u2 is None else u2
+            for col in range(columna(u1), columna(u2) + 1):
+                mascara[col] = "~"
+        lineas.append(carril("mascara", mascara))
+
+    # Bloques conservados. Sin conservacion el carril NO desaparece: lo dice.
+    if conservation is not None and species is not None:
+        bloques: dict[int, str] = {}
+        for bloque in conservation.blocks:
+            for hit in bloque.hits:
+                if hit.species != species:
+                    continue
+                for col in range(columna(hit.start), columna(min(hit.end, largo)) + 1):
+                    bloques[col] = "#"
+        lineas.append(carril("conserv", bloques))
+    else:
+        lineas.append(
+            f"  {'conserv':<{MAP_TEXT_GUTTER}}"
+            "NOT_RUN: no se ha dado informe de conservación para esta especie."
+        )
+
+    # Señales de poliadenilacion, y SU BANDA DE CORTE en el carril de debajo.
+    señales: dict[int, str] = {}
+    banda: dict[int, str] = {}
+    desbordadas = 0
+    for signal in report.signals:
+        posicion = en_utr3(signal.position)
+        if posicion is None:
+            fuera += 1
+            continue
+        # LA VIA IMPORTA Y SE VE. `A` a secas dice lo mismo de dos cosas que no se
+        # parecen: una señal con uso MEDIDO y una clasificada por canonicidad SIN UN
+        # SOLO DATO de uso. Es la distincion que `classification_label` ya lleva pegada
+        # a la clase, traida al mapa — que es donde se mira el reparto.
+        señales[columna(posicion)] = (
+            "T" if signal.classification.name == "TERMINAL_PROBABLE"
+            else ("M" if signal.evidence == "medida" else "A")
+        )
+        # LA BANDA DE CORTE PUEDE SALIRSE DEL TRANSCRITO, y no es un error: el corte
+        # de una señal terminal cae 10-30 nt aguas abajo de un hexámero que ya está
+        # cerca del final. Se recorta a lo que hay y se CUENTA lo que se sale, en vez
+        # de abortar la conversión con una posición que no existe.
+        desde, hasta = cleavage_band(signal)
+        if desde > report.utr_length:
+            desbordadas += 1
+            continue
+        if hasta > report.utr_length:
+            desbordadas += 1
+            hasta = report.utr_length
+        u1, u2 = en_utr3(desde), en_utr3(hasta)
+        if u1 is None and u2 is None:
+            continue
+        u1 = 1 if u1 is None else u1
+        u2 = largo if u2 is None else u2
+        for col in range(columna(u1), columna(u2) + 1):
+            banda[col] = "="
+    lineas.append(carril("polyA", señales))
+    lineas.append(carril("corte", banda))
+
+    # Candidatos, NUMERADOS por su puesto en el panel.
+    elegidos = sorted(selection.selection.chosen, key=lambda c: c.start)
+    candidatos: dict[int, str] = {}
+    pie: list[str] = []
+    for indice, choice in enumerate(elegidos, start=1):
+        posicion = en_utr3(choice.start)
+        if posicion is None:
+            fuera += 1
+            continue
+        col = columna(posicion)
+        marca = str(indice)
+        for i, ch in enumerate(marca):
+            candidatos.setdefault(col + i, ch)
+        pie.append(f"{indice}={coords.label(choice.start, marco)}")
+    lineas.append(carril("cand", candidatos))
+
+    lineas.append("")
+    lineas.extend(nota(
+        f"3'UTR de {largo} nt en {MAP_TEXT_WIDTH} columnas — "
+        f"{escala:.1f} nt por columna (marco de lo tilado: {marco.value})."
+    ))
+    lineas.extend(nota(
+        "M = señal polyA con uso MEDIDO · A = señal polyA por canonicidad, sin dato "
+        "de uso · T = terminal probable · = banda de corte (10-30 nt aguas abajo del "
+        "hexámero) · # = bloque conservado · ~ = repetición enmascarada · dígito = "
+        "candidato, por su puesto en el panel."
+    ))
+    if fuera:
+        lineas.extend(nota(f"{fuera} elemento(s) FUERA del 3'UTR, no dibujados."))
+    if desbordadas:
+        lineas.extend(nota(
+            f"{desbordadas} banda(s) de corte se salen del transcrito anotado: el "
+            f"corte de una terminal cae aguas abajo del final. Van recortadas."
+        ))
+    # Los candidatos, con su coordenada: en la pista solo cabe el numero.
+    if pie:
+        actual = "  "
+        for entrada in pie:
+            if len(actual) + len(entrada) + 2 > MAP_TEXT_WIDTH + MAP_TEXT_GUTTER:
+                lineas.append(actual.rstrip())
+                actual = "  "
+            actual += entrada + "  "
+        lineas.append(actual.rstrip())
+    return "\n".join(l.rstrip() for l in lineas)
+
+
+def wrap_for_map(lines) -> list[str]:
+    """Parte líneas de prosa al ancho del mapa, RESPETANDO su sangría.
+
+    La cobertura por tercios va al lado del mapa y en el mismo bloque preformateado: su
+    sangría es jerarquía —el tramo y sus detalles— y un `bullets` la aplana, mientras
+    que dejarla sin partir hace que el PDF corte las frases por la mitad. Se parte por
+    el mismo sitio en los tres formatos, que es la misma garantía que da el mapa.
+    """
+    limite = MAP_TEXT_WIDTH + MAP_TEXT_GUTTER
+    salida: list[str] = []
+    for linea in lines:
+        sangria = " " * (len(linea) - len(linea.lstrip()))
+        trozos = textwrap.wrap(
+            linea.strip(), max(20, limite - len(sangria) - 2)
+        ) or [""]
+        salida.append(f"  {sangria}{trozos[0]}".rstrip())
+        salida.extend(f"    {sangria}{t}".rstrip() for t in trozos[1:])
+    return salida
+
+
 # ─── Descargas ───────────────────────────────────────────────────────────────
+#: Con qué empieza una línea que EXPLICA el fichero en vez de traer datos. Los dos TSV
+#: llevan comentarios en la cabecera —el sello de la versión, la nota de coordenadas— y
+#: quien los lee tiene que saltarlos: es la convención de siempre en un TSV, y escrita
+#: aquí para que no la reinvente cada lector.
+TSV_COMMENT = "#"
+
+
+def tsv_header(texto: str) -> list[str]:
+    """La cabecera de columnas de un TSV emitido por la app, saltando los comentarios.
+
+    Existe porque estos ficheros llevan prosa delante y `splitlines()[0]` dejó de ser la
+    cabecera el día que se les puso el sello de la versión. Un lector por su cuenta en
+    cada sitio es como se llega a que uno la lea bien y otro no.
+    """
+    for linea in texto.splitlines():
+        if linea.startswith(TSV_COMMENT) or not linea.strip():
+            continue
+        return linea.split("\t")
+    raise ShmirDesignError(
+        "El TSV no tiene ninguna línea de datos: sólo comentarios. Se aborta en vez de "
+        "devolver una cabecera vacía, que se leería como una tabla sin columnas."
+    )
+
+
+def panel_frame(selection) -> coords.Frame:
+    """El marco de los inicios del panel. Lo pide la página y lo decide `presentation`.
+
+    Es `coords.tiled_frame` sobre la anatomía que viaja con la selección, con nombre
+    propio para que la página no navegue el modelo (regla 6) ni monte el marco a mano:
+    un marco elegido en la vista es una decisión sin test, y ya sabemos lo que cuesta.
+    """
+    return coords.tiled_frame(getattr(selection, "anatomy", None))
+
+
+def saved_selection_note(starts, *, selection) -> str:
+    """La última selección guardada, con cada posición EN SU MARCO. Vacía si no hay.
+
+    La montaba la página con un `", ".join(str(s) …)` sobre los inicios del log, así que
+    sobre un tilado del transcrito escribía enteros desnudos — que se leen como
+    posiciones del 3'UTR. El marco sale de la anatomía de la corrida que hay delante, que
+    es la misma sobre la que se guardaron.
+
+    Vacía significa que no hay selección guardada, y entonces la página no pinta nada:
+    una línea que diga «ninguna» ocupa sitio para decir lo que ya dice su ausencia.
+    """
+    if not starts:
+        return ""
+    marco = coords.tiled_frame(getattr(selection, "anatomy", None))
+    return (
+        f"Última selección guardada: "
+        f"{coords.labels(sorted(int(s) for s in starts), marco)}"
+    )
+
+
+def tsv_rows(texto: str) -> list[list[str]]:
+    """Las filas de DATOS de un TSV emitido por la app, cabecera incluida.
+
+    La otra mitad de `tsv_header`: quien cuenta filas tampoco puede contar los
+    comentarios. Las dos viven aquí para que la regla de qué es una línea de datos esté
+    escrita UNA vez.
+    """
+    return [
+        linea.split("\t")
+        for linea in texto.splitlines()
+        if linea.strip() and not linea.startswith(TSV_COMMENT)
+    ]
+
+
+#: QUÉ es cada uno de los dos botones que hay sobre esa tabla. Va junto al nuestro.
+#:
+#: `st.dataframe` pinta SIEMPRE, en la esquina de la tabla y al pasar el ratón, un icono
+#: de descarga que produce `<marca de tiempo>_export.csv`. Lo construye el navegador con
+#: la tabla ya pintada: no pasa por aquí, así que sale sin el sello `# BUILD:`, sin las
+#: columnas de frente y con las columnas de la VISTA. No se puede quitar —es de
+#: Streamlit— y taparlo sería peor: quien ya lo tenga en Descargas necesita saber qué es.
+#:
+#: La nota dice QUÉ contiene cada uno. NO adivina por qué falta algo: un diagnóstico
+#: equivocado cuesta más que ninguno, y este fallo se pasó cinco días mirando el
+#: despliegue porque nadie miró el nombre del fichero.
+EXPORT_VS_ICONO_NOTE = (
+    "El icono de descarga que sale en la esquina de la tabla es de Streamlit, no de esta "
+    "app: baja lo que se ve en pantalla como `…_export.csv`, sin el sello de versión y "
+    "sin las columnas de frente. El fichero de abajo es el completo."
+)
+
+#: Lo que el botón dice que hace. NO se llama como el fichero: tres botones etiquetados
+#: con su nombre de fichero se leyeron como una lista de ficheros y el informe «no
+#: aparecía» con los tres delante. El nombre va en la nota, que es lo que luego hay que
+#: buscar en la carpeta de Descargas.
+EXPORT_BUTTON_LABEL = "Descargar los candidatos con sus frentes (tabla completa)"
+
+
+def selected_export_file(
+    selection: ReportSelection,
+    *,
+    species: str,
+    tiling: TilingReport,
+    stores=None,
+) -> dict[str, str]:
+    """El export de candidatos COMO ENTREGABLE: nombre, etiqueta, datos y mime.
+
+    Existe porque no había ninguno. `tsv_selected` llegaba a la interfaz por un único
+    camino —`output_bundle`, o sea DENTRO del zip—, así que el único botón visible sobre
+    la tabla del panel era el icono de `st.dataframe`, que baja otra cosa con pinta de
+    ser ésta. Es el principio nº 55 en su variante nueva: **no lo escribimos nosotros,
+    pero lo servimos nosotros** — un artefacto que no controlamos compitiendo con uno que
+    sí, y ganando por posición.
+
+    Devuelve lo mismo que `informe_files` y por el mismo motivo (regla 6): la página no
+    decide el nombre, ni la etiqueta, ni el formato. Y el nombre sale de `output_stem`,
+    el mismo que nombra las entradas del zip: el fichero es EL MISMO, así que no puede
+    tener dos nombres según por dónde se baje.
+    """
+    return {
+        "nombre": f"{output_stem(species)}_seleccionados.tsv",
+        "etiqueta": EXPORT_BUTTON_LABEL,
+        "datos": tsv_selected(
+            selection, species=species, tiling=tiling, stores=stores,
+        ),
+        "mime": TSV_MIME,
+        "nota": (
+            f"`{output_stem(species)}_seleccionados.tsv` — lleva el sello de versión, "
+            f"los frentes por candidato y las columnas que no caben en la pantalla."
+        ),
+    }
+
+
 def output_bundle(
     *,
     species: str,
@@ -563,14 +962,27 @@ def output_bundle(
     transcript: ReferenceTranscript | None = None,
     conservation: ConservationReport | None = None,
     blocks: bool = False,
+    stores=None,
 ) -> dict[str, str]:
-    """Las salidas, con los mismos nombres y contenido que el CLI."""
+    """Las salidas, con los mismos nombres y contenido que el CLI.
+
+    `stores` son los almacenes del proyecto, y llegan hasta el EXPORT de candidatos: sin
+    ellos ese fichero decia MENOS que la pantalla —sin columna de `offtarget_seed`, sin
+    `empalme_sitios`, y con estados de filtro de ventana en vez de veredictos de frente—
+    y es el fichero que VIAJA.
+    """
+    # EL NOMBRE, POR `output_stem`: la especie que llega es el nombre CIENTÍFICO, así que
+    # los seis se llamaban `Mus musculus_…` con el espacio dentro. Un solo sitio decide
+    # cómo se nombra una salida, y es el mismo que usa el botón suelto del export.
+    stem = output_stem(species)
     salidas = {
-        f"{species}_ventanas.tsv": tsv_all_windows(tiling),
-        f"{species}_seleccionados.tsv": tsv_selected(selection, species=species),
-        f"{species}_guias.fasta": fasta_guides(selection, species=species),
-        f"{species}_oligos.tsv": tsv_oligos(selection, scaffold, species=species),
-        f"{species}_informe.txt": text_report(
+        f"{stem}_ventanas.tsv": tsv_all_windows(tiling),
+        f"{stem}_seleccionados.tsv": tsv_selected(
+            selection, species=species, tiling=tiling, stores=stores,
+        ),
+        f"{stem}_guias.fasta": fasta_guides(selection, species=species),
+        f"{stem}_oligos.tsv": tsv_oligos(selection, scaffold, species=species),
+        f"{stem}_informe.txt": text_report(
             species=species,
             tiling=tiling,
             selection=selection,
@@ -578,8 +990,15 @@ def output_bundle(
             transcript=transcript,
             conservation=conservation,
         ),
-        f"{species}_comparativa.tsv": comparative_tsv(
-            selection, scaffold, with_header=True, anatomy=tiling.anatomy
+        f"{stem}_comparativa.tsv": comparative_tsv(
+            selection, scaffold, with_header=True, anatomy=tiling.anatomy,
+            # LOS ALMACENES TAMBIÉN AQUÍ. Sin ellos las cuatro `carga_<clase>` salían
+            # VACÍAS para los once aunque el proyecto tuviera corrida, y ésta es la tabla
+            # que se descarga y se discute. Octava vez del patrón de `page_run`, y la
+            # segunda sobre este mismo fichero. `species` va con ellos: la clave de
+            # consulta se deriva de la especie, así que sin ella no se encuentra nada
+            # —el mismo silencio que no pasárselos (errata nº 47)—.
+            stores=stores, species=species,
         ),
     }
     if blocks:
@@ -630,11 +1049,230 @@ def block_bundle(
         )
         for choice in selection.selection.chosen
     ]
+    stem = output_stem(species)
     return {
-        f"{species}_bloques.fasta": blocks_fasta(bloques, species=species),
-        f"{species}_bloques.tsv": blocks_tsv(bloques, species=species),
-        f"{species}_hoja_de_pedido.txt": order_sheet(bloques, species=species),
+        f"{stem}_bloques.fasta": blocks_fasta(bloques, species=species),
+        f"{stem}_bloques.tsv": blocks_tsv(bloques, species=species),
+        f"{stem}_hoja_de_pedido.txt": order_sheet(bloques, species=species),
     }
+
+
+#: Por que el fragmento NO se emite sin el casete. No es un extra que falte: los
+#: extremos del fragmento son los de la FEATURE ANOTADA, y esos se derivan del casete.
+#: Emitirlo sin el seria emitir un fragmento con unos extremos que nadie ha comprobado,
+#: que es exactamente lo que borra 10 nt de exon al pegar.
+FRAGMENT_NEEDS_CASSETTE = (
+    "NOT_RUN: no hay casete conectado, así que no se emite ningún fragmento de "
+    "síntesis. Los extremos del fragmento son los de la FEATURE ANOTADA del intrón y "
+    "se DERIVAN del casete —contexto exónico incluido—; sin él saldrían unos extremos "
+    "que nadie ha comprobado, y pegar eso sobre la selección de SnapGene borra exón sin "
+    "dar ningún error hasta secuenciar. Se sube `aav_casete.fa` por el panel de "
+    "referencia y sale."
+)
+
+
+def _intron_names(intron: str | tuple[str, ...] | None) -> tuple[str, ...]:
+    """UNA o VARIAS arquitecturas, resueltas en un solo sitio.
+
+    Aquí y no en cada llamador porque el CLI las recibe separadas por comas, la página
+    por una lista y el núcleo por una cadena: tres formas de decir lo mismo y una sola
+    de leerlo.
+
+    `None` = LAS DEL REGISTRO que se pueden montar, que es lo que se pide por defecto
+    desde el 2026-09-06: el primer experimento es cruzado por diseño. Se derivan de
+    `introns.buildable()`, así que un intrón retirado sale solo y uno nuevo entra solo.
+    """
+    from .fragmento import default_introns  # noqa: PLC0415
+
+    if intron is None:
+        return default_introns()
+    if isinstance(intron, str):
+        nombres = [t.strip() for t in intron.split(",") if t.strip()]
+    else:
+        nombres = [str(t).strip() for t in intron if str(t).strip()]
+    if not nombres:
+        raise ShmirDesignError(
+            "No se ha dado ninguna arquitectura de intrón para el fragmento. Se aborta "
+            "en vez de emitir con una por defecto que nadie pidió."
+        )
+    return tuple(dict.fromkeys(nombres))
+
+
+def _start_label(selection: ReportSelection, start: int) -> str:
+    """La etiqueta de una posición del panel CON su marco, derivado de la anatomía que
+    viaja con la selección.
+
+    No `report.frame` —`ReportSelection` no lleva el informe— ni `Frame.UTR3` a secas:
+    con un tilado del transcrito eso etiqueta `tx:1684` como `3utr:1684` y `coords`
+    aborta la corrida entera, que es exactamente lo que pasó la primera vez que esto se
+    escribió sin mirar de dónde salía el marco.
+
+    Y hay un caso en que NO aborta y es peor: `selection_warnings` escribía la etiqueta
+    a mano y emitía `3utr:1398` por `tx:1398`. Sobre el 3'UTR murino de 1242 nt esa
+    posición es imposible, pero el techo del invariante se deriva del 3'UTR más largo
+    que conoce el proyecto —1606, que lo pone el humano— así que cabe y pasa. El
+    invariante caza lo imposible, no lo equivocado (principio nº 9): por eso la etiqueta
+    se pide aquí en vez de construirse con una f-string en cada sitio que imprime.
+    """
+    return coords.label(start, coords.tiled_frame(selection.anatomy))
+
+
+def _candidate_label(selection: ReportSelection, choice) -> str:
+    """La etiqueta de un candidato. Delega: una sola definición del marco."""
+    return _start_label(selection, choice.start)
+
+
+def fragment_bundle(
+    selection: ReportSelection,
+    scaffold: ScaffoldSpec,
+    *,
+    species: str,
+    cassette: str | None,
+    intron: str | tuple[str, ...] | None = None,
+    with_sites: bool = False,
+    tiling=None,
+    stores=None,
+) -> dict[str, str]:
+    """El fragmento de síntesis de cada candidato elegido: FASTA y hoja de pedido.
+
+    Toda la decision vive aqui, no en la pagina (regla 6). Sin casete se emite la hoja
+    IGUAL, diciendo por que esta vacia: un fichero que no aparece no se distingue de uno
+    que nadie ha pedido.
+
+    `intron` admite VARIAS arquitecturas y entonces sale la matriz entera —candidatos x
+    intrones—, que es como esta planteado el primer experimento: *«cruzado por diseño,
+    guías x intrones, para no descubrir con una sola guía que el problema era el
+    intrón»* (responsable del proyecto, 2026-09-06). El defecto sigue siendo UNA, porque
+    doblar lo que se manda a sintetizar es una decision de presupuesto y se pide.
+    """
+    from .fragmento import (
+        build_fragment,
+        fragment_order_sheet,
+        fragments_fasta,
+    )
+
+    if not cassette:
+        return {f"{output_stem(species)}_fragmentos.txt": FRAGMENT_NEEDS_CASSETTE}
+    fragmentos = []
+    for choice in selection.selection.chosen:
+        ventana = selection.window_of(choice)
+        # SIN `tiling` no se inventa una lista vacia: `None` es «nadie ha preguntado» y
+        # la hoja lo DICE con otra frase. Un `()` aqui haria que un candidato que nadie
+        # ha comprobado saliera identico a uno limpio, y esto es lo que se sintetiza.
+        frentes = (
+            None if tiling is None
+            else candidate_fronts(
+                tiling, selection, species=species, start=choice.start, stores=stores,
+            )
+        )
+        for nombre in _intron_names(intron):
+            fragmentos.append(
+                build_fragment(
+                    build_hairpin(
+                        ventana.evaluation.guide.replace("U", "T"), scaffold=scaffold
+                    ),
+                    cassette=cassette,
+                    intron=nombre,
+                    with_sites=with_sites,
+                    label=_candidate_label(selection, choice),
+                    fronts=frentes,
+                )
+            )
+    stem = output_stem(species)
+    return {
+        f"{stem}_fragmentos.fasta": fragments_fasta(fragmentos, species=species),
+        f"{stem}_fragmentos.txt": "\n\n".join(
+            fragment_order_sheet(f) for f in fragmentos
+        ),
+    }
+
+
+def fragment_rows(
+    selection: ReportSelection,
+    scaffold: ScaffoldSpec,
+    *,
+    cassette: str | None,
+    intron: str | tuple[str, ...] | None = None,
+    with_sites: bool = False,
+) -> list[dict[str, object]]:
+    """Una fila por fragmento —candidato x intrón—, con lo que mirar antes de pegar."""
+    from .fragmento import build_fragment
+
+    if not cassette:
+        return []
+    filas: list[dict[str, object]] = []
+    for choice in selection.selection.chosen:
+        ventana = selection.window_of(choice)
+        for nombre in _intron_names(intron):
+            fragmento_ = build_fragment(
+                build_hairpin(
+                    ventana.evaluation.guide.replace("U", "T"), scaffold=scaffold
+                ),
+                cassette=cassette,
+                intron=nombre,
+                with_sites=with_sites,
+                label=_candidate_label(selection, choice),
+            )
+            filas.append(
+                {
+                    "candidato": fragmento_.label,
+                    "intron": fragmento_.intron_name,
+                    "longitud": len(fragmento_.sequence),
+                    "crece": fragmento_.growth,
+                    "sustituye": (
+                        f"{fragmento_.feature.start}-{fragmento_.feature.end}"
+                    ),
+                    "inicio_15": fragmento_.head(),
+                    "final_15": fragmento_.tail(),
+                    "md5": fragmento_.md5,
+                    "veredicto": fragmento_.verdict.value,
+                    **{f"check:{r.name}": r.state.value for r in fragmento_.checks},
+                }
+            )
+    return filas
+
+
+#: Lo que hace falta para comprobar un montaje, dicho en la pagina. NO es un fallo:
+#: comprobar el vector montado es un paso posterior al diseño y sin sus dos ficheros no
+#: se ha corrido nada — NOT_RUN, no PASS.
+ASSEMBLY_NEEDS_BOTH = (
+    "NOT_RUN: para comprobar el plásmido montado hacen falta las dos cosas — el "
+    "fichero del vector (GenBank, FASTA, secuencia pelada o `.dna` de SnapGene) y el "
+    "FASTA de fragmentos que emitió esta app. Se compara POR SECUENCIA: se busca el "
+    "fragmento dentro del vector y se contrasta letra por letra, así que una feature "
+    "corrida un nucleótido no engaña a la comprobación."
+)
+
+
+def assembly_report(
+    plasmid,
+    fragments_fasta_text: str,
+    *,
+    name: str = "",
+    before_pasting: bool = False,
+    architecture_change: bool = False,
+):
+    """La comprobación del montaje, para que la página sólo tenga que enseñarla.
+
+    Vive aquí y no en la interfaz porque decide cosas: qué se compara, contra qué intrón
+    previo y con qué veredicto (regla 6).
+
+    `before_pasting` cambia LA PREGUNTA, no el rigor: sobre el plásmido receptor se
+    pregunta «¿va este fragmento aquí?» y sobre el montado «¿está dentro lo que
+    emitimos?». La primera no se puede hacer después — al pegar, el intrón anterior
+    desaparece y con él la casilla de la matriz.
+    """
+    from .montaje import check_before_pasting, verify_assembly
+
+    if before_pasting:
+        return check_before_pasting(
+            plasmid, fragments_fasta_text,
+            architecture_change=architecture_change,
+            name=name or "el plásmido receptor",
+        )
+    return verify_assembly(
+        plasmid, fragments_fasta_text, name=name or "el plásmido montado"
+    )
 
 
 def vector_note(species: str) -> dict[str, object]:
@@ -808,6 +1446,7 @@ def blast_candidate_rows(selection, *, species: str,
     """
     del_panel = {c.start for c in selection.selection.chosen}
     pedidos = del_panel if starts is None else set(starts)
+    marco = coords.tiled_frame(getattr(selection, "anatomy", None))
     filas = []
     for choice in _choices_de(selection, pedidos):
         ventana = selection.window_of(choice)
@@ -815,6 +1454,9 @@ def blast_candidate_rows(selection, *, species: str,
         filas.append(
             {
                 "start": choice.start,
+                # La ETIQUETA sale de aqui y no de la pagina: la casilla la pintaba con
+                # un `3utr:` propio (regla 6 y errata nº 121 a la vez).
+                "etiqueta": coords.label(choice.start, marco),
                 # Derivados, como todo lo demas: estos ids son los que despues busca
                 # la ficha, asi que una quinta copia del formato los desconectaria.
                 "guia_id": query_name(species, choice.start, "guia"),
@@ -1100,17 +1742,19 @@ def seed_preview_rows(selection, *, species: str, params=None, starts=None,
     )
     return [
         {
-            "candidato": f"3utr:{f.start}",
+            "candidato": coords.label(f.start, f.frame),
             "start": f.start,
             "hebra": f.strand,
             "secuencia": f.sequence,
             "heptamero": f.heptamer,
-            "comparte": ", ".join(f"3utr:{s}" for s in f.shared_with),
+            "comparte": ", ".join(
+                coords.label(s, f.frame) for s in f.shared_with
+            ),
             "nucleo": f.core,
             # Columna PROPIA: compartir nucleo sin compartir heptamero es otro eje, y
             # meterlo en «comparte» lo habria escondido debajo de la colision de seed.
             "comparte_nucleo": ", ".join(
-                f"3utr:{s}" for s in f.shared_core_with
+                coords.label(s, f.frame) for s in f.shared_core_with
             ),
             "marcada": f.checked,
         }
@@ -1176,7 +1820,10 @@ def seed_highlights(scan):
             "texto": (
                 (
                     "Colisión con la familia miR-30 en: "
-                    + ", ".join(f"3utr:{r.start} ({r.strand})" for r in con_mir30)
+                    + ", ".join(
+                        f"{coords.label(r.start, r.frame)} ({r.strand})"
+                        for r in con_mir30
+                    )
                     + ". " if con_mir30 else "Sin colisiones con la familia miR-30. "
                 )
                 + MIR30_NOTE
@@ -1306,6 +1953,11 @@ def seed_load_reference(*, stores, species: str, starts) -> dict[str, object]:
 
     return {
         "hay": ultima is not None,
+        # SI EL ALMACÉN TIENE CORRIDAS, que NO es lo mismo que `hay`. `hay` dice si
+        # alguno de los candidatos preguntados salió en una; esto dice si hay algo
+        # guardado de este frente. La diferencia es justo el caso de `3utr:359`: corrida
+        # guardada, y él no estaba en ella.
+        "hay_corridas": bool(getattr(almacen, "runs", ())),
         "por_candidato": por_candidato,
         "controles": controles,
         "clases": tuple(SITE_CLASSES),
@@ -1313,15 +1965,222 @@ def seed_load_reference(*, stores, species: str, starts) -> dict[str, object]:
     }
 
 
+#: EL UMBRAL DEL DESTACADO, declarado como PARÁMETRO y no citado. No decide nada —la
+#: carga de off-targets es DESEMPATE y nunca filtro, y `OfftargetStore.verdict_for` no
+#: puede devolver FAIL— y sólo sirve para que la lectura no se llene de ruido: con once
+#: candidatos y cuatro clases hay 44 celdas y destacarlas todas es no destacar ninguna.
+PERCENTIL_DESTACADO = 95.0
+
+#: Y el de abajo, para el otro lado. Un candidato bien colocado en TODAS sus clases es
+#: información igual que uno cargado, y sólo sale la alarma se lee como que el resto no
+#: se ha mirado — el «Alu 0 %» por omisión.
+PERCENTIL_BIEN_COLOCADO = 50.0
+
+#: POR QUÉ SON DOS SEÑALES Y NO UNA. Salen de dos tablas distintas y de dos barridos
+#: distintos: el percentil, de la nula por PERMUTACIÓN del propio heptámero contra el
+#: transcriptoma; el autoconteo, de barrer la PROPIA diana. Ninguna de las dos puede
+#: decir que coinciden, y cruzarlas a mano sobre 44 celdas es lo que nadie hace.
+DOS_SENALES_INDEPENDIENTES = (
+    "Son DOS señales INDEPENDIENTES sobre el mismo candidato, y por eso van juntas: el "
+    "percentil sale de la nula por permutación de su heptámero contra el transcriptoma, "
+    "y el segundo sitio sale de barrer su propia diana. Son dos tablas distintas, así "
+    "que coincidir no es contar lo mismo dos veces."
+)
+
+
+def seed_load_highlights(*, stores, species: str, starts) -> dict[str, dict]:
+    """La LECTURA de los percentiles de carga, no la tabla. Y la convergencia.
+
+    **Pedido el 2026-09-07**: *«los percentiles de carga son el primer eje que reparte de
+    verdad… que eso salga destacado: es desempate, no filtro, pero es el primer número
+    que separa a los once de forma clara»*.
+
+    El percentil ya salía —pegado a su conteo en cada celda, que es la regla del
+    proyecto—, y con once candidatos por cuatro clases eso son 44 celdas: el hallazgo se
+    queda DENTRO de la tabla. Es el mismo caso que el punto de ramificación, que estaba
+    calculado y había que sacarlo comparando cuatro columnas a ojo sobre 22 filas.
+
+    Y la CONVERGENCIA no la puede leer ninguna de las dos tablas: el percentil y el
+    autoconteo salen de barridos distintos, así que sólo cruzándolos se ve que señalan al
+    mismo candidato.
+
+    **Todo se DERIVA de la corrida guardada**, ni un percentil escrito: con otra corrida
+    —o con otro panel— esto señala a otro candidato, o a ninguno, y se entera solo
+    (principio nº 13). Y no se recalcula nada: la nula son ≥10.000 sorteos por consulta
+    sobre un índice de 84 MB (errata nº 59).
+    """
+    from .offtarget import SITE_CLASSES, USE_NOTE
+
+    almacen = (stores or {}).get("offtarget")
+    filas: dict[int, dict[str, float]] = {}
+    autoconteos: dict[int, object] = {}
+    #: EL MARCO DE CADA INICIO, sacado del resultado que lo trae. Aqui llegan enteros
+    #: pelados —`starts`— y no hay anatomia de la que derivarlo, asi que escribirlo era
+    #: la unica salida y por eso se escribio: `Frame.UTR3` sobre un panel del transcrito,
+    #: o sea `3utr:1768` por `tx:1768` (errata nº 138). La corrida SI lo sabe: `run_scan`
+    #: guarda el marco del tilado en cada `LoadResult`, y desde hoy sobrevive al log.
+    marcos: dict[int, coords.Frame] = {}
+    ultima = None
+    for inicio in (starts if almacen is not None else ()):
+        consulta = query_name(species, int(inicio), "guia")
+        corrida = almacen.latest(consulta)
+        if corrida is None:
+            continue
+        resultado = corrida.result_for(consulta)
+        if resultado is None:
+            continue
+        filas[int(inicio)] = dict(resultado.percentiles)
+        marcos[int(inicio)] = resultado.frame
+        propio = corrida.scan.self_counts.get(consulta)
+        if propio is not None:
+            autoconteos[int(inicio)] = propio
+        ultima = corrida
+
+    def _etiqueta(inicio: int) -> str:
+        # Sin marco no se etiqueta: se aborta. Un candidato que llega aqui sin resultado
+        # no puede llegar a ninguno de los tres bloques —los tres salen de `filas`— asi
+        # que esto no puede pasar; si pasara, poner uno seria inventarselo otra vez.
+        marco = marcos.get(int(inicio))
+        if marco is None:
+            raise ShmirDesignError(
+                f"No hay marco para la posición {int(inicio)}: su corrida de carga de "
+                f"off-targets no lo declara. Se aborta en vez de etiquetarla al azar."
+            )
+        return coords.label(int(inicio), marco)
+
+    def _coma(valor: float) -> str:
+        return f"{valor:.1f}".replace(".", ",")
+
+    #: El PEOR percentil de cada candidato y en qué clase. Se mira por clase y no un
+    #: agregado: la represión esperada de un 8mer y la de un 6mer no se parecen en nada,
+    #: y `offtarget.WHY_NOT_SUMMED` prohíbe fundirlas.
+    peores = {
+        inicio: max(clases.items(), key=lambda par: par[1])
+        for inicio, clases in filas.items()
+        if clases
+    }
+    cargados = sorted(
+        (i for i, (_, p) in peores.items() if p >= PERCENTIL_DESTACADO),
+        key=lambda i: -peores[i][1],
+    )
+    bien = sorted(
+        i for i, clases in filas.items()
+        if clases and max(clases.values()) < PERCENTIL_BIEN_COLOCADO
+    )
+    convergen = [
+        i for i in cargados
+        if i in autoconteos and autoconteos[i].anomalous
+    ]
+
+    if not filas:
+        texto_carga = (
+            "PERCENTILES DE CARGA — NOT_RUN. No hay ninguna corrida de carga de "
+            "off-targets guardada en este proyecto, así que no hay percentil que leer. "
+            "No es que ningún candidato esté cargado: es que nadie lo ha mirado."
+        )
+    elif not cargados:
+        texto_carga = (
+            f"Ninguno de los {len(filas)} candidatos consultados llega al percentil "
+            f"{_coma(PERCENTIL_DESTACADO)} en ninguna clase de sitio. La corrida está "
+            f"hecha y el eje no reparte: no es que no se haya mirado."
+        )
+    else:
+        piezas = []
+        for inicio in cargados:
+            clase, percentil = peores[inicio]
+            #: EL PERCENTIL, EN PALABRAS. «p99,7» no se lee; «de 1.000 seeds aleatorias
+            #: de su composición sólo 3 tienen más sitios» sí. La cuenta se DERIVA del
+            #: propio percentil, no se escribe.
+            de_mil = round((100.0 - percentil) * 10)
+            piezas.append(
+                f"{_etiqueta(inicio)} está en el percentil {_coma(percentil)} de "
+                f"`{clase}`: de 1.000 seeds aleatorias de su composición, sólo {de_mil} "
+                f"tienen más sitios"
+            )
+        texto_carga = (
+            "CARGA DE OFF-TARGETS POR SEED — es el eje que más reparte de este panel. "
+            + "; ".join(piezas)
+            + f". El umbral del destacado ({_coma(PERCENTIL_DESTACADO)}) va DECLARADO "
+            f"como parámetro y no decide nada: sirve para que la lectura no se llene de "
+            f"ruido."
+        )
+
+    if convergen:
+        piezas = []
+        for inicio in convergen:
+            clase, percentil = peores[inicio]
+            piezas.append(
+                f"{_etiqueta(inicio)}: percentil {_coma(percentil)} de `{clase}` contra "
+                f"el transcriptoma, y {autoconteos[inicio].occurrences} sitios de seed "
+                f"en su PROPIA diana cuando lo esperado es "
+                f"{autoconteos[inicio].expected}"
+            )
+        texto_convergencia = (
+            "DOS SEÑALES SOBRE EL MISMO CANDIDATO — " + "; ".join(piezas)
+            + f". {DOS_SENALES_INDEPENDIENTES}"
+        )
+    else:
+        texto_convergencia = (
+            "Ningún candidato con la carga destacada tiene además un segundo sitio de "
+            "seed en su propia diana: los dos ejes no coinciden en ninguno."
+        )
+
+    if bien:
+        texto_bien = (
+            "BIEN COLOCADOS EN TODAS LAS CLASES — "
+            + ", ".join(_etiqueta(i) for i in bien)
+            + f" quedan por debajo del percentil {_coma(PERCENTIL_BIEN_COLOCADO)} en "
+            f"todas las clases de sitio. Sale porque enseñar sólo la alarma deja el "
+            f"resto pareciendo que no se ha mirado."
+        )
+    else:
+        texto_bien = (
+            "Ninguno de los consultados queda por debajo del percentil "
+            f"{_coma(PERCENTIL_BIEN_COLOCADO)} en todas sus clases."
+        )
+
+    return {
+        "carga": {"activo": bool(cargados), "texto": texto_carga},
+        "convergencia": {"activo": bool(convergen), "texto": texto_convergencia},
+        "bien_colocados": {"activo": bool(bien), "texto": texto_bien},
+        # EL USO VA CON EL NUMERO, no solo. Sin corrida no hay percentil del que decir
+        # que es desempate y nunca filtro: la frase se leeria como una advertencia sobre
+        # algo que nadie ha calculado.
+        "uso": {"activo": bool(filas), "texto": USE_NOTE},
+        "corrida": ultima.run_id if ultima is not None else "",
+        "clases": tuple(SITE_CLASSES),
+    }
+
+
 def seed_load_columns(*, stores, species: str, start: int, reference=None) -> dict[str, str]:
-    """Las celdas `carga_<clase>` de UNA fila. Vacias si no hay corrida, nunca a cero."""
+    """Las celdas `carga_<clase>` de UNA fila. Nunca a cero, y con TRES formas.
+
+    **Vacía y `SIN_CONSULTAR` no dicen lo mismo, y hasta el 2026-09-07 daban la misma
+    celda** — reportado con `3utr:359` delante, el único de los once en blanco porque la
+    corrida de off-targets es del panel anterior y él entró después:
+
+    · **vacía** — no hay ninguna corrida de este frente. Se arregla consiguiendo el
+      catálogo del transcriptoma y corriendo el modal;
+    · **`SIN_CONSULTAR`** — hay corrida y a este candidato no se le preguntó. Se arregla
+      repitiendo la corrida con un alcance que lo incluya, que es otra cosa;
+    · **el número con su percentil pegado** — se le preguntó.
+
+    Es la errata nº 55 en la familia de los números comparativos, que no tienen columna de
+    estado: el estado va DENTRO de la celda, igual que `NOT_RUN` y `NO_PEDIDO` (errata
+    nº 91). Y la diferencia se paga: una corrida de carga son ≥10.000 sorteos por
+    consulta, así que mandar a conseguir un fichero que ya está cuesta una corrida entera.
+    """
     from .offtarget import SITE_CLASSES
 
     vista = reference if reference is not None else seed_load_reference(
         stores=stores, species=species, starts=(start,)
     )
     celdas = vista["por_candidato"].get(int(start), {})
-    return {f"carga_{clase}": celdas.get(clase, "") for clase in SITE_CLASSES}
+    # El hueco se rellena con `SIN_CONSULTAR` sólo si el ALMACÉN tiene corridas. Con la
+    # vista de un solo candidato, `hay` diría que no hay referencia justo en el caso que
+    # se quiere distinguir, así que la pregunta es por el almacén y no por esta fila.
+    vacio = SIN_CONSULTAR if vista["hay_corridas"] else ""
+    return {f"carga_{clase}": celdas.get(clase, vacio) for clase in SITE_CLASSES}
 
 
 def seed_load_placeholder(utr3_set):
@@ -1375,7 +2234,7 @@ def seed_result_rows(scan):
     """Una fila por consulta. La hebra va en su columna: no se funden."""
     return [
         {
-            "candidato": f"3utr:{r.start}",
+            "candidato": coords.label(r.start, r.frame),
             "hebra": r.strand,
             "heptamero": r.heptamer,
             "ventana": r.window,
@@ -1386,7 +2245,9 @@ def seed_result_rows(scan):
             # tiene decidido que no puede faltar «tambien en los LIMPIO, para no dar una
             # falsa calma».
             "tasa_base": scan.base_rate.short,
-            "nivel": r.level,
+            # EL VEREDICTO, no el estado a secas: con una ventana no estándar lleva la
+            # ventana pegada. La cabecera se lee una vez y esta celda se descarga.
+            "nivel": r.verdict,
             "miR-30": "SI" if r.mir30 else "",
             "colisiones": ", ".join(c.name for c in r.collisions),
         }
@@ -1573,7 +2434,7 @@ def offtarget_result_rows(scan):
     filas = []
     for r in scan.results:
         fila = {
-            "candidato": f"3utr:{r.start}",
+            "candidato": coords.label(r.start, r.frame),
             "hebra": r.strand,
             "seed": r.patterns.heptamer,
         }
@@ -1698,7 +2559,8 @@ WHERE_THE_HELP_ROWS_WENT = (
 
 def informe_documento(selection, tiling, *, species: str, generated: str,
                       anatomy_source: str = "no declarada en esta corrida",
-                      dossier_starts=None, anatomy=None, stores=None):
+                      dossier_starts=None, anatomy=None, stores=None,
+                      conservation=None):
     """El documento entero. Parcial o completo segun los frentes, nunca dos productos.
 
     `anatomy` es OPCIONAL y no por comodidad: hay caminos que no la tienen —el CLI la
@@ -1710,7 +2572,7 @@ def informe_documento(selection, tiling, *, species: str, generated: str,
     return build_document(
         species=species, tiling=tiling, selection=selection, generated=generated,
         anatomy_source=anatomy_source, dossier_starts=dossier_starts, anatomy=anatomy,
-        stores=stores,
+        stores=stores, conservation=conservation,
     )
 
 
@@ -1941,10 +2803,69 @@ STORE_FOR_FRONT = {
 #: de consulta que usan los otros tres; darle una columna por candidato colapsaria justo
 #: lo que ese frente existe para comparar. Se declara para que el test no lo eche de
 #: menos en silencio, que es lo que dejo a `offtarget_seed` sin columna.
-FRONTS_WITHOUT_COLUMN = {
+#: Frentes cuya UNIDAD es el par candidato x algo, y que AUN ASI tienen estado por
+#: candidato: el candidato esta contestado si alguno de sus pares lo esta.
+#:
+#: **Por que existe esta lista y no basta la de abajo (2026-09-07).**
+#: `NO_CABE_COLUMNA_POR_CANDIDATO` —que hasta el 2026-09-07 se llamaba
+#: `FRONTS_WITHOUT_COLUMN`— se declaro para UNA cosa —«no cabe en una columna por
+#: candidato»— y acabo gobernando OTRA sin que nadie lo decidiera: no tener columna paso
+#: a significar **no poder cerrarse**, porque el unico camino que cierra un frente sale
+#: de `STORE_FOR_FRONT` y quien no esta en ella no esta en ninguna. Resultado:
+#: `empalme_sitios` se quedaba en `NOT_RUN` por muchas corridas que se guardaran, y el
+#: usuario perdio tres corridas de SpliceAI para verlo. Principio nº 53.
+#:
+#: Las dos decisiones van ahora separadas y cada una declara lo suyo: **si tiene columna**
+#: lo dicen `STORE_FOR_FRONT` y `NO_CABE_COLUMNA_POR_CANDIDATO`; **si puede cerrarse y
+#: con que almacen** lo dice esta.
+PAIR_UNIT_FRONTS = {
+    "empalme_sitios": {
+        "almacen": "splice",
+        "unidad": "par candidato x intrón",
+        "por_que": (
+            "su veredicto se pide por PAR, así que un candidato está contestado en "
+            "cuanto alguno de sus pares lo está — que es lo que significa haber corrido "
+            "SpliceAI sobre ese cassette"
+        ),
+    },
+}
+
+#: **CORREGIDO (2026-09-07): esto NO significa «sin columna en ninguna parte».** Lo que
+#: declara es que el frente no tiene UNA COLUMNA POR PAR en las tablas cuya fila es el
+#: candidato — ahí la única columna posible es por candidato, y se resuelve con la regla
+#: de `PAIR_UNIT_FRONTS`: contestado en cuanto alguno de sus pares lo está. La comparación
+#: entre intrones, que es para lo que el frente existe, vive en su modal y en el EXPORT,
+#: donde sí sale una columna por intrón.
+#:
+#: Leído como «sin columna» costó tres corridas de SpliceAI: `front_columns` derivaba la
+#: columna de `blocking_fronts` —siempre la tuvo— y nadie podía resolverla, así que se
+#: quedaba en `NOT_RUN` y arrastraba el VEREDICTO de los once candidatos a `INCOMPLETE`
+#: con la corrida guardada dentro del proyecto. Principio nº 53: una lista declarada para
+#: una cosa gobernando otra sin que nadie lo decidiera.
+#: Frentes cuya respuesta es del TRANSCRITO, no de cada candidato.
+#:
+#: `fraccion_isoforma_larga` se contesta con la tabla de APA medido, que se aplica **por
+#: md5 del 3'UTR**: o está medida para esta secuencia o no lo está, y eso vale igual para
+#: los once. No tiene filtro de ventana ni almacén — y no por descuido, sino porque no hay
+#: nada que preguntarle a un candidato—, así que su columna caía al `NOT_RUN` por defecto
+#: mientras su tarjeta decía «CERRADO. 8 de 11 candidatos quedan por detrás del corte».
+#:
+#: Es la errata nº 68 en su tercera forma. Las dos primeras eran ejes POR CANDIDATO
+#: resueltos mal —el fichero contra el panel, y el eje guía/pasajera—; ésta es un eje que
+#: NO es por candidato y al que se le pedía una respuesta por candidato.
+#:
+#: NO se solapa con `NO_CABE_COLUMNA_POR_CANDIDATO`, que dice otra cosa: allí la unidad es
+#: un PAR y por eso no cabe UNA columna; aquí la unidad es la corrida entera. Hay test de
+#: que ningún frente está en las dos (principio nº 53).
+ESTADO_GLOBAL_NO_POR_CANDIDATO = ("fraccion_isoforma_larga",)
+
+
+NO_CABE_COLUMNA_POR_CANDIDATO = {
     "empalme_sitios": (
-        "su unidad es el par candidato x intrón, no el candidato: una columna por "
-        "candidato colapsaria la comparación entre intrones, que es para lo que existe"
+        "su unidad es el par candidato x intrón, no el candidato: en una tabla cuya fila "
+        "es el candidato no cabe una columna por par, así que ahí sale UNA columna "
+        "resuelta con la regla de PAIR_UNIT_FRONTS y la comparación entre intrones se "
+        "lee en el modal y en el export, que sí tiene una columna por intrón"
     ),
 }
 
@@ -1961,8 +2882,139 @@ FRONTS_WITHOUT_COLUMN = {
 SIN_CONSULTAR = "SIN_CONSULTAR"
 
 
-def _with_stores(estados: dict, stores, species: str, start: int) -> dict:
-    """Los estados de una fila, con lo que digan los almacenes encima. UN solo sitio."""
+def export_states(
+    tiling, selection, *, species: str = "", stores=None,
+) -> tuple[list[str], dict[int, dict[str, str]]]:
+    """Los estados por candidato para el EXPORT: filtros de ventana Y frentes.
+
+    **Existe porque el export decía MENOS que la pantalla** (2026-09-07), y eso es peor
+    que al revés: la pantalla se mira con la app delante y el export es lo que se manda
+    por correo, se adjunta a un pedido y se lee dentro de un año. `tsv_selected` montaba
+    sus columnas de `window.filters` —los filtros de la VENTANA— y no recibía los
+    almacenes nunca, así que `offtarget_seed` no tenía columna y las que sí salían eran
+    estados de filtro, no veredictos de frente con la corrida guardada encima.
+
+    Es la novena tabla del guardia de `_filter_columns`, y el guardia no la veía porque
+    vive en `outputs.py`: la regla es la misma un módulo más allá — **quien emita un
+    estado por filtro pide sus columnas aquí**, que es donde se decide qué dicen los
+    almacenes.
+
+    Devuelve `(columnas, {inicio: {columna: estado}})`. Las columnas se DERIVAN: los
+    filtros de la ventana, más los frentes que no son filtro de ventana
+    (`front_columns`), más los de unidad PAR — y ésos **no se colapsan**.
+    """
+    # LOS FRENTES GLOBALES, una vez por corrida: su respuesta es del
+    # TRANSCRITO y no de cada candidato (errata nº 141).
+    globales = global_front_states(tiling, selection)
+    chosen = list(selection.selection.chosen)
+    if not chosen:
+        return [], {}
+
+    columnas = _filter_names(selection.window_of(chosen[0]))
+    for nombre in front_columns(tiling, selection):
+        if nombre not in columnas:
+            columnas.append(nombre)
+
+    por_par = _columnas_por_par(stores, starts=[c.start for c in chosen])
+    if por_par["columnas"]:
+        # Con las columnas POR INTRON delante, la columna colapsada del frente sobra: son
+        # dos formas del mismo dato, y la que menos dice es la que se acaba leyendo.
+        columnas = [c for c in columnas if c not in por_par["frentes"]]
+        columnas.extend(por_par["columnas"])
+
+    filas: dict[int, dict[str, str]] = {}
+    for choice in chosen:
+        ventana = selection.window_of(choice)
+        base = _filter_columns(ventana)
+        estados = _with_stores(
+            {n: base.get(n, "NOT_RUN") for n in columnas if n not in por_par["columnas"]},
+            stores, species, choice.start,
+            globales=globales,
+        )
+        estados.update(por_par["estados"].get(int(choice.start), {}))
+        filas[int(choice.start)] = estados
+    return columnas, filas
+
+
+def _columnas_por_par(stores, *, starts) -> dict:
+    """Las columnas POR INTRON de los frentes cuya unidad es el PAR candidato x algo.
+
+    **No se colapsan a una columna por candidato**: la unidad de `empalme_sitios` es el
+    par candidato x intrón, y fundirla perdería justo lo que ese frente existe para
+    comparar — el mismo módulo dentro de dos arquitecturas distintas. Es la misma forma
+    que `por_hebra` en `STORE_FOR_FRONT`, con el eje que le toca a este frente.
+
+    Los intrones se DERIVAN de la corrida guardada, no de una lista: sin corrida no hay
+    intrones que nombrar y aquí no sale ninguna columna — la del nombre del frente ya la
+    da `front_columns`, y ahí un `NOT_RUN` es la verdad. Escribir los intrones del
+    registro daría columnas de pares que nadie ha consultado, todas vacías y con la forma
+    correcta.
+    """
+    columnas: list[str] = []
+    estados: dict[int, dict[str, str]] = {}
+    for frente, declarado in PAIR_UNIT_FRONTS.items():
+        almacen = (stores or {}).get(declarado["almacen"])
+        corrida = getattr(almacen, "latest", None) if almacen is not None else None
+        pares = getattr(getattr(corrida, "scan", None), "pairs", ()) or ()
+        intrones = sorted({p.intron for p in pares})
+        if not intrones:
+            continue
+        del_par: dict[int, set[str]] = {}
+        for par in pares:
+            del_par.setdefault(int(par.candidate_start), set()).add(par.intron)
+        for intron in intrones:
+            columna = f"{frente}:{intron}"
+            columnas.append(columna)
+            for inicio in starts:
+                if intron in del_par.get(int(inicio), ()):
+                    valor = almacen.verdict_for(
+                        int(inicio), intron, frame=corrida.candidate_frame,
+                    ).state.value
+                else:
+                    # LA CORRIDA EXISTE Y NO MIRO A ESTE PAR. No es lo mismo que no haber
+                    # corrido nada: se arregla lanzando una corrida que lo incluya.
+                    valor = SIN_CONSULTAR
+                estados.setdefault(int(inicio), {})[columna] = valor
+    return {"columnas": columnas, "estados": estados, "frentes": set(PAIR_UNIT_FRONTS)}
+
+
+def global_front_states(tiling, selection) -> dict[str, str]:
+    """El estado de los frentes GLOBALES, uno para toda la corrida.
+
+    Sale de `blocking_fronts`, que es EL ÚNICO sitio donde se decide si un frente está
+    contestado: recalcularlo aquí sería la segunda regla para la misma pregunta, que es
+    exactamente la errata nº 68. Un frente cerrado da `PASS` para los once; uno que
+    bloquea, `NOT_RUN` — que es lo que ya decía, sólo que ahora porque alguien lo ha
+    mirado y no porque nadie pudiera contestarlo.
+
+    Sobre por qué `PASS` y no un techo: el APA **no veta** (`TECHO`, no `FAIL`), y el
+    techo POR CANDIDATO ya tiene su propia columna, `riesgo_APA`. Emitirlo también aquí
+    sería una segunda definición de la misma cantidad.
+    """
+    from .selection import blocking_fronts  # noqa: PLC0415
+
+    estados = {}
+    for frente in blocking_fronts(tiling, selection):
+        if frente.name in ESTADO_GLOBAL_NO_POR_CANDIDATO:
+            estados[frente.name] = (
+                FilterState.NOT_RUN.value if frente.blocking else FilterState.PASS.value
+            )
+    return estados
+
+
+def _with_stores(
+    estados: dict, stores, species: str, start: int, *, globales=None,
+) -> dict:
+    """Los estados de una fila, con los almacenes y los frentes GLOBALES encima.
+
+    UN solo sitio, y los globales van PRIMERO y **sin depender de que haya almacenes**:
+    `fraccion_isoforma_larga` no tiene ninguno, así que con el `if not stores` de antes su
+    celda no se tocaba nunca y caía al `NOT_RUN` por defecto (errata nº 141).
+    """
+    if globales:
+        estados = {
+            nombre: globales.get(nombre, estado) for nombre, estado in estados.items()
+        }
     if not stores:
         return estados
     return {
@@ -1980,6 +3032,23 @@ def _store_state(stores, front: str, species: str, start: int) -> str | None:
     # Una columna por hebra llega como `<frente>:guia`. La hebra se saca del NOMBRE de la
     # columna, que es quien la lleva; el frente es lo de delante.
     nombre, _, hebra = front.partition(":")
+    # LOS FRENTES POR PAR TAMBIEN CONTESTAN AQUI (2026-09-07). `empalme_sitios` tiene
+    # columna en las tablas por candidato —`front_columns` la deriva de `blocking_fronts`
+    # y siempre la tuvo— y NADIE podia resolverla: no esta en `STORE_FOR_FRONT`, asi que
+    # se quedaba en `NOT_RUN` por muchas corridas que se guardaran. Y `NOT_RUN` en una
+    # celda arrastra el VEREDICTO de la fila, asi que los once candidatos salian
+    # `INCOMPLETE` con la corrida de SpliceAI dentro del proyecto. Es el principio nº 53
+    # otra vez: una lista se declaro para «no cabe en una columna» y acabo significando
+    # «no se puede cerrar» sin que nadie lo decidiera.
+    #
+    # La regla es la de `PAIR_UNIT_FRONTS` y no otra: en una tabla cuya FILA es el
+    # candidato, la unica columna posible es por candidato, y ahi el candidato esta
+    # contestado en cuanto alguno de sus pares lo esta. La comparacion entre intrones
+    # vive en el modal y en el export, que si tiene UNA COLUMNA POR INTRON.
+    if nombre in PAIR_UNIT_FRONTS and not hebra:
+        return _estado_por_par(
+            stores, PAIR_UNIT_FRONTS[nombre]["almacen"], starts=[start],
+        ).get(int(start))
     declarado = STORE_FOR_FRONT.get(nombre)
     if not declarado or not stores:
         return None
@@ -2066,7 +3135,9 @@ def verdict_with_stores(estados) -> str:
     return overall_verdict(resultados).value
 
 
-def fronts_closed_over_panel(estados_por_frente, *, starts, origins=None) -> dict[str, str]:
+def fronts_closed_over_panel(
+    estados_por_frente, *, starts, frame: coords.Frame, origins=None,
+) -> dict[str, str]:
     """Que frentes estan CONTESTADOS en todo el panel, y con que motivo.
 
     `estados_por_frente` es `{frente: {inicio: estado}}` — lo que dice cada candidato del
@@ -2085,13 +3156,15 @@ def fronts_closed_over_panel(estados_por_frente, *, starts, origins=None) -> dic
     return {
         frente: datos["motivo"]
         for frente, datos in run_coverage(
-            estados_por_frente, starts=starts, origins=origins
+            estados_por_frente, starts=starts, frame=frame, origins=origins
         ).items()
         if datos["cerrado"]
     }
 
 
-def run_coverage(estados_por_frente, *, starts, origins=None) -> dict[str, dict]:
+def run_coverage(
+    estados_por_frente, *, starts, frame: coords.Frame, origins=None,
+) -> dict[str, dict]:
     """CUANTOS candidatos del panel contesta cada frente, y si eso lo cierra.
 
     LA COBERTURA PARCIAL SE DICE. Sin esto, un frente consultado para 6 de 10 candidatos
@@ -2104,6 +3177,13 @@ def run_coverage(estados_por_frente, *, starts, origins=None) -> dict[str, dict]
     causas distintas —una se arregla consiguiendo un fichero y la otra lanzando una
     corrida— asi que no pueden compartir motivo. Sin `origins` se asume corrida, que es
     lo unico que habia cuando esta funcion se escribio.
+
+    `frame` es OBLIGATORIO y no tiene defecto: aqui llegan `starts`, enteros pelados, y
+    este texto NOMBRA a los que faltan. Sobre un tilado del transcrito los nombraba
+    `Faltan: 1308, 2020`, que se lee como dos posiciones del 3'UTR y son otras dos
+    ventanas — la otra forma de la errata nº 138, la que no fabrica una etiqueta sino que
+    se salta `coords` entero. Un valor por defecto aqui seria el mismo fallo con otra
+    cara (principio nº 58).
     """
     if not starts:
         return {}
@@ -2123,7 +3203,7 @@ def run_coverage(estados_por_frente, *, starts, origins=None) -> dict[str, dict]
         if cerrado:
             motivo = _motivo_cerrado(len(panel), de_donde)
         elif cubiertos:
-            motivo = _motivo_a_medias(panel, cubiertos, de_donde)
+            motivo = _motivo_a_medias(panel, cubiertos, de_donde, frame)
         else:
             motivo = ""
         # `motivo` y `avance` SON DOS PREGUNTAS y por eso son dos campos (errata nº 108).
@@ -2162,14 +3242,13 @@ def _motivo_cerrado(panel: int, de_donde: set[str]) -> str:
     )
 
 
-def _motivo_a_medias(panel, cubiertos, de_donde: set[str]) -> str:
+def _motivo_a_medias(panel, cubiertos, de_donde: set[str], frame: coords.Frame) -> str:
     """Contestado a medias. Y quien no contesta NO es siempre una corrida que falta."""
     faltan = [inicio for inicio in panel if inicio not in cubiertos]
     cola = (
         f"El frente NO se cierra con eso —darlo por cerrado daría por comprobados los "
         f"que nadie miró—, y lo que hay no se pierde: su veredicto está en la celda de "
-        f"cada candidato cubierto. Faltan: "
-        f"{', '.join(str(inicio) for inicio in faltan)}."
+        f"cada candidato cubierto. Faltan: {coords.labels(faltan, frame)}."
     )
     if de_donde == {ORIGEN_FICHERO}:
         return (
@@ -2220,6 +3299,54 @@ def store_states_by_front(stores, *, species: str, starts) -> dict[str, dict[int
             por_candidato[int(inicio)] = _peor_de(estados)
         if por_candidato:
             salida[frente] = por_candidato
+
+    # LOS FRENTES POR PAR. Van aparte porque su almacen no se consulta con el nombre del
+    # frente y un inicio, sino con el PAR — y por eso se quedaron fuera del bucle de
+    # arriba durante toda su vida. Ver `PAIR_UNIT_FRONTS`.
+    for frente, declarado in PAIR_UNIT_FRONTS.items():
+        por_candidato = _estado_por_par(
+            stores, declarado["almacen"], starts=starts
+        )
+        if por_candidato:
+            salida[frente] = por_candidato
+    return salida
+
+
+def _estado_por_par(stores, nombre_almacen: str, *, starts) -> dict[int, str]:
+    """El estado por candidato de un frente cuya unidad es el PAR.
+
+    Un candidato esta contestado en cuanto ALGUNO de sus pares lo esta: haber corrido
+    SpliceAI sobre uno de sus cassettes es haberlo consultado. Sin ninguna corrida no se
+    devuelve nada —`None` no es `NOT_RUN`— y manda el motivo de siempre.
+    """
+    almacen = (stores or {}).get(nombre_almacen)
+    corrida = getattr(almacen, "latest", None) if almacen is not None else None
+    if corrida is None:
+        return {}
+    pares = getattr(getattr(corrida, "scan", None), "pairs", ()) or ()
+    por_inicio: dict[int, list[str]] = {}
+    for par in pares:
+        por_inicio.setdefault(int(par.candidate_start), []).append(par.intron)
+    salida: dict[int, str] = {}
+    for inicio in starts:
+        intrones = por_inicio.get(int(inicio))
+        if not intrones:
+            # HAY CORRIDA Y NO MIRO A ESTE CANDIDATO, que no es lo mismo que no haber
+            # corrido nada: se arregla lanzando una corrida que lo incluya, no
+            # consiguiendo un fichero. Es el caso REAL de `3utr:359` y `3utr:1071`, que
+            # entraron en el panel despues de la corrida del 2026-09-05, y devolver
+            # `None` los dejaba en el `NOT_RUN` del frente sin corridas — el mismo estado
+            # que un proyecto vacio. Misma distincion que hace `_store_state` con los
+            # otros tres almacenes (errata nº 55).
+            salida[int(inicio)] = SIN_CONSULTAR
+            continue
+        estados = [
+            almacen.verdict_for(
+                int(inicio), intron, frame=corrida.candidate_frame,
+            ).state.value
+            for intron in intrones
+        ]
+        salida[int(inicio)] = _peor_de(estados)
     return salida
 
 
@@ -2245,6 +3372,210 @@ ORIGEN_FICHERO = "fichero"
 ORIGEN_CORRIDA = "corrida"
 
 
+#: QUE SIGNIFICA cada laguna en la fila de un fragmento, en una línea. `origenes` da el
+#: ORIGEN («fichero», «corrida»), que no es un motivo: puesto como motivo, la hoja decía
+#: «especificidad — fichero» y eso no le dice nada a quien va a pedir el oligo.
+#:
+#: Se declara una frase POR ESTADO y se comprueba que no falte ninguno de
+#: `ESTADOS_SIN_RESPUESTA`: un estado nuevo sin frase saldría mudo en el sitio donde más
+#: caro es —la hoja de lo que se sintetiza— y nadie lo notaría, porque su producto normal
+#: es una línea que parece completa.
+LAGUNA_MEANING = {
+    "NOT_RUN": (
+        "no ha corrido para este candidato: falta el recurso o falta la corrida. "
+        "NOT_RUN no es PASS"
+    ),
+    "SIN_CONSULTAR": (
+        "hay corridas de este frente en el proyecto y a ESTE candidato no se le "
+        "preguntó — que es distinto de que falte el fichero"
+    ),
+    "NO_CIERRA": (
+        "hay corrida y NO cierra el frente: se arregla repitiéndola, no empezándola"
+    ),
+    "OBSOLETO": (
+        "la corrida que lo contestaba quedó obsoleta porque el fichero que consumió "
+        "ya no es el que hay"
+    ),
+}
+_sin_frase = [e for e in ESTADOS_SIN_RESPUESTA if e not in LAGUNA_MEANING]
+if _sin_frase:  # pragma: no cover - lo fija un test
+    raise ShmirDesignError(
+        f"Estos estados cuentan como laguna y no tienen frase en `LAGUNA_MEANING`: "
+        f"{', '.join(_sin_frase)}. Sin ella saldrían mudos en la hoja de pedido."
+    )
+
+
+def _motivo_de_laguna(frente: str, estado: str, origen) -> str:
+    """La línea que lee quien va a pedir el oligo: qué le falta a ESTE candidato."""
+    frase = LAGUNA_MEANING[estado]
+    if origen:
+        return f"{frente}: {frase} (lo decide: {origen})."
+    return f"{frente}: {frase}."
+
+
+#: CUÁNTO SHA SE ENSEÑA. Corto para leerlo de un vistazo y comparable a ojo con lo que
+#: dice GitHub; el entero viaja aparte, porque siete caracteres pueden ser ambiguos y
+#: quien va a comparar de verdad necesita el completo.
+BUILD_SHORT = 7
+
+#: QUÉ HACER cuando el sello no cuadra con lo que se espera. Un sha a secas deja a quien
+#: lo lee sin saber contra qué compararlo: es el principio nº 47 —la salida donde está el
+#: bloqueo— aplicado al propio diagnóstico. La app NO puede saber cuál es el commit
+#: «bueno», así que dice dónde mirarlo en vez de inventárselo.
+BUILD_HELP = (
+    "Si esto no coincide con el último commit de `main`, lo que estás viendo NO es lo "
+    "último: el despliegue no se ha refrescado. Compáralo con el historial del "
+    "repositorio; si coincide y aun así falta algo, entonces el problema no es el "
+    "despliegue y hay que mirarlo por otro lado."
+)
+
+#: Y por qué se enseña TAMBIÉN cuando no hay variable. En local no la hay, y decir «sin
+#: declarar» es información: lo que no puede pasar es que la ausencia del sello se lea
+#: como que el sello coincide (principio nº 32).
+BUILD_WHY_ALWAYS = (
+    "El sello sale SIEMPRE, también cuando el entorno no declara ninguno. Un sello "
+    "ausente y un sello que cuadra no se pueden parecer: la ausencia es lo que hay que "
+    "poder ver."
+)
+
+
+#: LAS DOS ACCIONES, en un sitio. Estaban como literales sueltos en la página —el que se
+#: escribe en `session_state`, el que se compara para pintar los pasos y el que decide si
+#: se estima—, y una comparación a mano es lo que permitió que hubiera dos definiciones
+#: de «se ha diseñado» (errata nº 124).
+ACCION_DISENAR = "diseñar"
+ACCION_ESTIMAR = "estimar"
+
+
+def design_action(stored, *, resumed: bool):
+    """Qué se va a hacer en esta corrida: `diseñar`, `estimar` o nada.
+
+    **UNA sola definición**, y la falta de ella costó el paso 5 entero. Había dos: la que
+    decide si se corre el diseño sabía que RETOMAR UN PROYECTO es ver su resultado —o sea,
+    haber diseñado— y la que decide si el paso 5 es visible preguntaba sólo por el botón.
+    Con un proyecto retomado, la primera decía «diseñar» y la segunda que no: se pintaban
+    los cuatro modales y **no se pintaba la sección de ficheros de referencia**, que es la
+    única vía alternativa cuando un modal falla.
+
+    Es `resolve.py` otra vez: la misma pregunta contestada en dos sitios, y uno se entera
+    de un camino nuevo y el otro no.
+
+    `stored` MANDA cuando lo hay: retomar no puede pisar una estimación que se acaba de
+    pedir. Sólo cuando no se ha pulsado nada, un proyecto retomado significa «diseñar».
+    """
+    if stored:
+        return stored
+    return ACCION_DISENAR if resumed else None
+
+
+def build_banner() -> dict[str, object]:
+    """QUÉ VERSIÓN está sirviendo esta página. Arriba, sin abrir nada.
+
+    EL DATO YA ESTABA: `identidad.build_stamp()` lo lee de `SHMIR_BUILD`, que el hub pasa
+    al proceso hijo desde `RAILWAY_GIT_COMMIT_SHA`. Su único consumidor era la cabecera
+    del FASTA de consulta de SpliceAI — o sea que para saber qué versión servía la app
+    había que generar un artefacto y abrirlo. Es el patrón de `page_run`: la capacidad
+    cableada a un sitio y no al que la necesita.
+
+    Y aquí lo que se pierde no es información, es TIEMPO AJENO: sin el sello en pantalla,
+    «está fusionado» y «lo estás viendo» son indistinguibles desde la página, y la única
+    forma de separarlos es que alguien vaya a mirar el despliegue. Pasó tres veces.
+    """
+    from .identidad import BUILD_NOT_DECLARED, build_stamp  # noqa: PLC0415
+
+    commit = build_stamp()
+    declarado = commit != BUILD_NOT_DECLARED
+    corto = commit[:BUILD_SHORT] if declarado else commit
+    return {
+        "commit": commit,
+        "corto": corto,
+        "declarado": declarado,
+        "texto": (
+            f"Versión servida: **{corto}**" if declarado
+            else f"Versión servida: **{BUILD_NOT_DECLARED}** — el entorno no la declara "
+                 f"(es lo normal en local)."
+        ),
+        "ayuda": BUILD_HELP,
+    }
+
+
+def candidate_fronts(
+    tiling, selection, *, species: str, start: int, stores=None,
+) -> tuple[dict[str, str], ...]:
+    """Los frentes SIN CONTESTAR de UN candidato, para su fila de la hoja de pedido.
+
+    La unidad es el CANDIDATO y no el panel, y esa es toda la razón de que exista: el
+    panel puede tener diez candidatos con corrida y uno sin ella —el caso del undécimo,
+    `tx:2020`, que entró después del BLAST de los 88, del empalme y de la seed— y una
+    nota general al principio de la hoja dice la verdad sobre el conjunto mientras cada
+    fila se lee, se copia y se manda por separado.
+
+    POR QUE IMPORTA MAS QUE OTROS `NOT_RUN`, con las palabras con que se pidió: *«un
+    candidato sin BLAST en una hoja de once verificados es exactamente el hueco donde se
+    cuela algo así»*. Y «algo así» tiene nombre — `tx:1746` contra **Adar**, el único
+    candidato que ha caído por un motivo real, y lo atrapó este frente.
+
+    Sale de `panel_states_by_front`, que es EL ÚNICO SITIO donde se decide si un frente
+    está contestado. No se reimplementa aquí: sería la segunda regla para la misma
+    pregunta, que es exactamente la errata nº 68.
+    """
+    inicio = int(start)
+    marco = coords.tiled_frame(getattr(selection, "anatomy", None))
+    if inicio not in {int(s) for s in chosen_starts(selection)}:
+        raise ShmirDesignError(
+            f"{coords.requested(inicio, marco)} no está en el panel de esta corrida, así "
+            f"que no tiene frentes que emitir. Los del panel son: "
+            f"{coords.labels(sorted(chosen_starts(selection)), marco)}."
+        )
+    resuelto = panel_states_by_front(
+        tiling, selection, species=species, stores=stores
+    )
+    estados, origenes = resuelto["estados"], resuelto["origenes"]
+    filas = []
+    # LOS FRENTES SIN COLUMNA POR CANDIDATO TAMBIEN SALEN, y no es un extra: si
+    # `empalme_sitios` faltara de esta lista, la fila diria «sin contestar:
+    # especificidad» y quien la lee concluye que el empalme SI esta contestado. Es
+    # justo el fallo que esta seccion existe para impedir, un frente mas alla. Se
+    # DERIVAN de `NO_CABE_COLUMNA_POR_CANDIDATO` y de los frentes abiertos, no se
+    # escriben.
+    from .selection import blocking_fronts  # noqa: PLC0415
+
+    abiertos = {
+        f.name for f in blocking_fronts(tiling, selection) if f.blocking
+    }
+    for frente, porque in sorted(NO_CABE_COLUMNA_POR_CANDIDATO.items()):
+        if frente not in abiertos or frente in estados:
+            # Con una corrida guardada, `panel_states_by_front` YA lo contesta por par y
+            # su estado sale abajo con el motivo que le toca. Emitirlo aqui tambien
+            # pondria el mismo frente dos veces en la misma ficha, una con estado y otra
+            # con un `NOT_RUN` fijo — dos numeros del mismo suceso (principio nº 27).
+            continue
+        filas.append({
+            "frente": frente,
+            "estado": FilterState.NOT_RUN.value,
+            "motivo": (
+                f"{frente}: no tiene columna por candidato porque {porque}. Este "
+                f"fragmento es uno de esos pares, y no consta consultado."
+            ),
+        })
+    for frente in sorted(estados):
+        estado = estados[frente].get(inicio)
+        # `ESTADOS_SIN_RESPUESTA` es la MISMA lista con la que el panel decide si un
+        # frente esta contestado. Escribirla otra vez aqui seria la segunda definicion
+        # de que es una laguna, y la que se queda vieja el dia que entre un estado
+        # nuevo — que es como `SIN_CONSULTAR` habria quedado fuera al nacer.
+        if estado is None or estado not in ESTADOS_SIN_RESPUESTA:
+            continue
+        filas.append({
+            "frente": frente,
+            "estado": estado,
+            "motivo": _motivo_de_laguna(
+                frente, estado, origenes.get(frente, {}).get(inicio)
+            ),
+        })
+    return tuple(filas)
+
+
 def panel_states_by_front(
     tiling, selection, *, species: str, stores=None,
 ) -> dict[str, dict]:
@@ -2267,6 +3598,9 @@ def panel_states_by_front(
     Devuelve `{"estados": {frente: {inicio: estado}}, "origenes": {frente: {inicio: ...}}}`
     — una sola pasada y dos proyecciones, no dos calculos del mismo numero.
     """
+    # LOS FRENTES GLOBALES, una vez por corrida: su respuesta es del
+    # TRANSCRITO y no de cada candidato (errata nº 141).
+    globales = global_front_states(tiling, selection)
     starts = [int(s) for s in chosen_starts(selection)]
     ventanas = {int(w.window.start): w for w in tiling.windows}
     estados: dict[str, dict[int, str]] = {}
@@ -2282,7 +3616,8 @@ def panel_states_by_front(
         if ventana is None:
             continue
         efectivos = _with_stores(
-            _filter_columns(ventana), stores, species, inicio
+            _filter_columns(ventana), stores, species, inicio,
+            globales=globales,
         )
         for frente, estado in efectivos.items():
             estados.setdefault(frente, {})[inicio] = estado
@@ -2314,6 +3649,87 @@ TABLE_SCOPE_NOTE = (
     "los demás, un `NOT_RUN` significa que **a ese candidato no se le ha preguntado** —"
     "las corridas se lanzan sobre el panel—, no que falte un fichero."
 )
+
+
+def pending_after_duplicate(
+    tiling, selection, *, species: str, front: str, stores=None,
+) -> dict[str, object]:
+    """Rechazada una subida por repetida: QUE SIGUE FALTANDO de ese frente.
+
+    **Principio nº 47: la salida va donde esta el BLOQUEO.** El aborto por fichero
+    repetido lo emite `ProjectStore.append`, que sabe —y solo puede saber— que ese crudo
+    ya esta en el log. Lo que NO puede decir es si la corrida anterior cubre lo que se
+    venia a cubrir: la capa que escribe el log no conoce el panel de hoy, y no deberia.
+
+    El caso que lo pide (2026-09-07) es el que hace la diferencia entera: se solto el
+    resultado viejo de SpliceAI **intentando cubrir a `3utr:359`**, que entro en el panel
+    DESPUES de esa corrida. El mensaje decia, con razon, que no habia nada nuevo que
+    guardar — y dejaba al usuario yendo a buscar la tarjeta del frente, en otra parte de
+    la pagina, para enterarse de que la corrida vieja deja fuera justo a los dos que le
+    faltaban. Se leyo como «ahora no te deja seguir», que es lo que se lee siempre de un
+    aborto que no nombra la salida.
+
+    Se DERIVA de `panel_states_by_front`, el unico sitio donde se decide si un frente
+    esta contestado (errata nº 68): recalcular la cobertura aqui seria la segunda regla
+    para la misma pregunta.
+
+    **Sin almacenes NO afirma que falte el panel entero.** No haber podido mirar y «no
+    cubre a nadie» son cosas distintas, y confundirlas es el `.out` sin resumen.
+    """
+    from .selection import blocking_fronts  # noqa: PLC0415
+
+    # EL NOMBRE SE VALIDA CONTRA LOS FRENTES DECLARADOS, no contra lo que hoy conteste
+    # algun almacen. Validarlo contra `estados` confundia dos cosas —«ese frente no
+    # existe» y «ese frente no lo contesta nadie todavia»— y abortaba en el caso normal
+    # de un proyecto sin corridas de ese frente. El principio nº 19: la pregunta era por
+    # el NOMBRE y la comprobacion miraba el CONTENIDO.
+    conocidos = {f.name for f in blocking_fronts(tiling, selection)}
+    if front not in conocidos:
+        raise ShmirDesignError(
+            f"`pending_after_duplicate` no conoce el frente {front!r}. Los que hay son: "
+            f"{', '.join(sorted(conocidos))}. Se aborta en vez de devolver «no falta "
+            f"nada»: un frente mal escrito daría el peor de los verdes — un pendiente "
+            f"invisible sobre el frente que se estaba intentando cerrar."
+        )
+    if stores is None:
+        return {"activo": False, "texto": ""}
+    estados = panel_states_by_front(
+        tiling, selection, species=species, stores=stores,
+    )["estados"]
+    por_candidato = estados.get(front)
+    if not por_candidato:
+        # HAY ALMACENES Y ESTE FRENTE NO SALE DE ELLOS: no se ha podido mirar, y eso no
+        # es «no cubre a nadie». Se calla en vez de afirmar que falta el panel entero,
+        # que es el `.out` sin resumen.
+        return {"activo": False, "texto": ""}
+    faltan = [
+        inicio for inicio in sorted(por_candidato)
+        if por_candidato[inicio] not in ESTADOS_QUE_RESPONDEN
+    ]
+    panel = len(por_candidato)
+    if not faltan:
+        # QUE NO FALTE NADA ES INFORMACION, no silencio: significa que el fichero
+        # repetido era, ademas, el que ya contestaba a todo el panel — o sea que no hay
+        # ninguna corrida pendiente y el frente esta donde tiene que estar.
+        return {
+            "activo": False,
+            "texto": (
+                f"Y no falta ninguno: la corrida que ya está registrada contesta a los "
+                f"{panel} candidatos del panel para este frente."
+            ),
+        }
+    nombres = ", ".join(_start_label(selection, inicio) for inicio in faltan)
+    return {
+        "activo": True,
+        "texto": (
+            f"Y ESO NO ES TODO EL PANEL: lo que ya está registrado contesta a "
+            f"{panel - len(faltan)} de {panel} candidatos para este frente, y "
+            f"{len(faltan)} siguen sin contestar — {nombres}. Si venías a cubrirlos, "
+            f"el fichero que hace falta es el de una corrida que los INCLUYA: se "
+            f"descarga el conjunto de este modal con el panel de hoy, se corre, y se "
+            f"sube ESE resultado."
+        ),
+    }
 
 
 def panel_first(filas):
@@ -2349,6 +3765,9 @@ def site_table_rows(tiling, selection, *, species: str = "",
     afirmando cosas distintas del mismo frente (principio nº 23)— y el desacuerdo habia
     que declararlo en pantalla. Con ellos, ese aviso sobra y se ha borrado.
     """
+    # LOS FRENTES GLOBALES, una vez por corrida: su respuesta es del
+    # TRANSCRITO y no de cada candidato (errata nº 141).
+    globales = global_front_states(tiling, selection)
     from .selection import is_eligible
 
     columnas = front_columns(tiling, selection)
@@ -2368,7 +3787,9 @@ def site_table_rows(tiling, selection, *, species: str = "",
         filas.append(
             {
                 "elegido": ventana.window.start in elegidos,
-                "sitio": f"3utr:{ventana.inicio_3utr}",
+                # `inicio_3utr` YA esta convertido al 3'UTR — el nombre lo dice y la
+                # conversion la hace el tilado—, asi que el marco no se supone aqui.
+                "sitio": coords.label(ventana.inicio_3utr, coords.Frame.UTR3),
                 "inicio": ventana.window.start,
                 # Sin frontera fiable, «tercio medio» no se refiere a nada. No se
                 # imprime un valor que parece un dato: se imprime que no es fiable.
@@ -2389,6 +3810,7 @@ def site_table_rows(tiling, selection, *, species: str = "",
                 **(efectivos := _with_stores(
                     {n: estados.get(n, "NOT_RUN") for n in columnas},
                     stores, species, ventana.window.start,
+                    globales=globales,
                 )),
                 # EL VEREDICTO CUENTA LO MISMO QUE LAS CELDAS. Antes salia
                 # `ventana.verdict`, del informe de tilado, asi que una fila podia decir
@@ -2430,8 +3852,9 @@ def selection_warnings(tiling, selection, *, selected=None,
                 avisos.append({
                     "rojo": True,
                     "texto": (
-                        f"3utr:{uno} y 3utr:{otro} están a {abs(otro - uno)} nt, por "
-                        f"debajo del espaciado mínimo de {espaciado} nt. "
+                        f"{_start_label(selection, uno)} y "
+                        f"{_start_label(selection, otro)} están a {abs(otro - uno)} nt, "
+                        f"por debajo del espaciado mínimo de {espaciado} nt. "
                         f"{MIN_SPACING_WARNING}"
                     ),
                 })
@@ -2441,7 +3864,8 @@ def selection_warnings(tiling, selection, *, selected=None,
                 "rojo": True,
                 "texto": (
                     conflicto.describe(
-                        label_a=f"3utr:{conflicto.a}", label_b=f"3utr:{conflicto.b}"
+                        label_a=_start_label(selection, conflicto.a),
+                        label_b=_start_label(selection, conflicto.b),
                     )
                     + " " + MULTIPLEX_NOTE
                 ),
@@ -2735,7 +4159,9 @@ def reference_panel_summary(species: str, *, directory) -> dict[str, object]:
     from .presencia import ficheros_con_contenido
 
     ruta = Path(directory)
-    presentes = tuple(sorted(ficheros_con_contenido(ruta)))
+    # LOS QUE CIERRAN, no los que están: un fichero sin la procedencia que su frente
+    # exige no cierra nada, y contarlo aquí pinta la barra con un frente que no corre.
+    presentes = _cierran(species, directory=ruta)
     informe = fixture_report(resolve(species), have=presentes)
     faltan = [f for f in informe.rows if not f.available]
     return {
@@ -2816,19 +4242,32 @@ def deposit_file(role: str, *, species: str, directory) -> dict[str, object]:
     from .species import resolve  # noqa: PLC0415
 
     fichero = read_deposit(role, species=resolve(species), directory=directory)
-    procedencia = [
+    from .gestor import _procedencia_pedida  # noqa: PLC0415
+
+    # DOS COSAS DISTINTAS Y DOS NOMBRES. Lo DECLARADO —para enseñarlo— y lo PEDIDO —las
+    # casillas que hay que rellenar—. Compartían el nombre `procedencia` con formas
+    # incompatibles (`campo`/`valor` frente a `clave`/`etiqueta`/`ayuda`), así que la
+    # caja del gestor puesta sobre esta fila reventaba al PINTARSE (errata nº 123).
+    # Renombrar, no ampliar el significado: principio nº 27.
+    declarada = [
         {"campo": campo, "valor": valor}
         for campo, valor in fichero.provenance_fields().items()
         if str(valor).strip()
     ] if fichero.present else []
+    pedida = _procedencia_pedida(fichero.role)
     return {
         "rol": fichero.role,
         "nombre": fichero.filename,
+        # LA ESPECIE VIAJA EN LA FILA. `declare_provenance` la necesita para resolver el
+        # nombre del fichero contra `required_files`, y sin ella la caja del modal se
+        # pinta igual de bien y revienta AL PULSAR — peor que no tenerla.
+        "especie": species,
         "presente": fichero.present,
         "registrado": fichero.registered,
         "md5": fichero.md5,
         "tamano": fichero.size,
-        "procedencia": procedencia,
+        "procedencia_declarada": declarada,
+        "procedencia_pedida": pedida,
         "falta_procedencia": list(fichero.missing_provenance),
         # SOLO se ofrece subida si el fichero NO esta. Ofrecerla teniendolo dentro es lo
         # que hacia el modal de off-targets, y con ello volvia a pedir la procedencia.
@@ -3132,9 +4571,17 @@ def selection_notes(selection) -> list[dict[str, object]]:
     con razón, que la app no le hacía caso. Un parámetro que no hace lo que dice y no lo
     dice es un parámetro que miente. Principio nº 23: dos artefactos leen el mismo estado
     y sólo uno lo cuenta.
+
+    Y **una decisión registrada NO es un aviso**: una retirada del panel sale en TODAS
+    las corridas de esa secuencia, así que pintarla en rojo dejaría el rojo puesto para
+    siempre — y a partir de ahí el aviso del espaciado, que sí es accionable, no se
+    distingue del fondo. Salen las dos; lo que cambia es `avisa`, y el aviso va PRIMERO
+    porque es lo único de las dos que quien lee puede cambiar.
     """
     return [
         {"texto": nota, "avisa": True} for nota in selection.selection.notes
+    ] + [
+        {"texto": nota, "avisa": False} for nota in selection.selection.decisions
     ]
 
 
@@ -3211,6 +4658,11 @@ WHAT_IF_IT_NEVER_ARRIVES = (
     "Su frente se queda en NOT_RUN y los candidatos, en INCOMPLETE. No bloquea el "
     "diseño: bloquea aprobarlo."
 )
+WHAT_IF_PROVENANCE_NEVER_ARRIVES = (
+    "Su frente se queda en NOT_RUN aunque el fichero esté: el modal aborta al pedir el "
+    "veredicto. La diferencia con FALTA es la salida, no la gravedad — aquí no hay que "
+    "conseguir nada, hay que DECLARAR cuatro campos sobre el fichero que ya está."
+)
 WHAT_IF_OPTIONAL_NEVER_ARRIVES = (
     "Nada se queda sin correr. El filtro corre igual y sin este fichero da un número "
     "menos afinado, no un hueco."
@@ -3228,12 +4680,39 @@ WHAT_IF_UNUSED_NEVER_ARRIVES = (
 #: `polya_db_mouse.tsv` ya en el deposito: dos ficheros que cierran el MISMO frente, y
 #: el que sobra se leia como trabajo pendiente. Una alternativa que no hace falta y una
 #: cosa que falta de verdad no pueden tener el mismo color.
+#: El estado del fichero QUE ESTÁ y NO CIERRA NADA. En un solo sitio: lo comparan
+#: `_estado_de`, la leyenda y el panel, y tres literales acabarían discrepando. Se
+#: DEFINE en `deposito`, que es donde se calcula el hecho que lo produce, y desde donde
+#: el aviso del modal nombra la fila a la que hay que ir.
+from .deposito import INCOMPLETE_PROVENANCE  # noqa: E402
+
+WHY_PRESENT_IS_NOT_CLOSED = (
+    "Un fichero PRESENTE cuya línea del manifiesto no lleva la procedencia que su "
+    "frente EXIGE no cierra nada: el modal aborta y el veredicto sale NOT_RUN. Marcarlo "
+    "verde es la tercera vez que pasa lo mismo —verde en el panel y NOT_RUN en el "
+    "veredicto, como `refseq_rna.fa`— y aquí tenía una segunda consecuencia peor: una "
+    "fila CERRADA va COLAPSADA, así que las cuatro acciones y la caja de «completar la "
+    "procedencia» quedaban detrás de un gesto. EL ESTADO TAPABA SU PROPIO ARREGLO. "
+    "Tampoco es FALTA: el fichero está, y volver a subir 84 MB no es lo que hace falta "
+    "— la salida es declarar los campos sobre el que ya está."
+)
+
 REFINEMENT_STATES = (
     {
         "estado": "CERRADO",
         "color": "verde",
         "marca": "🟢",
         "significa": "está en el depósito y se está usando. Su frente puede correr.",
+    },
+    {
+        "estado": INCOMPLETE_PROVENANCE,
+        "color": "ámbar",
+        "marca": "🟡",
+        "significa": (
+            "está en el depósito y AUN ASÍ no cierra su frente: a su línea del "
+            "manifiesto le faltan campos de procedencia que el veredicto exige. Se "
+            "completan sobre el fichero que ya está, sin volver a subirlo."
+        ),
     },
     {
         "estado": "FALTA",
@@ -3339,11 +4818,21 @@ def _refinement_rows(species: str, *, directory) -> list[dict[str, object]]:
     from .species import fixture_report, resolve  # noqa: PLC0415
 
     especie = resolve(species)
-    informe = fixture_report(especie, have=_presentes(directory))
+    # Los que CIERRAN, por el mismo motivo que en `reference_panel_summary`: un fichero
+    # sin su procedencia no cierra su frente, así que tampoco puede dejar a una
+    # alternativa en «NO USADO».
+    cierran = _cierran(species, directory=directory)
+    informe = fixture_report(especie, have=cierran)
     # Que frentes estan cerrados y CON QUE fichero. De aqui sale «NO USADO»: una fila
     # cuyo frente ya cierra OTRO fichero que si esta no es trabajo pendiente.
     cerrado_por: dict[str, list[str]] = {}
-    presentes = set(_presentes(directory))
+    # DOS conjuntos, dos preguntas. `cierran` contesta «¿cierra su frente?» y decide
+    # los estados; `en_disco` contesta «¿está el fichero?» y decide QUÉ BOTONES se
+    # pintan. Fundirlos deja un fichero que está sin sus cuatro acciones — que es
+    # justamente lo que hay que poder hacer con él.
+    cierran_set = set(cierran)
+    en_disco = set(_presentes(directory))
+    presentes = cierran_set
     for frente in informe.rows:
         if frente.available:
             for clave in frente.keys:
@@ -3354,7 +4843,7 @@ def _refinement_rows(species: str, *, directory) -> list[dict[str, object]]:
         estado = _estado_de(fila, cerrado_por, presentes)
         color, marca = _COLOR[estado]
         opcional = not fila["obligatorio"]
-        bloquea = estado == "FALTA"
+        bloquea = estado in {"FALTA", INCOMPLETE_PROVENANCE}
         filas.append(
             {
                 **fila,
@@ -3367,7 +4856,12 @@ def _refinement_rows(species: str, *, directory) -> list[dict[str, object]]:
                 "marca": marca,
                 "bloquea": bloquea,
                 "grupo": 1 if opcional else 0,
-                "resuelta": 0 if estado in {"FALTA", "OPCIONAL"} else 1,
+                "resuelta": (
+                    0 if estado in {"FALTA", "OPCIONAL", INCOMPLETE_PROVENANCE} else 1
+                ),
+                # NO se colapsa lo que pide trabajo. `SIN PROCEDENCIA` va abierta a
+                # propósito: la caja de declarar los campos vive dentro de la fila, y
+                # colapsarla escondía exactamente la salida del problema.
                 "colapsada": estado in {"CERRADO", "NO USADO"},
                 # ESTA O NO ESTA, dicho aqui y no deducido en la pagina. La pagina
                 # elegia entre las cuatro acciones de lo presente y el hueco de subida
@@ -3377,7 +4871,7 @@ def _refinement_rows(species: str, *, directory) -> list[dict[str, object]]:
                 # salia con «Ver», «Reemplazar», «Borrar» y «Descargar» sobre un fichero
                 # que no esta: el panel enseñaba un error rojo al abrir la app y «Ver»
                 # tiraba la pagina entera. Regla 6: lo que decide, decidido aqui.
-                "presente": fila["nombre"] in presentes,
+                "presente": fila["nombre"] in en_disco,
                 # Que frentes cierra, EN LA FILA. El panel ya no agrupa por frente
                 # —el orden es por impacto—, asi que si el frente no viaja en la fila
                 # deja de verse: un fichero sin frente visible es un fichero que no se
@@ -3385,7 +4879,9 @@ def _refinement_rows(species: str, *, directory) -> list[dict[str, object]]:
                 "frentes_texto": ", ".join(fila["frentes"]) or "—",
                 "por_que": _por_que(fila, estado, cerrado_por),
                 "si_no_llega": (
-                    WHAT_IF_IT_NEVER_ARRIVES if bloquea
+                    WHAT_IF_PROVENANCE_NEVER_ARRIVES
+                    if estado == INCOMPLETE_PROVENANCE
+                    else WHAT_IF_IT_NEVER_ARRIVES if bloquea
                     else WHAT_IF_OPTIONAL_NEVER_ARRIVES if estado == "OPCIONAL"
                     else WHAT_IF_UNUSED_NEVER_ARRIVES if estado == "NO USADO"
                     # Un fichero que YA esta no tiene «si no llega»: la pregunta no se
@@ -3411,13 +4907,36 @@ def _presentes(directory):
     return tuple(sorted(ficheros_con_contenido(Path(directory))))
 
 
+def _cierran(species: str, *, directory) -> tuple[str, ...]:
+    """Los ficheros presentes QUE CIERRAN ALGO: los que además traen su procedencia.
+
+    Estar en el depósito no cierra un frente. `transcriptoma_3utr.fa` sin los cuatro
+    campos de la tabla está, se lee, y el modal de off-targets ABORTA — así que contarlo
+    como cerrado pinta la barra de progreso y el semáforo con un frente que no corre.
+    Es el mismo verde equivocado que `_estado_de` deja de dar, un nivel más arriba: si
+    sólo se arregla la fila, la fila dice ámbar y la barra dice cerrado.
+
+    Ver `WHY_PRESENT_IS_NOT_CLOSED`.
+    """
+    sin_procedencia = {
+        fila["nombre"]
+        for fila in reference_manager_rows(species, directory=directory)
+        if fila["estado"] == "presente" and fila.get("falta_procedencia")
+    }
+    return tuple(f for f in _presentes(directory) if f not in sin_procedencia)
+
+
 def _estado_de(fila, cerrado_por, presentes) -> str:
-    """Los cuatro estados, derivados de dos hechos: si está, y si su frente ya cierra.
+    """Los CINCO estados, derivados de tres hechos: si está, si su línea trae la
+    procedencia que su frente exige, y si su frente ya cierra con otro.
 
     El orden de las ramas importa: una alternativa no usada tiene que decidirse ANTES de
-    caer en «FALTA», que es justo lo que pasaba con `apa_medido.tsv`.
+    caer en «FALTA», que es justo lo que pasaba con `apa_medido.tsv`. Y estar presente
+    ya no basta para CERRADO — ver `WHY_PRESENT_IS_NOT_CLOSED`.
     """
     if fila["estado"] == "presente":
+        if fila.get("falta_procedencia"):
+            return INCOMPLETE_PROVENANCE
         return "CERRADO"
     if not fila["obligatorio"]:
         return "OPCIONAL"
@@ -3438,6 +4957,14 @@ def _por_que(fila, estado: str, cerrado_por) -> str:
     """Por que esta fila esta en ese estado, con el nombre del fichero que lo decide."""
     if estado == "CERRADO":
         return f"Está en el depósito. Desbloquea: {fila['que_desbloquea']}."
+    if estado == INCOMPLETE_PROVENANCE:
+        return (
+            f"ESTÁ en el depósito y AUN ASÍ no desbloquea {fila['que_desbloquea']}: a "
+            f"su línea del manifiesto le faltan "
+            f"{', '.join(fila['falta_procedencia'])}. El veredicto sale NOT_RUN hasta "
+            f"que se declaren, y se declaran AQUÍ, sobre el fichero que ya está — no "
+            f"hay que volver a subirlo. {WHY_PRESENT_IS_NOT_CLOSED}"
+        )
     if estado == "OPCIONAL":
         return (
             f"No bloquea nada: {fila['que_desbloquea']}. El filtro corre sin él y con "
@@ -3910,6 +5437,398 @@ INTRON_AXES_MEASURED = (
 )
 
 
+#: LOS EJES DEL PLEGADO SON NUESTROS, y por eso van en su propio bloque.
+#: Los de arriba salen de SpliceAI —un modelo que este proyecto NO ejecuta— y por eso
+#: estan transcritos con su procedencia. Estos salen de plegar los dos intrones montados
+#: con ViennaRNA, aqui mismo. Aun asi van ESCRITOS y no derivados en tiempo de pintado,
+#: y el motivo esta medido: plegar las 22 construcciones cuesta **8,5 s**, y este bloque
+#: se pinta en cada repintado de la pagina — es la errata nº 59 esperando. La
+#: contramedida es la misma que en la mordida de la mascara: `tests/test_el_PUNTO_DE_
+#: RAMIFICACION_es_el_MAS_FRAGIL.py` **recalcula las ocho cifras de las 22 de verdad** y
+#: exige que este texto las cite. Si el plegado cambia, la suite falla en vez de que la
+#: prosa envejezca en silencio (principio nº 13).
+#:
+#: OJO: NO ES EL MISMO PANEL QUE EL BLOQUE DE ARRIBA. Aquellas cifras son de la corrida
+#: de SpliceAI del 2026-09-05, con el panel de DIEZ (20 construcciones); estas se
+#: midieron el 2026-09-06 con el panel de ONCE (22). Presentarlos bajo un mismo recuento
+#: seria decir que se midieron sobre lo mismo.
+FOLDING_MEASURED_ON = (
+    "Medido el 2026-09-06 plegando las 22 construcciones del panel de once con las DOS "
+    "arquitecturas (ViennaRNA, función de partición). Es un número PROPIO: sale de "
+    "plegar la construcción real, no de un modelo entrenado para otra cosa."
+)
+
+#: Como se escribe una fraccion de apareamiento en la salida: tres decimales y coma
+#: decimal, en un solo sitio. Repetida, dos bloques del mismo informe acabarian
+#: imprimiendo el mismo numero con dos formas.
+def _cifra(valor) -> str:
+    return f"{valor:.3f}".replace(".", ",")
+
+
+#: Fraccion media SIN APAREAR de cada elemento, por arquitectura. Mas alto es mejor: un
+#: elemento secuestrado dentro de un tallo no esta disponible para el espliceosoma.
+#:
+#: LO QUE SE ESCRIBE SON LOS NUMEROS, no la tabla: la tabla que se pinta y el ganador de
+#: cada fila se DERIVAN de aqui, asi que no puede haber una fila que diga una cosa y un
+#: ganador que diga otra. Y con esto el informe puede hacer las mismas lecturas que el
+#: modal —la contradiccion con SpliceAI, el riesgo compartido— sin repetir ninguna
+#: regla: se montan unas filas con estas medias y se pasan por las MISMAS funciones.
+INTRON_FOLDING_MEANS = {
+    "donante": {"mvm_actual": 0.889, "intron_quimerico": 0.533},
+    "punto_de_ramificacion": {"mvm_actual": 0.257, "intron_quimerico": 0.355},
+    "tracto_polipirimidinas": {"mvm_actual": 0.594, "intron_quimerico": 0.547},
+    "aceptor": {"mvm_actual": 0.836, "intron_quimerico": 0.994},
+}
+
+
+def recorded_folding_rows():
+    """Las medias REGISTRADAS, en forma de filas, para pasarlas por lo mismo que las vivas.
+
+    No es una segunda definicion de nada: es el MISMO analisis sobre la medida escrita en
+    vez de sobre un plegado recien hecho, y la medida escrita la revalida el test que la
+    recalcula de las 22. Sirve para el informe, que no puede plegar en cada repintado.
+    """
+    arquitecturas = sorted(
+        {a for medias in INTRON_FOLDING_MEANS.values() for a in medias},
+        reverse=True,
+    )
+    return tuple(
+        {"construccion": f"registrada__{a}", "intron": a,
+         **{e: INTRON_FOLDING_MEANS[e][a] for e in INTRON_FOLDING_MEANS}}
+        for a in arquitecturas
+    )
+
+
+def _axes_from_means():
+    """La tabla que se pinta, DERIVADA de las medias y con su ganador derivado también."""
+    from .intron_folding import ELEMENTS, architecture_contrast
+
+    contraste = {f["elemento"]: f for f in architecture_contrast(recorded_folding_rows())}
+    filas = []
+    for elemento in ELEMENTS:
+        medias = INTRON_FOLDING_MEANS[elemento]
+        gana = contraste[elemento]["gana"] or "ninguno: empatan"
+        filas.append((
+            elemento, _cifra(medias["mvm_actual"]),
+            _cifra(medias["intron_quimerico"]), gana,
+        ))
+    return tuple(filas)
+
+
+INTRON_FOLDING_AXES = _axes_from_means()
+
+
+#: LO QUE SpliceAI DICE DE LOS MISMOS ELEMENTOS, para poder CRUZARLO con el plegado.
+#: Transcritas —este proyecto no ejecuta SpliceAI— de la corrida del 2026-09-05, que está
+#: en `data/medido/` con su procedencia y se validó al entrar por md5 y por nombre. Son
+#: las medias del sitio LEGÍTIMO sobre las construcciones de esa corrida.
+#:
+#: SÓLO HAY DOS, y eso no es un hueco que rellenar: SpliceAI puntúa SITIOS DE SPLICING,
+#: así que del punto de ramificación y del tracto no dice nada. Su silencio ahí **no es
+#: acuerdo**, y el destacado lo dice con esas palabras — si no, dos elementos sin
+#: contraste se leerían como dos elementos donde los dos análisis coinciden.
+SPLICEAI_ELEMENT_SCORES = {
+    "donante": {"mvm_actual": 0.873, "intron_quimerico": 0.966},
+    "aceptor": {"mvm_actual": 0.831, "intron_quimerico": 0.990},
+}
+
+SPLICEAI_SCORES_FROM = (
+    "Puntuaciones del sitio legítimo en la corrida de SpliceAI del 2026-09-05 (panel de "
+    "diez, 20 construcciones), guardada con su procedencia."
+)
+
+#: LA LECTURA DE LA DISCREPANCIA, y es de quien decide: **la secuencia dice que el sitio
+#: existe, el plegado dice si se puede usar**. No se promedian y no se reconcilian —
+#: promediarlas perdería justo lo que la discrepancia lleva dentro, que es la misma regla
+#: que `apa.EXPECTED_DIRECTION` y la misma forma que «rebaja, no descarta».
+TWO_QUESTIONS_NOT_ONE = (
+    "No se promedian y no se reconcilian: la secuencia dice que el sitio existe, el "
+    "plegado dice si se puede usar. Son dos preguntas, y que discrepen es INFORMACIÓN, "
+    "no ruido."
+)
+
+
+def folding_contradictions(rows):
+    """Elementos donde SpliceAI y el plegado dan GANADORES DISTINTOS. Se DERIVA.
+
+    No está escrito «el donante se contradice»: se cruzan los dos veredictos por
+    elemento, así que con otra corrida o con otro intrón la contradicción puede ser otra
+    —o ninguna— y esto se entera solo. El control adversario está escrito: con un plegado
+    que coincida con SpliceAI en el donante, aquí no sale nada.
+    """
+    from .intron_folding import ELEMENTS, architecture_contrast
+
+    contraste = {f["elemento"]: f for f in architecture_contrast(rows)}
+    salida = []
+    for elemento in ELEMENTS:
+        medias = SPLICEAI_ELEMENT_SCORES.get(elemento)
+        if medias is None:
+            continue
+        gana_spliceai = max(medias, key=lambda a: (medias[a], a))
+        fila = contraste.get(elemento)
+        gana_plegado = fila["gana"] if fila else None
+        if gana_plegado is None or gana_plegado == gana_spliceai:
+            continue
+        salida.append({
+            "elemento": elemento,
+            "gana_spliceai": gana_spliceai,
+            "gana_plegado": gana_plegado,
+            "spliceai": dict(medias),
+            "plegado": dict(fila["medias"]),
+        })
+    return salida
+
+
+def shared_branch_risk(rows=None):
+    """EL RIESGO COMPARTIDO, en UN bloque: el mismo sitio visto por DOS ejes.
+
+    Que el elemento menos accesible sea el mismo **en las dos arquitecturas** lo
+    convierte en propiedad del ELEMENTO y no de un intrón; que además la geometría
+    donante→punto esté fuera de rango **en las dos** apunta al mismo sitio por otro
+    camino. Juntos son el candidato a **causa común** si el empalme falla en las dos —
+    separados en dos notas se leen como dos observaciones sueltas, y ésa es justo la
+    lectura que se pierde.
+
+    Las dos mitades se DERIVAN: la accesibilidad de lo plegado y la geometría de
+    `introns.donor_to_branch`, que ya dice por su cuenta si es atípica.
+    """
+    from .blocks import MODULE_LENGTH
+    from .intron_folding import weakest_element
+    from .introns import INTRONS, TYPICAL_DONOR_TO_BRANCH, donor_to_branch
+
+    # SIN FILAS SE USA LA MEDIDA REGISTRADA, no se calla: el informe no puede plegar en
+    # cada repintado —8,5 s— y esta lectura decide dónde mirar primero si el empalme
+    # falla. Es el mismo análisis sobre la misma medida, no otra regla.
+    if rows is None:
+        rows = recorded_folding_rows()
+
+    arquitecturas = []
+    for fila in rows:
+        nombre = fila.get("intron")
+        if nombre is not None and nombre not in arquitecturas:
+            arquitecturas.append(nombre)
+
+    fragil = weakest_element(rows)
+    menos_accesible_en = [
+        a for a in arquitecturas
+        if weakest_element([f for f in rows if f.get("intron") == a]) == fragil
+    ] if fragil else []
+
+    atipica_en, geometria = [], {}
+    for nombre in arquitecturas:
+        entrada = INTRONS.get(nombre)
+        if entrada is None:
+            continue
+        salto = donor_to_branch(
+            entrada.elements(), name=nombre,
+            inserted=entrada.inserted_length(MODULE_LENGTH),
+        )
+        if salto is None:
+            continue
+        geometria[nombre] = salto.assembled
+        if salto.atypical:
+            atipica_en.append(nombre)
+
+    en_las_dos = (
+        fragil is not None
+        and len(arquitecturas) > 1
+        and len(menos_accesible_en) == len(arquitecturas)
+        and len(atipica_en) == len(arquitecturas)
+    )
+    if not en_las_dos:
+        texto = (
+            "No hay riesgo compartido que emitir con lo que hay: hace falta que el "
+            "elemento menos accesible sea el mismo en TODAS las arquitecturas y que la "
+            "geometría donante→punto esté fuera de rango en todas. Que no salga NO es "
+            "que no lo haya: es que con estas construcciones no se puede afirmar."
+        )
+    else:
+        rango = ", ".join(
+            f"{a} {geometria[a][0]}-{geometria[a][1]} nt" if geometria[a][0] != geometria[a][1]
+            else f"{a} {geometria[a][0]} nt"
+            for a in arquitecturas if a in geometria
+        )
+        accesibilidad = ", ".join(
+            f"{a} {_cifra(sum(v) / len(v))}"
+            for a in arquitecturas
+            for v in [[f[fragil] for f in rows
+                       if f.get("intron") == a and f.get(fragil) is not None]]
+            if v
+        )
+        texto = (
+            f"RIESGO COMPARTIDO — «{fragil}», y son LOS DOS EJES mirando el mismo sitio. "
+            f"Es el elemento menos accesible de los cuatro en las "
+            f"{len(arquitecturas)} arquitecturas ({accesibilidad}), o sea una propiedad "
+            f"del ELEMENTO y no de un intrón; y la geometría donante→punto está fuera "
+            f"del rango típico de mamífero ({TYPICAL_DONOR_TO_BRANCH[0]}-"
+            f"{TYPICAL_DONOR_TO_BRANCH[1]} nt) también en las dos ({rango}). Los dos "
+            f"ejes apuntan al mismo elemento por caminos distintos, así que es el "
+            f"candidato a CAUSA COMÚN si el empalme falla en las dos: es lo primero que "
+            f"hay que mirar antes de culpar a la guía o al módulo. Y no lo arregla "
+            f"cambiar de arquitectura — lo que lo movería es acortar lo que se "
+            f"intercala."
+        )
+    return {
+        "elemento": fragil,
+        "menos_accesible_en": menos_accesible_en,
+        "geometria_atipica_en": atipica_en,
+        "geometria": geometria,
+        "texto": texto,
+    }
+
+
+def immune_panel_members(tiling, selection):
+    """Qué candidatos DEL PANEL son inmunes al APA, con su etiqueta ya montada.
+
+    Es lo que hace falta para poder preguntar «¿y si retiro éste?»: la pregunta sólo
+    tiene sentido sobre un inmune, porque su plaza no la puede ocupar el siguiente de la
+    lista. La frontera se DERIVA del informe, como en todas partes.
+    """
+    from .coords import label, tiled_frame
+    from .selection import derive_immune_cut
+
+    corte = derive_immune_cut(tiling)
+    if corte is None:
+        return []
+    marco = tiled_frame(getattr(selection, "anatomy", None))
+    return [
+        {
+            "inicio": c.start,
+            # LAS DOS FORMAS DEL NÚMERO, JUNTAS. Es lo que impide leer `tx:959` como
+            # `3utr:959`, que son dos ventanas distintas (errata nº 133).
+            "etiqueta": f"{_en_utr3(c.start, tiling)} ({label(c.start, marco)})",
+            "asimetria": c.asymmetry,
+        }
+        for c in selection.selection.chosen if c.start < corte
+    ]
+
+
+def immune_replacements(tiling, selection, *, retire: int):
+    """Quién puede ocupar la plaza de un INMUNE que se retira. Y si no puede nadie, por qué.
+
+    Retirar un candidato inmune al APA no es retirar uno cualquiera: los inmunes son la
+    ÚNICA reserva si el APA proximal resulta funcional, así que su plaza la tiene que
+    ocupar otro inmune o la cuota baja — y eso es una decisión, no un detalle de la
+    ordenación. Esto emite los que hay, con el espaciado ya comprobado contra el panel
+    QUE QUEDA, y ordenados por asimetría.
+
+    **La respuesta puede ser NINGUNO, y eso es un resultado.** Los sitios elegibles por
+    delante del corte se apelotonan en el tramo proximal, así que con tres inmunes
+    puestos puede no quedar ninguno a la distancia mínima de todos ellos. Por eso salen
+    también los DESCARTADOS por espaciado y cuántos inmunes hay en total: cero de cero y
+    cero de dieciséis no son la misma noticia, y sin la segunda cifra «ninguno» se lee
+    como que no se ha mirado.
+
+    El corte y el espaciado se DERIVAN —del informe y de la configuración de la
+    selección—; teclear cualquiera de los dos es lo que ya hizo que `--inmunes-antes`
+    siguiera apuntando a `3utr:303` cuando la frontera se había adelantado a `3utr:251`.
+    """
+    from .coords import label, tiled_frame
+    from .selection import derive_immune_cut, respects_spacing
+
+    panel = [c.start for c in selection.selection.chosen]
+    # LA PLAZA EXISTE POR DOS CAMINOS, y los dos son la misma vacante: el candidato está
+    # en el panel y se pregunta qué pasaría si se retira, o YA está retirado por una
+    # decisión declarada y se pregunta quién podría haberla ocupado. Aceptar sólo el
+    # primero dejaba sin poder consultar justo el caso que motivó esto: en cuanto la
+    # retirada de `3utr:10` se aplicó, el plan que la justifica abortaba. Lo que se
+    # sigue rechazando es lo que la comprobación protege — un plan para una vacante que
+    # nadie ha abierto.
+    ya_retirados = set(selection.selection.config.retired_starts)
+    if retire not in panel and retire not in ya_retirados:
+        marco = coords.tiled_frame(getattr(selection, "anatomy", None))
+        raise ShmirDesignError(
+            f"{coords.requested(int(retire), marco)} no está en el panel de esta corrida "
+            f"({coords.labels(sorted(panel), marco)}) ni entre las retiradas "
+            f"declaradas, así que no deja ninguna plaza que ocupar. Se aborta en vez de "
+            f"emitir un plan para una vacante que nadie ha abierto."
+        )
+    corte = derive_immune_cut(tiling)
+    if corte is None:
+        raise ShmirDesignError(
+            "No hay ninguna señal APA_POSIBLE en este informe, así que no hay frontera "
+            "de inmunidad que derivar y «inmune» no significa nada aquí. Se aborta: "
+            "poner una frontera a mano es lo que ya dejó `--inmunes-antes` apuntando a "
+            "un corte viejo sin dar ningún error."
+        )
+    espaciado = selection.selection.config.min_spacing
+    marco = tiled_frame(getattr(selection, "anatomy", None))
+    resto = [s for s in panel if s != retire]
+
+    inmunes = [s for s in selection.selection.sites if s.best.start < corte]
+    disponibles, descartados = [], []
+    for sitio in sorted(inmunes, key=lambda s: (-s.best.asymmetry, s.best.start)):
+        mejor = sitio.best
+        if mejor.start in resto:
+            continue
+        fila = {
+            "tx": label(mejor.start, marco),
+            "utr3": _en_utr3(mejor.start, tiling),
+            "asimetria": mejor.asymmetry,
+            "espaciado_ok": all(
+                respects_spacing(mejor.start, otro, spacing=espaciado)
+                for otro in resto
+            ),
+            "es_el_retirado": mejor.start == retire,
+        }
+        (disponibles if fila["espaciado_ok"] and not fila["es_el_retirado"]
+         else descartados).append(fila)
+
+    en_el_panel = sorted(s for s in resto if s < corte)
+    # LA CUOTA SE PIDE A LA CONFIGURACION, no se teclea. Aquí ponía «de los 4 inmunes de
+    # la cuota» y la cuota bajó a 3 el 2026-09-07: un número escrito habría seguido
+    # diciendo cuatro sobre un panel que pide tres (principio nº 13).
+    cuota = selection.selection.config.apa_immune_quota
+    if disponibles:
+        texto = (
+            f"{len(disponibles)} inmune(s) pueden ocupar la plaza con espaciado "
+            f"≥ {espaciado} nt respecto de los {len(resto)} que quedan, de "
+            f"{len(inmunes)} sitios inmunes en total. Van ordenados por asimetría; la "
+            f"elección no la hace la app."
+        )
+    else:
+        texto = (
+            f"NINGUNO de los {len(inmunes)} sitios inmunes puede ocupar la plaza: "
+            f"ninguno queda a {espaciado} nt o más de los {len(resto)} candidatos que "
+            f"siguen en el panel. No es que no se haya mirado — es un hecho geométrico "
+            f"de este 3'UTR, donde los sitios elegibles por delante del corte se "
+            f"apelotonan en el tramo proximal. La consecuencia es que el panel se queda "
+            f"con {len(en_el_panel)} inmunes frente a la cuota de {cuota}, y eso es lo "
+            f"que hay que decidir: bajar la cuota, o no retirar. El espaciado NO se baja "
+            f"para que quepa uno — compra independencia entre apuestas, no número de "
+            f"apuestas."
+        )
+    return {
+        "corte": corte,
+        "espaciado": espaciado,
+        "panel": resto,
+        "inmunes": len(inmunes),
+        "inmunes_en_el_panel": en_el_panel,
+        "cuota": cuota,
+        "disponibles": disponibles,
+        "descartados": descartados,
+        "texto": texto,
+    }
+
+
+def _en_utr3(posicion: int, tiling) -> str:
+    """La misma posición en el marco del 3'UTR, para poder hablar de ella.
+
+    Las dos formas del número conviven en este proyecto —lo tilado es el transcrito y las
+    decisiones se toman en 3'UTR— y tenerlas juntas es lo que impide leer `tx:959` como
+    `3utr:959`, que son dos ventanas distintas (errata nº 133).
+    """
+    from .coords import Frame, label as etiqueta
+
+    # `utr3_of` devuelve `None` para una posición que NO cae en el 3'UTR —las del CDS y
+    # las del 5'UTR—, y eso no es un fallo: es la verdad. Se dice, en vez de convertirla
+    # a un número que no significa nada.
+    en_utr3 = tiling.utr3_of(posicion)
+    if en_utr3 is None:
+        return "fuera del 3'UTR"
+    return etiqueta(en_utr3, Frame.UTR3, limit=tiling.utr3_length)
+
+
 def intron_architecture_note() -> str:
     """La comparación de las dos arquitecturas, para el INFORME y no sólo para la página.
 
@@ -3917,12 +5836,21 @@ def intron_architecture_note() -> str:
     el principio nº 23, que este proyecto lleva once veces arreglando. La lectura y la
     retirada del contrapeso van con el nombre de quien la hizo.
     """
+    from .intron_folding import (
+        BRANCH_IS_A_WORST_CASE, THE_GUIDE_DOES_NOT_MOVE_IT, WEAKEST_IS_DERIVED,
+    )
     from .introns import (
-        THE_THREE_ARE_BETTER_ON_DIFFERENT_AXES, WHY_THE_COUNTERWEIGHT_WAS_RETIRED,
+        BOTH_ARCHITECTURES_GO,
+        THE_FIRST_COUNTERWEIGHT_MEASURED,
+        THE_THREE_ARE_BETTER_ON_DIFFERENT_AXES,
+        WHY_THE_COUNTERWEIGHT_WAS_RETIRED,
     )
 
     lineas = [
-        "ARQUITECTURAS DE INTRÓN — lo medido sobre las 20 construcciones",
+        "ARQUITECTURAS DE INTRÓN",
+        "",
+        "PREDICCIÓN DE SITIOS — corrida de SpliceAI del 2026-09-05, panel de DIEZ",
+        "(20 construcciones). NO es el mismo panel que el bloque de abajo.",
         "",
         f"  {'eje':<52} {'mvm_actual':<32} {'intron_quimerico':<32} gana",
     ]
@@ -3932,7 +5860,34 @@ def intron_architecture_note() -> str:
         "",
         f"  {WHY_THE_COUNTERWEIGHT_WAS_RETIRED}",
         "",
+        "ACCESIBILIDAD ESTRUCTURAL — lo medido sobre las 22, y este número es NUESTRO",
+        "",
+        f"  {FOLDING_MEASURED_ON}",
+        "",
+        f"  {'elemento':<52} {'mvm_actual':<32} {'intron_quimerico':<32} gana",
+    ]
+    for eje, mvm, qui, gana in INTRON_FOLDING_AXES:
+        lineas.append(f"  {eje:<52} {mvm:<32} {qui:<32} {gana}")
+    lineas += [
+        "",
+        f"  {WEAKEST_IS_DERIVED}",
+        f"  {BRANCH_IS_A_WORST_CASE}",
+        f"  {THE_GUIDE_DOES_NOT_MOVE_IT}",
+        "",
+        # EL RIESGO COMPARTIDO, DERIVADO de la medida registrada y de la geometría: los
+        # dos ejes miran el mismo elemento, y juntos son el candidato a causa común.
+        f"  {shared_branch_risk()['texto']}",
+        "",
+        f"  {THE_FIRST_COUNTERWEIGHT_MEASURED}",
+        "",
+        # LA CONTRADICCIÓN DEL DONANTE, DICHA AQUÍ TAMBIÉN. En el modal sale derivada de
+        # las filas plegadas; aquí no hay filas, así que se emite la lectura —que es lo
+        # que no se puede deducir de las dos tablas puestas una encima de otra—.
+        f"  {TWO_QUESTIONS_NOT_ONE}",
+        "",
         f"  LECTURA: {THE_THREE_ARE_BETTER_ON_DIFFERENT_AXES}",
+        "",
+        f"  {BOTH_ARCHITECTURES_GO}",
     ]
     return "\n".join(lineas)
 
@@ -3983,10 +5938,15 @@ def splice_constructions(selection, *, intron_names, scaffold, starts=None,
     """
     from .spliceai import build_panel
 
+    # EL CASETE SE COMPRUEBA AQUÍ, ANTES DE MONTAR NADA. La comprobación existía sólo al
+    # otro lado —`parse_result` rechaza un resultado cuyo md5 no cuadra— y eso llega
+    # cuando la corrida de SpliceAI ya se ha gastado. Ver
+    # `WHY_THE_CASSETTE_IS_CHECKED_BEFORE` y la errata nº 129.
+    ficha = cassette_deposit_check(cassette)
     return build_panel(
         selection, intron_names=tuple(intron_names),
         scaffold=scaffold, starts=starts, cassette=cassette,
-        context_nt=int(context_nt),
+        context_nt=int(context_nt), cassette_check=str(ficha["estado"]),
     )
 
 
@@ -4116,6 +6076,30 @@ def splice_executor_text():
     return f"{ejecutor.name}: {ejecutor.why}"
 
 
+def splice_edge_note(raw, *, constructions) -> str | None:
+    """Qué filas del resultado NO entraron por el borde de la conversión, o `None`.
+
+    La página la PINTA; no decide nada (regla 6). Existe porque saltarse filas en
+    silencio es peor que rechazar el fichero: quien lo sube tiene que saber que su
+    resultado no entró entero, aunque lo que se quedara fuera no apunte a ningún sitio.
+    """
+    from .spliceai import edge_note
+
+    return edge_note(raw, constructions=constructions)
+
+
+def splice_legacy_name_note(raw, *, constructions) -> str:
+    """Qué filas llegaron con el NOMBRE VIEJO de la construcción, o cadena vacía.
+
+    Mismo criterio que `splice_edge_note`: la página lo pinta y no decide nada. Existe
+    porque un resultado de antes del arreglo del marco entra —lo identifica su md5, no su
+    nombre— y aceptarlo callando dejaría sin ver de qué corrida viene el fichero.
+    """
+    from .spliceai import legacy_name_note
+
+    return legacy_name_note(raw, constructions=constructions)
+
+
 def splice_scan_from_result(raw, *, constructions):
     """Del TSV crudo al analisis. La pagina no parsea ni valida: llama aqui."""
     from .spliceai import scan_from_result
@@ -4225,7 +6209,7 @@ def splice_folding_rows(constructions, *, module_of, available=None):
     Son dos preguntas y no se mezclan: una la contesta un modelo entrenado para otra
     cosa y la otra la contesta plegar la construccion real.
     """
-    from .intron_folding import ELEMENTS, fold_intron
+    from .intron_folding import ELEMENTS, fold_intron, weakest_element
     from .introns import get as get_intron
 
     filas = []
@@ -4245,8 +6229,151 @@ def splice_folding_rows(constructions, *, module_of, available=None):
         }
         for elemento in ELEMENTS:
             fila[elemento] = resultado.unpaired.get(elemento)
+        # CUAL ES EL MENOS ACCESIBLE DE LOS CUATRO, EN LA PROPIA FILA. Estaba calculado
+        # y habia que leerlo comparando cuatro columnas a ojo en una tabla de 22 filas:
+        # eso es lo que hace que un hallazgo se quede dentro de una tabla. Se DERIVA, no
+        # se nombra (`intron_folding.WEAKEST_IS_DERIVED`).
+        fila["menos_accesible"] = weakest_element([fila])
+        # Y LA CIFRA DEL PUNTO DE RAMIFICACION ES EL PEOR DE SUS CANDIDATOS: cuantos hay
+        # y cual es el mejor van al lado, porque las dos arquitecturas no tienen los
+        # mismos y sin eso la comparacion no dice contra que se compara
+        # (`intron_folding.BRANCH_IS_A_WORST_CASE`).
+        fila["rama_candidatos"] = len(resultado.branch_detail)
+        fila["rama_mejor"] = (
+            max(float(d["desapareado"]) for d in resultado.branch_detail)
+            if resultado.branch_detail else None
+        )
         filas.append(fila)
     return filas
+
+
+def folding_contrast_rows(rows):
+    """El contraste entre arquitecturas, ya en forma de tabla. La pagina no agrega."""
+    from .intron_folding import architecture_contrast, element_stats
+
+    contraste = {f["elemento"]: f for f in architecture_contrast(rows)}
+    salida = []
+    for fila in element_stats(rows):
+        elemento = fila["elemento"]
+        salida.append({
+            "elemento": elemento,
+            "arquitectura": fila["arquitectura"],
+            "n": fila["n"],
+            "sin_medir": fila["sin_medir"],
+            "media": fila["media"],
+            "min": fila["min"],
+            "max": fila["max"],
+            "dispersion_pct": fila["dispersion"],
+            "gana": contraste[elemento]["gana"],
+        })
+    return salida
+
+
+def folding_highlights(rows):
+    """Lo que va DESTACADO del plegado, con la misma forma que `splice_highlights`.
+
+    Un hallazgo enterrado en una columna de una tabla de veintidos filas no se ve, y
+    este lo estaba: el elemento mas fragil del intron y el unico eje del plegado en que
+    las dos arquitecturas se separan de verdad.
+
+    **Las dos mitades del contraste van juntas o mienten las dos**: la arquitectura que
+    gana en el elemento mas fragil pierde en otros, y eso es un CONTRAPESO, no una nota
+    al pie. Misma forma que «rebaja, no descarta».
+    """
+    from .intron_folding import (
+        BRANCH_IS_A_WORST_CASE,
+        CONTRAST_NEEDS_TWO,
+        ELEMENTS,
+        THE_GUIDE_DOES_NOT_MOVE_IT,
+        USE_NOTE,
+        WEAKEST_IS_DERIVED,
+        WHY_IT_MATTERS,
+        contrast_reading,
+    )
+
+    lectura = contrast_reading(rows)
+    fragil = lectura["mas_fragil"]
+    gana = lectura["gana_el_mas_fragil"]
+    contrapesos = lectura["contrapesos"]
+    por_elemento = {f["elemento"]: f for f in lectura["contraste"]}
+
+    if fragil is None:
+        texto_fragil = (
+            "No se ha plegado ninguna construcción, así que no hay elemento más frágil "
+            "que nombrar. NOT_RUN no es «todos accesibles»."
+        )
+    else:
+        medias = por_elemento[fragil]["medias"]
+        detalle = " · ".join(
+            f"{arq} {valor:.3f}".replace(".", ",")
+            for arq, valor in sorted(medias.items())
+        )
+        texto_fragil = (
+            f"EL ELEMENTO MENOS ACCESIBLE DE LOS CUATRO es «{fragil}»: {detalle}. "
+            f"{WEAKEST_IS_DERIVED}"
+        )
+
+    if gana is None:
+        texto_contraste = CONTRAST_NEEDS_TWO
+    elif contrapesos:
+        texto_contraste = (
+            f"{gana} deja «{fragil}» más libre que la otra arquitectura — un eje a su "
+            f"favor. **Y HAY CONTRAPESO**, que va pegado o mienten los dos: pierde en "
+            f"{', '.join(contrapesos)}. No se promedian y no se reconcilian: más "
+            f"desapareado es más disponible para el espliceosoma, y que una "
+            f"arquitectura gane en un elemento y pierda en otro es información, no un "
+            f"empate que resolver."
+        )
+    else:
+        texto_contraste = (
+            f"{gana} deja «{fragil}» más libre que la otra arquitectura, y no pierde en "
+            f"ningún otro elemento: en este eje no se le conoce contrapeso."
+        )
+
+    # LA CONTRADICCIÓN VA DESTACADA, NO EN UNA NOTA. Del mismo donante, SpliceAI dice
+    # una cosa y el plegado la contraria, y eso decide qué se sintetiza. Se DERIVA
+    # cruzando los dos veredictos por elemento; y los elementos que SpliceAI no puntúa
+    # se NOMBRAN, porque su silencio no es acuerdo.
+    contradicciones = folding_contradictions(rows)
+    sin_cruzar = ", ".join(
+        e for e in ELEMENTS if e not in SPLICEAI_ELEMENT_SCORES
+    )
+    if contradicciones:
+        partes = []
+        for fila in contradicciones:
+            sp = fila["spliceai"]
+            pl = fila["plegado"]
+            partes.append(
+                f"«{fila['elemento']}»: SpliceAI da mejor a {fila['gana_spliceai']} "
+                f"({' frente a '.join(_cifra(sp[a]) for a in sorted(sp, key=lambda x: -sp[x]))})"
+                f" y el plegado a {fila['gana_plegado']} "
+                f"({' frente a '.join(_cifra(pl[a]) for a in sorted(pl, key=lambda x: -pl[x]))})"
+            )
+        texto_contradiccion = (
+            "LOS DOS ANÁLISIS SE CONTRADICEN, y eso es lo que hay que leer — "
+            + "; ".join(partes) + ". " + TWO_QUESTIONS_NOT_ONE
+            + f" De {sin_cruzar} SpliceAI no dice nada: ahí no hay contraste que hacer, "
+            f"que no es lo mismo que coincidir. {SPLICEAI_SCORES_FROM}"
+        )
+    else:
+        texto_contradiccion = (
+            "Los dos análisis NO se contradicen en ningún elemento de los que SpliceAI "
+            f"puntúa. De {sin_cruzar} SpliceAI no dice nada: ahí no hay contraste que "
+            f"hacer, que no es lo mismo que coincidir. {SPLICEAI_SCORES_FROM}"
+        )
+
+    riesgo = shared_branch_risk(rows)
+
+    return {
+        "por_que": {"texto": WHY_IT_MATTERS, "activo": True},
+        "mas_fragil": {"texto": texto_fragil, "activo": True},
+        "contraste": {"texto": texto_contraste, "activo": True},
+        "contradiccion": {"texto": texto_contradiccion, "activo": True},
+        "riesgo_compartido": {"texto": riesgo["texto"], "activo": True},
+        "peor_caso": {"texto": BRANCH_IS_A_WORST_CASE, "activo": True},
+        "la_guia_no_lo_mueve": {"texto": THE_GUIDE_DOES_NOT_MOVE_IT, "activo": True},
+        "uso": {"texto": USE_NOTE, "activo": True},
+    }
 
 
 def splice_highlights(scan):
@@ -4343,6 +6470,15 @@ def splice_guide_dependent_rows(scan):
     """
     from .spliceai import guide_dependent_sites  # noqa: PLC0415
 
+    # De qué candidato es cada construcción, PEDIDO a la corrida. Antes se sacaba
+    # partiendo el nombre por la cadena «3utr» y volviendo a pegarle el prefijo, así
+    # que una corrida sobre el transcrito salía etiquetada `3utr:` igual (errata
+    # nº 121) y además el nombre tenía que seguir teniendo esa forma para siempre.
+    de_la_construccion = {
+        par.construction: coords.label(par.candidate_start, par.candidate_frame)
+        for par in scan.pairs
+    }
+
     return [
         {
             "posicion": s.position,
@@ -4356,7 +6492,7 @@ def splice_guide_dependent_rows(scan):
             # LISTADO, no presente: `None` es «por debajo del umbral relativo», no cero.
             "listado_en": len(s.listed),
             "por_construccion": {
-                f"3utr:{n.split('3utr')[-1]}": v for n, v in s.scores.items()
+                de_la_construccion.get(n, n): v for n, v in s.scores.items()
             },
         }
         for s in guide_dependent_sites(scan)
@@ -5245,6 +7381,69 @@ def project_open(base, slug: str, *, expect_md5: str | None = None,
 STORES = ("blast", "seed", "offtarget", "splice")
 
 
+#: Los tres estados de «¿esta corrida que estoy viendo esta GUARDADA?».
+GUARDADA_SI = "GUARDADA"
+GUARDADA_NO = "SIN_GUARDAR"
+GUARDADA_SIN_PROYECTO = "SIN_PROYECTO"
+
+#: Por que esto va PEGADO al resultado y no solo en el formulario de abajo.
+WHY_THE_SAVE_STATE_GOES_ON_TOP = (
+    "Un análisis que se ve entero y no está guardado es indistinguible de uno que sí. El "
+    "resultado se pinta completo y convincente arriba, y lo que lo hace permanente está "
+    "tres pantallas más abajo, después de la última tabla: es fácil darlo por hecho. La "
+    "última vez costó una corrida de SpliceAI."
+)
+
+
+def run_saved_state(stores, *, front: str, raw: str) -> dict[str, object]:
+    """¿La corrida que se está viendo está en el log del proyecto? Estado, no booleano.
+
+    Recibe el TEXTO CRUDO del resultado y la huella la calcula aquí: la página no calcula
+    md5 (regla 6), y con la huella como parámetro habría dos sitios donde decidir qué se
+    compara — el de guardar y el de mirar si está guardado.
+
+    Se compara por la HUELLA DEL RESULTADO —`result_md5`—, que es lo único que ata lo
+    que hay en pantalla con lo que hay en el registro: la fecha y el nombre los teclea
+    una persona y pueden coincidir por casualidad.
+
+    Tres estados, no dos: sin proyecto abierto no es que no esté guardada, es que no
+    puede estarlo, y eso se arregla con otra cosa.
+    """
+    from .identidad import result_fingerprint  # noqa: PLC0415
+
+    fingerprint = result_fingerprint(raw)
+    if stores is None:
+        return {
+            "estado": GUARDADA_SIN_PROYECTO,
+            "texto": (
+                "SIN PROYECTO: esta corrida no se puede guardar y se perderá al cerrar "
+                "la pestaña. Actívalo en la barra lateral."
+            ),
+        }
+    almacen = stores.get(STORE_FOR_SAVED_STATE.get(front, front))
+    corridas = getattr(almacen, "runs", ()) if almacen is not None else ()
+    if any(getattr(c, "result_md5", None) == fingerprint for c in corridas):
+        return {
+            "estado": GUARDADA_SI,
+            "texto": "GUARDADA en el log del proyecto: sobrevive a cerrar la pestaña.",
+        }
+    return {
+        "estado": GUARDADA_NO,
+        "texto": (
+            "SIN GUARDAR todavía. Este análisis está completo en pantalla y NO está en "
+            "el registro: al cerrar la pestaña se pierde. El formulario para guardarlo "
+            "está al final de este modal."
+        ),
+    }
+
+
+#: De que almacen sale el estado de guardado de cada frente. Se declara aqui —y no se
+#: deduce del nombre— porque el frente y su almacen no se llaman igual: `empalme_sitios`
+#: se guarda en `splice`. Deducirlo por el nombre daria «no guardada» SIEMPRE y en
+#: silencio, que es el fallo que este bloque existe para no repetir.
+STORE_FOR_SAVED_STATE = {"empalme_sitios": "splice"}
+
+
 def load_stores(store) -> dict[str, object]:
     """Los almacenes de `STORES`, reconstruidos desde el log. Un solo sitio, no cuatro."""
     from .store import (
@@ -5816,11 +8015,71 @@ def selection_rules_report(*, species: str, sequence, anatomy, thresholds=None) 
                 __import__("shmir_design.selection", fromlist=["derive_immune_cut"])
                 .derive_immune_cut(corrida.tiling) or 0
             ) else ""
+            # `utr3_position` acaba de convertir al 3'UTR: el marco es su resultado,
+            # no un supuesto.
+            posicion = coords.label(u, coords.Frame.UTR3)
             lineas.append(
-                f"    3utr:{u:<5} {choice.asymmetry:+.2f}  "
+                f"    {posicion:<11} {choice.asymmetry:+.2f}  "
                 f"{choice.tercio.value if choice.tercio else '—'}{marca}"
             )
     return "\n".join(lineas)
+
+
+#: LO QUE SOLTASTE SE PUEDE QUITAR. Streamlit retiene el fichero mientras el widget
+#: conserve su clave, y en Streamlit cada tecla es un repintado: si lo subido hace
+#: abortar algo, el aborto vuelve en CADA uno. Reportado el 2026-09-07 como quedarse
+#: atrapado sin forma de quitarlo. El boton sube un contador que va en la clave, que es
+#: lo unico que lo descarta sin recargar la pagina.
+QUITAR_SUBIDA_AYUDA = (
+    "Descarta el fichero que has soltado, sin recargar la página. No borra nada de lo "
+    "que ya esté guardado en el proyecto: el registro es append-only."
+)
+
+
+def duplicated_runs_note(stores) -> dict[str, object]:
+    """Los `run_id` que el LOG traía REPETIDOS, dichos. Omitir en silencio no vale.
+
+    Sale de la errata nº 137: `ProjectStore.append` no miraba el `run_id`, así que la
+    segunda subida del mismo fichero escribía una segunda línea con el mismo id — y quien
+    sí lo miraba era el `add` de cada almacén, **que también lo llama el cargador**. Desde
+    ese momento `load_stores` abortaba en CADA repintado, y con él se iba la página entera
+    a partir de la tabla de candidatos.
+
+    El cargador tolera ahora la repetida, y **eso obliga a decirlo**: un log que se abre
+    en silencio después de esto sería el `verify()` que no verificaba. Lo que se emite es
+    qué id venía dos veces, que la segunda se ignora —es la misma medida, contarla dos
+    veces diría que se comprobó dos veces— y que **no se puede borrar**, porque el log es
+    append-only y su integridad se comprueba con una cadena de md5. Esa última frase es la
+    que evita que alguien lo intente y rompa la cadena.
+
+    Se DERIVA de los almacenes cargados, no de una lista: un quinto modal queda cubierto
+    en cuanto su almacén lleve `repetidas`, sin que nadie se acuerde.
+    """
+    por_almacen = {
+        nombre: list(getattr(almacen, "repetidas", ()) or ())
+        for nombre, almacen in (stores or {}).items()
+    }
+    repetidas = {n: ids for n, ids in por_almacen.items() if ids}
+    if not repetidas:
+        return {"activo": False, "texto": "", "ids": ()}
+    detalle = "; ".join(
+        f"{nombre}: {', '.join(ids)}" for nombre, ids in sorted(repetidas.items())
+    )
+    total = sum(len(ids) for ids in repetidas.values())
+    return {
+        "activo": True,
+        "ids": tuple(i for ids in repetidas.values() for i in ids),
+        "texto": (
+            f"EL LOG TRAE {total} CORRIDA(S) REGISTRADA(S) DOS VECES, y la app las lee "
+            f"una sola vez: {detalle}. No es un fallo de esta sesión — esas líneas se "
+            f"escribieron antes de que subir dos veces el mismo fichero se rechazara, y "
+            f"la segunda es la MISMA medida, así que contarla diría que se comprobó dos "
+            f"veces. **No hay nada que borrar y no se debe intentar**: el registro es "
+            f"**append-only** a propósito y su integridad se comprueba con una cadena de "
+            f"md5, así que quitar una línea a mano la rompería. Lo guardado no se pierde "
+            f"y los veredictos son los mismos."
+        ),
+    }
 
 
 def stored_runs_note(stores) -> str:
@@ -5917,8 +8176,9 @@ def control_choices(selection) -> list[dict[str, object]]:
     La eleccion de CUAL se controla es del usuario y no de la app: cualquiera del panel
     vale, y el que se elija cambia las dos construcciones enteras.
     """
+    marco = coords.tiled_frame(getattr(selection, "anatomy", None))
     return [
-        {"inicio": choice.start, "etiqueta": f"3utr:{choice.start}",
+        {"inicio": choice.start, "etiqueta": coords.label(choice.start, marco),
          "guia": selection.window_of(choice).evaluation.guide}
         for choice in selection.selection.chosen
     ]
@@ -5938,18 +8198,21 @@ def control_panel(selection, *, start: int, target: str, target_label: str,
                             mismatch_comparison, scrambled_candidates,
                             seed_mismatch_candidates)
 
+    marco = coords.tiled_frame(getattr(selection, "anatomy", None))
     elegido = next(
         (c for c in selection.selection.chosen if c.start == int(start)), None
     )
     if elegido is None:
         raise ShmirDesignError(
-            f"3utr:{start} no está en el panel de esta corrida, así que no se puede "
+            f"{coords.requested(int(start), marco)} no está en el panel de esta "
+            f"corrida, así que no se puede "
             f"construir un control para él. Se aborta en vez de emitir controles de un "
             f"candidato que nadie eligió."
         )
     guia = selection.window_of(elegido).evaluation.guide
+    origen = coords.label(elegido.start, marco)
     comun = dict(
-        origin_label=f"3utr:{elegido.start}", target=target, target_label=target_label,
+        origin_label=origen, target=target, target_label=target_label,
         mature=mature, abundance=abundance, transgene_db=transgene_db, species=species,
     )
     scrambled = scrambled_candidates(guia, wanted=wanted, **comun)
@@ -5958,12 +8221,12 @@ def control_panel(selection, *, start: int, target: str, target_label: str,
         for cambios in (2, 3)
     }
     return {
-        "origen": f"3utr:{elegido.start}",
+        "origen": origen,
         "guia": guia,
         "scrambled": [c.row() for c in scrambled],
         "seed_mismatch": {k: [c.row() for c in v] for k, v in mismatch.items()},
         "comparacion": mismatch_comparison(
-            guia, origin_label=f"3utr:{elegido.start}", target=target,
+            guia, origin_label=origen, target=target,
             target_label=target_label, mature=mature, species=species,
         ),
         "fichas": [c.render() for c in scrambled[:1]]
@@ -6002,6 +8265,338 @@ def cassette_sequence(tiling) -> str | None:
             f"aparición o de concatenarlos, que inventaría una juntura."
         )
     return next(iter(registros.values()))
+
+
+#: Los tres estados, PEDIDOS a `spliceai`, que es quien los lleva en la construcción.
+#: Redefinirlos aquí daría dos listas que un día dicen cosas distintas.
+from .spliceai import (  # noqa: E402,PLC0415
+    CASETE_COINCIDE, CASETE_NO_COINCIDE, CASETE_SIN_COMPROBAR,
+)
+
+#: Por qué esta comprobación va AL EMITIR y no al validar.
+WHY_THE_CASSETTE_IS_CHECKED_BEFORE = (
+    "Entre emitir el FASTA y subir el resultado hay una corrida de SpliceAI, que es "
+    "tiempo fuera de esta app. Si el casete con el que se emitió no es el del depósito, "
+    "el resultado se rechaza al volver —correctamente— pero la corrida ya está gastada. "
+    "La comprobación tiene que estar donde todavía sirve de algo."
+)
+
+
+def _casete_contra_lo_versionado(carpeta, nombre: str) -> dict[str, object]:
+    """El casete del depósito contra el versionado. AVISO, nunca bloqueo.
+
+    Que el depósito tenga un casete más nuevo que el versionado **es legítimo** — para
+    eso existe el depósito— así que esto no puede parar nada. Lo que no puede pasar es
+    que no se vea antes de gastar una corrida de SpliceAI.
+
+    Se apoya en `deposit_vs_versioned` acotado a un fichero: una segunda comparación
+    aquí serían dos criterios sobre el mismo hecho, que es lo que ya pasó una vez entre
+    `auditar_fixtures` y `auditar_claves`.
+    """
+    informe = deposit_vs_versioned(directory=carpeta, only=nombre)
+    estado = str(informe["estado"])
+    if estado == DEPOSITO_MISMO_DIRECTORIO:
+        return {
+            "estado": DEPOSITO_MISMO_DIRECTORIO, "avisa": False,
+            "misma_secuencia": None, "motivo": str(informe["motivo"]),
+        }
+    fila = next(iter(informe["filas"]), None)
+    if fila is None:
+        return {
+            "estado": DEPOSITO_SOLO_DEPOSITO, "avisa": False, "misma_secuencia": None,
+            "motivo": f"No hay {nombre} ni en el depósito ni versionado.",
+        }
+    if fila["estado"] != DEPOSITO_DISTINTO:
+        return {
+            "estado": str(fila["estado"]), "avisa": False,
+            "misma_secuencia": fila["misma_secuencia"],
+            "motivo": (
+                f"El {nombre} del depósito es el versionado "
+                f"({fila['bytes_versionado']} bytes)."
+            ),
+        }
+    misma = fila["misma_secuencia"]
+    matiz = (
+        " La SECUENCIA es la misma: sólo cambia el formato del fichero, así que las "
+        "construcciones no cambian."
+        if misma is True
+        else " Y la SECUENCIA es OTRA: las construcciones que salgan de aquí no son las "
+             "que saldrían del versionado."
+        if misma is False
+        else ""
+    )
+    # En nt si se pudieron leer las dos secuencias; en bytes si no. Nunca se inventa un
+    # numero de nucleotidos para algo que no es un FASTA.
+    hay_nt = bool(fila["nt_deposito"] and fila["nt_versionado"])
+    tamaños = (
+        f"en el depósito {fila['nt_deposito']} nt "
+        f"(md5 del fichero {str(fila['md5_deposito'])[:8]}…) y versionado "
+        f"{fila['nt_versionado']} nt "
+        f"(md5 del fichero {str(fila['md5_versionado'])[:8]}…)"
+        if hay_nt else
+        f"en el depósito {fila['bytes_deposito']} bytes "
+        f"(md5 del fichero {str(fila['md5_deposito'])[:8]}…) y versionado "
+        f"{fila['bytes_versionado']} bytes "
+        f"(md5 del fichero {str(fila['md5_versionado'])[:8]}…)"
+    )
+    return {
+        "estado": DEPOSITO_DISTINTO, "avisa": True, "misma_secuencia": misma,
+        "motivo": (
+            f"El {nombre} del depósito NO es el versionado: {tamaños}.{matiz} "
+            f"{WHY_THE_DEPOSIT_MAY_DIFFER}"
+        ),
+    }
+
+
+def cassette_deposit_check(cassette, *, directory=None) -> dict[str, object]:
+    """¿El casete que se va a usar es el que hay AHORA en el depósito?
+
+    Lo compara por md5 de la secuencia NORMALIZADA, leyendo el depósito por el mismo
+    cargador que usa el rol `transgen` —`specificity.load_database`— para que los dos
+    lados hablen la misma normalización: comparar una lectura cruda con una normalizada
+    daría «no coincide» siempre y por el motivo equivocado.
+
+    El nombre del fichero se le PIDE a `manifest.ROLES`. Escribirlo aquí sería una
+    segunda definición de la misma correspondencia, y el día que el rol apunte a otro
+    fichero esta comprobación miraría el de antes sin dar ningún error (principio nº 13).
+
+    Devuelve SIEMPRE los dos md5 y las dos longitudes cuando los tiene: «no coincide» a
+    secas no se puede investigar, y lo que hace falta para investigarlo es exactamente
+    lo que esta función ya ha calculado.
+    """
+    from .identidad import result_fingerprint  # noqa: PLC0415
+    from .manifest import ROLES  # noqa: PLC0415  (el nombre del fichero, derivado)
+    from .specificity import load_database  # noqa: PLC0415
+    from .trabajo import reference_dir  # noqa: PLC0415
+
+    rol = next(r for r in ROLES if r.role == "transgen")
+    carpeta = Path(directory) if directory is not None else reference_dir()
+    ruta = carpeta / rol.filename
+
+    en_uso = "".join(str(cassette).split()).upper() if cassette else ""
+    ficha: dict[str, object] = {
+        "fichero": rol.filename,
+        "directorio": str(carpeta),
+        # EL TERCER EJE, y va SIEMPRE — también cuando los dos primeros coinciden.
+        #
+        # Los otros dos campos comparan «lo que voy a usar» contra «lo que hay en el
+        # depósito», y las dos cosas salen de LA MISMA lectura del MISMO fichero: cazan
+        # un reemplazo a mitad de sesión y NO pueden cazar un depósito que tiene el
+        # fichero equivocado. Por construcción. Es el principio nº 52 sobre esta misma
+        # función, y el eje que lo ve vivía en otra pantalla (errata nº 129).
+        "versionado": _casete_contra_lo_versionado(carpeta, rol.filename),
+        "md5_en_uso": result_fingerprint(en_uso) if en_uso else "",
+        "nt_en_uso": len(en_uso),
+        "md5_deposito": "",
+        "nt_deposito": 0,
+    }
+    if not en_uso:
+        return {
+            **ficha, "estado": CASETE_SIN_COMPROBAR,
+            "motivo": (
+                "No hay ningún casete conectado, así que no hay nada que comparar con "
+                f"{rol.filename}. El contexto exónico saldrá de las piezas del plásmido "
+                "y la cabecera lo dirá. NO se da por bueno: no comprobado no es "
+                "comprobado."
+            ),
+        }
+    if not ruta.is_file():
+        return {
+            **ficha, "estado": CASETE_SIN_COMPROBAR,
+            "motivo": (
+                f"No hay {rol.filename} en {carpeta}, así que no se puede comprobar si "
+                f"el casete en uso es el del depósito. Se emite diciéndolo, no callando: "
+                f"un silencio aquí se lee como «coincide»."
+            ),
+        }
+
+    deposito = "".join(
+        str(
+            next(iter(load_database(
+                str(ruta), name=rol.what, version="deposito",
+            ).records.values()))
+        ).split()
+    ).upper()
+    ficha["md5_deposito"] = result_fingerprint(deposito)
+    ficha["nt_deposito"] = len(deposito)
+
+    if ficha["md5_en_uso"] == ficha["md5_deposito"]:
+        return {
+            **ficha, "estado": CASETE_COINCIDE,
+            "motivo": (
+                f"El casete en uso es {rol.filename} del depósito "
+                f"({ficha['nt_deposito']} nt, md5 de la secuencia "
+                f"{str(ficha['md5_deposito'])[:8]}…)."
+            ),
+        }
+    return {
+        **ficha, "estado": CASETE_NO_COINCIDE,
+        "motivo": (
+            f"El casete con el que se iban a montar las construcciones NO es el de "
+            f"{rol.filename}: en uso {ficha['nt_en_uso']} nt "
+            f"(md5 de la secuencia {str(ficha['md5_en_uso'])[:8]}…) y en el "
+            f"depósito {ficha['nt_deposito']} nt "
+            f"(md5 de la secuencia {str(ficha['md5_deposito'])[:8]}…), "
+            f"{abs(int(ficha['nt_en_uso']) - int(ficha['nt_deposito']))} nt de "
+            f"diferencia. Las construcciones saldrían de un casete y el resultado se "
+            f"validaría contra el otro, así que la corrida de SpliceAI se perdería. "
+            f"{WHY_THE_CASSETTE_IS_CHECKED_BEFORE}"
+        ),
+    }
+
+
+#: Los estados de una fila de la comparacion deposito ↔ versionado.
+DEPOSITO_IGUAL = "IGUAL"
+DEPOSITO_DISTINTO = "DISTINTO"
+DEPOSITO_SOLO_DEPOSITO = "SOLO_EN_EL_DEPOSITO"
+DEPOSITO_SOLO_VERSIONADO = "SOLO_VERSIONADO"
+#: Estado del INFORME entero cuando no hay dos sitios que comparar (en local).
+DEPOSITO_MISMO_DIRECTORIO = "MISMO_DIRECTORIO"
+
+#: Por que esto es un INFORME y no un guardia.
+WHY_THE_DEPOSIT_MAY_DIFFER = (
+    "Que un fichero del depósito no sea el versionado NO ES UN FALLO: subir uno más "
+    "nuevo por el gestor es exactamente para lo que existe el depósito, y lo versionado "
+    "sólo se siembra la primera vez. Lo que no puede pasar es que no se vea. El número "
+    "correcto aquí no es cero."
+)
+
+#: Por que nadie lo miraba hasta el 2026-09-06, con las palabras con que se dijo.
+WHY_NOBODY_COMPARED = (
+    "La siembra respeta lo que está, el rol valida contra el manifiesto del volumen, y "
+    "nadie compara el depósito con lo versionado. Los dos autoconsistentes, el "
+    "desajuste invisible por construcción."
+)
+
+
+#: Lo que esta comparacion NO mira, con su motivo — el suyo, no el de otro.
+#:
+#: Aqui se leia `manifest._NO_SON_DATOS`, que es privada de otro modulo y se declaro para
+#: OTRA pregunta: «que ficheros del directorio no son datos que el manifiesto tenga que
+#: listar». La respuesta coincidia hoy y no tiene por que coincidir mañana — y sobre todo,
+#: heredaba una decision que no se tomo para esto. Es el principio nº 53, y esta segunda
+#: instancia la introduje al escribir esta funcion, un dia despues de nombrar el patron.
+#:
+#: `manifest.tsv` queda fuera por una razon PROPIA y distinta de la del manifiesto: el del
+#: deposito se REESCRIBE cada vez que se sube un fichero, asi que difiere del versionado
+#: siempre y contarlo seria ruido permanente. `.gitignore` no es un dato de nadie.
+FUERA_DE_LA_COMPARACION = frozenset({"manifest.tsv", ".gitignore"})
+
+
+def _secuencia_fasta(datos: bytes) -> str | None:
+    """La secuencia de un FASTA de un solo registro, o `None` si no lo es.
+
+    Existe para separar «otra molécula» de «otro formato»: un FASTA reenvuelto a otro
+    ancho tiene otro md5 de fichero y la MISMA secuencia, y esa es la diferencia entre
+    «hay que reemplazarlo» y «da igual». Para lo que no es FASTA devuelve `None` y no se
+    inventa una respuesta.
+    """
+    try:
+        texto = datos.decode("utf-8")
+    except UnicodeDecodeError:
+        # rule2-ok: no es un fallo que perder — un fichero binario simplemente no es un
+        # FASTA, y eso es la respuesta `None` que el llamador ya sabe leer.
+        return None
+    if not texto.lstrip().startswith(">"):
+        return None
+    cuerpo = [l for l in texto.splitlines() if not l.startswith(">")]
+    return "".join("".join(cuerpo).split()).upper() or None
+
+
+def deposit_vs_versioned(*, directory=None, only=None) -> dict[str, object]:
+    """Qué ficheros del DEPÓSITO no son los VERSIONADOS. Informe, no veredicto.
+
+    Nace de la errata nº 129: el casete con el que se emitía no era el del depósito, y
+    lo que permitía que eso viviera indefinidamente es que las dos comprobaciones que
+    había son autoconsistentes —ver `WHY_NOBODY_COMPARED`—. Esto es el tercer eje: el
+    único que mira los dos sitios a la vez.
+
+    En local los dos directorios son EL MISMO, así que no hay nada que comparar y se
+    dice (`MISMO_DIRECTORIO`) en vez de devolver «todos iguales», que sería un verde sin
+    haber mirado (principio nº 51).
+
+    El manifiesto queda fuera: el del depósito se REESCRIBE al subir un fichero, así que
+    que difiera es lo normal y contarlo sería ruido permanente.
+    """
+    from .identidad import file_fingerprint  # noqa: PLC0415
+    from .reference import PACKAGE_REFERENCE_DIR  # noqa: PLC0415
+    from .trabajo import reference_dir  # noqa: PLC0415
+
+    deposito = Path(directory) if directory is not None else reference_dir()
+    versionado = Path(PACKAGE_REFERENCE_DIR)
+    base = {
+        "deposito": str(deposito),
+        "versionado": str(versionado),
+        "por_que": WHY_THE_DEPOSIT_MAY_DIFFER,
+    }
+    if deposito.resolve() == versionado.resolve():
+        return {
+            **base, "estado": DEPOSITO_MISMO_DIRECTORIO, "filas": [],
+            "motivo": (
+                f"El depósito y lo versionado son el MISMO directorio ({deposito}), así "
+                f"que no hay dos cosas que comparar. Pasa en local, donde "
+                f"`SHMIR_REFERENCE_DIR` no está declarado. No se da por bueno: no haber "
+                f"podido comparar no es haber comparado."
+            ),
+        }
+
+    def _datos(carpeta: Path) -> dict[str, bytes]:
+        if not carpeta.is_dir():
+            return {}
+        return {
+            p.name: p.read_bytes()
+            for p in sorted(carpeta.iterdir())
+            if p.is_file() and p.name not in FUERA_DE_LA_COMPARACION
+            and p.suffix.lower() != ".md"
+        }
+
+    en_deposito, en_versionado = _datos(deposito), _datos(versionado)
+    nombres = sorted(set(en_deposito) | set(en_versionado))
+    if only is not None:
+        # Acotar a UNO no es una comparación distinta: es la misma sobre menos ficheros.
+        # Se acota aquí y no con una función aparte porque el emisor lo pide en cada
+        # repintado y leer `mature.fa` —5,6 MB— para mirar el casete sería absurdo.
+        nombres = [n for n in nombres if n == only]
+    filas = []
+    for nombre in nombres:
+        a, b = en_deposito.get(nombre), en_versionado.get(nombre)
+        fila = {
+            "fichero": nombre,
+            "md5_deposito": file_fingerprint(a) if a is not None else "",
+            "md5_versionado": file_fingerprint(b) if b is not None else "",
+            "bytes_deposito": len(a) if a is not None else 0,
+            "bytes_versionado": len(b) if b is not None else 0,
+            # LOS NUCLEOTIDOS, cuando los dos lados son FASTA. Los BYTES cambian con el
+            # ancho de linea y no significan nada para quien mira un plasmido; «5170
+            # frente a 5282 nt» es el vocabulario en el que se razona sobre esto.
+            "nt_deposito": 0,
+            "nt_versionado": 0,
+            "misma_secuencia": None,
+        }
+        if a is None:
+            fila["estado"] = DEPOSITO_SOLO_VERSIONADO
+        elif b is None:
+            fila["estado"] = DEPOSITO_SOLO_DEPOSITO
+        elif fila["md5_deposito"] == fila["md5_versionado"]:
+            fila["estado"] = DEPOSITO_IGUAL
+        else:
+            fila["estado"] = DEPOSITO_DISTINTO
+            sa, sb = _secuencia_fasta(a), _secuencia_fasta(b)
+            if sa is not None and sb is not None:
+                fila["misma_secuencia"] = sa == sb
+                fila["nt_deposito"] = len(sa)
+                fila["nt_versionado"] = len(sb)
+        filas.append(fila)
+
+    distintos = [f for f in filas if f["estado"] == DEPOSITO_DISTINTO]
+    return {
+        **base, "estado": DEPOSITO_DISTINTO if distintos else DEPOSITO_IGUAL,
+        "filas": filas,
+        "motivo": (
+            f"{len(distintos)} fichero(s) del depósito no son los versionados, de "
+            f"{len(filas)} comparado(s). {WHY_THE_DEPOSIT_MAY_DIFFER}"
+        ),
+    }
 
 
 def arms_rows(present=()) -> list[dict[str, object]]:
@@ -6446,7 +9041,8 @@ def front_card_rows(run, *, species: str, stores=None) -> list[dict[str, object]
         run.tiling, run.selection, species=species, stores=stores
     )
     cobertura = run_coverage(
-        vista["estados"], starts=panel, origins=vista["origenes"]
+        vista["estados"], starts=panel, frame=coords.tiled_frame(run.selection.anatomy),
+        origins=vista["origenes"],
     )
     cerrados = {f: d["motivo"] for f, d in cobertura.items() if d["cerrado"]}
     tarjetas = []

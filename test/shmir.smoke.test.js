@@ -76,6 +76,19 @@ test('el proceso arranca y contesta a su ruta de salud', SALTAR, async () => {
   assert.equal(r.cuerpo.trim(), 'ok');
 });
 
+test('y el que contesta es SU proceso, comprobado por el pid del socket', SALTAR, () => {
+  // LA CALIBRACIÓN DEL GUARDIA, y sin ella no se puede poner. `portOwner` mira si el
+  // inodo del socket en escucha está entre los descriptores del hijo: si Streamlit
+  // bifurcara, el socket sería de un nieto y esto saldría AJENO sobre un arranque
+  // CORRECTO — un guardia con falsos positivos se acaba apagando. Aquí se mide contra
+  // el proceso de verdad, que es lo único que lo demuestra.
+  const s = proceso.status();
+  assert.equal(s.identidad, proceso.IDENTIDAD.PROPIO, JSON.stringify(s));
+  assert.equal(
+    proceso.portOwner(s.pid, s.port).estado, proceso.IDENTIDAD.PROPIO,
+  );
+});
+
 test('la página se sirve POR EL PROXY y es la de Streamlit', SALTAR, async () => {
   const r = await pedir('/shmir/');
   assert.equal(r.status, 200);

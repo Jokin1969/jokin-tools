@@ -240,3 +240,38 @@ class TestLaPaginaGUARDA(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
+
+
+class TestElGuardadoSE_VE_AUNQUE_LA_PAGINA_SALTE(unittest.TestCase):
+    """Guardar repinta la página entera, y el repintado deja la confirmación fuera de vista.
+
+    Reportado el 2026-09-07 con dos capturas: «en vez de guardar, es como si se reiniciara
+    todo y sube arriba la página. Y hay que empezar de nuevo». **La corrida SÍ se había
+    guardado** —el segundo intento lo demostró: la app rechazó el fichero por ser byte a
+    byte el de una corrida ya registrada, con su id y su fecha—. Lo que faltaba era ver
+    que había pasado algo: el repintado es necesario —la tabla, el semáforo y las
+    tarjetas se pintan ARRIBA del formulario, así que sin él enseñan el estado de antes—
+    pero deja al usuario al principio de la página, y la confirmación se pinta al final
+    del modal.
+
+    El aviso flotante se ve caiga donde caiga el scroll. El banner se queda: es el que se
+    lee al volver al sitio.
+    """
+
+    def test_el_guardado_emite_un_aviso_FLOTANTE_ademas_del_banner(self):
+        from pathlib import Path
+
+        fuente = Path("ui/streamlit_app.py").read_text(encoding="utf-8")
+        sin_comentarios = "\n".join(
+            l for l in fuente.splitlines() if not l.strip().startswith("#")
+        )
+        self.assertIn("st.toast(", sin_comentarios)
+
+    def test_y_el_banner_NO_se_quita(self):
+        """Los dos, o al volver al sitio no queda constancia de nada."""
+        from pathlib import Path
+
+        fuente = Path("ui/streamlit_app.py").read_text(encoding="utf-8")
+        i = fuente.index("st.toast(")
+        siguiente = fuente[i:i + 400]
+        self.assertIn("st.success", siguiente)

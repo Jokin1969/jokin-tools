@@ -489,7 +489,9 @@ def _section_3(fronts, *, species, tiling) -> Section:
 
 
 def _section_4(selection, *, species: str = "", stores=None) -> Section:
-    from .presentation import candidate_rows, seed_load_reference
+    from .presentation import (
+        candidate_rows, seed_load_highlights, seed_load_reference,
+    )
 
     # LOS ALMACENES ENTRAN AQUI porque `carga_seed` no se puede leer sola: su percentil y
     # sus controles viven en la corrida guardada. Sin esto, el documento que defiende la
@@ -518,9 +520,9 @@ def _section_4(selection, *, species: str = "", stores=None) -> Section:
         ),
         table(cabeceras, [tuple(str(f[c]) for c in cabeceras) for f in filas]),
     ]
-    from .coords import Frame, frame_of, label as etiqueta
+    from .coords import Frame, label as etiqueta, tiled_frame
 
-    marco = frame_of(selection.anatomy) if selection.anatomy is not None else Frame.UTR3
+    marco = tiled_frame(selection.anatomy)
     conflictos = core_conflicts(selection)
     if conflictos:
         bloques.append(warning("MULTIPLEXADO: hay candidatos que comparten núcleo."))
@@ -547,6 +549,16 @@ def _section_4(selection, *, species: str = "", stores=None) -> Section:
         starts=[c.start for c in selection.selection.chosen],
     )
     bloques.append(para(referencia["texto"]))
+    # LA LECTURA DE LOS PERCENTILES, EN EL DOCUMENTO QUE SE ENTREGA. Es el primer eje que
+    # reparte de verdad este panel y hasta hoy sólo se podía sacar comparando 44 celdas a
+    # ojo. Principio nº 23: dos artefactos leen el mismo estado y sólo uno lo cuenta.
+    destacados_carga = seed_load_highlights(
+        stores=stores, species=species,
+        starts=[c.start for c in selection.selection.chosen],
+    )
+    for clave in ("carga", "convergencia", "bien_colocados", "uso"):
+        if destacados_carga[clave]["activo"]:
+            bloques.append(para(destacados_carga[clave]["texto"]))
     if referencia["controles"]:
         cabeceras_control = ("control", "heptamero", *referencia["clases"])
         bloques.append(
@@ -574,6 +586,9 @@ def _section_5(*, species, tiling, selection, starts, target=None,
             "procedencia y su fecha."
         )
     ]
+    from .coords import label as etiqueta, tiled_frame
+
+    marco_del_panel = tiled_frame(getattr(tiling, "anatomy", None))
     for inicio in starts:
         # CON LOS ALMACENES. Esto se llamaba sin ellos, asi que `build_dossier`
         # construia un `BlastStore()` vacio y el documento que se entrega decia
@@ -588,7 +603,7 @@ def _section_5(*, species, tiling, selection, starts, target=None,
             offtarget_store=almacenes.get("offtarget"),
             splice_store=almacenes.get("splice"),
         )
-        bloques.append(heading(f"3utr:{inicio}", level=3))
+        bloques.append(heading(etiqueta(inicio, marco_del_panel), level=3))
         bloques.append(pre(ficha.render()))
     return Section(number=5, title="Fichas de los seleccionados", blocks=tuple(bloques))
 
@@ -721,26 +736,55 @@ def _seccion_anatomia(anatomy) -> Section:
     )
 
 
-def _seccion_mapa(tiling, selection) -> Section:
-    """El mapa del 3'UTR. En el PDF va su RESUMEN, no el SVG.
+def _seccion_mapa(tiling, selection, conservation=None, *, species: str = "") -> Section:
+    """El mapa del 3'UTR ENTERO, en caracteres, y la cobertura por tercios al lado.
 
-    El PDF es monoespaciado: mil coordenadas con decimales no se leen. Lo que entra es
-    el conteo por tipo y la leyenda —lo mismo que se fija en el golden—, que es lo que
-    permite ver que un mapa se quedó sin candidatos o dibuja el triple de señales.
+    **Antes iba su RESUMEN** —cuántos elementos dibuja por tipo—, con el argumento de
+    que un PDF monoespaciado no puede pintar coordenadas. El resumen deja ver que un
+    mapa se quedó sin candidatos, y NO deja ver lo único para lo que el mapa sirve: si
+    los candidatos están repartidos o apelotonados y qué tramos quedan vacíos. Lo que
+    faltaba no era el dibujo: era ponerlo todo a la MISMA escala, y para eso
+    monoespaciado no es un obstáculo — es la garantía. Ver
+    `presentation.WHY_THE_MAP_IS_CHARACTERS`.
+
+    La cobertura por tercios va aquí y no en otra sección porque contesta la pregunta
+    que el mapa hace mirar: el tramo que se ve vacío, ¿está vacío porque no hay sitios
+    elegibles o porque no caben por espaciado? Son dos cosas distintas y sólo una tiene
+    arreglo.
     """
-    from .presentation import _mapa_resumen, map_svg  # noqa: PLC0415
+    from .presentation import (  # noqa: PLC0415
+        WHY_THE_MAP_IS_CHARACTERS,
+        map_text,
+        wrap_for_map,
+    )
+    from .selection import tercio_coverage  # noqa: PLC0415
 
-    lineas = _mapa_resumen(map_svg(tiling, selection))
+    # La cobertura va en el MISMO bloque preformateado que el mapa y con su sangría:
+    # el tramo y sus detalles son jerarquía, y una lista de puntos la aplana. Lo que sí
+    # hay que hacer es partirla al ancho del mapa (`wrap_for_map`), porque una frase que
+    # el PDF corta por la mitad es el mismo fallo de alineación que el mapa evita.
+    cobertura: list[str] = []
+    for tramo in tercio_coverage(tiling, selection):
+        cobertura.extend(tramo.describe())
     return Section(
         number=0,
         title="Mapa del 3'UTR",
         blocks=(
             para(
-                "Resumen del mapa: cuántos elementos dibuja por tipo, y su leyenda. El "
-                "dibujo entero se ve en la página; aquí va lo que se puede leer en "
-                "monoespaciado y comparar entre dos corridas."
+                "Todo a la misma escala: los candidatos numerados por su puesto en el "
+                "panel, las señales de poliadenilación con su banda de corte, los "
+                "tercios y —cuando la hay— la conservación. " +
+                WHY_THE_MAP_IS_CHARACTERS
             ),
-            pre("\n".join(lineas)),
+            pre(map_text(tiling, selection, conservation, species or None)),
+            para(
+                "Cobertura por tercios: cuántos sitios elegibles hay en cada tramo, "
+                "cuántos candidatos del panel caen ahí con cada una de las dos "
+                "definiciones de tercio, y cuál sería el siguiente sin romper el "
+                "espaciado. Un tramo que se ve vacío en el mapa puede estarlo porque "
+                "no hay sitios elegibles o porque no caben: no es lo mismo."
+            ),
+            pre("\n".join(wrap_for_map(cobertura))),
         ),
     )
 
@@ -813,17 +857,22 @@ def _seccion_controles(tiling, selection, *, species: str, target=None) -> Secti
             "sitio de seed en ella, y este camino no la recibe. NOT_RUN no es PASS."
         ))
     else:
+        from .coords import label as etiqueta, tiled_frame
+
         primero = elegidos[0]
         guia = selection.window_of(primero).evaluation.guide
+        origen = etiqueta(
+            primero.start, tiled_frame(getattr(tiling, "anatomy", None))
+        )
         filas = mismatch_comparison(
-            guia, origin_label=f"3utr:{primero.start}",
+            guia, origin_label=origen,
             target=target, target_label=f"3'UTR de {species}",
             mature=getattr(tiling, "mature", None), species=species,
         )
         bloques += [
             para(
                 f"2 o 3 cambios en la seed, medido sobre la guía de "
-                f"3utr:{primero.start} —el primero del panel—. La «racha intacta» es el "
+                f"{origen} —el primero del panel—. La «racha intacta» es el "
                 f"tramo contiguo de seed que queda sin tocar, y es lo que mide el "
                 f"residuo de reconocimiento: importa más DÓNDE caen los cambios que "
                 f"cuántos son."
@@ -852,24 +901,58 @@ def _seccion_arquitecturas() -> Section:
     quien recibe el documento (principio nº 23). No depende de la corrida —son propiedades
     de los dos intrones y de la corrida de SpliceAI guardada—, asi que no recibe nada.
     """
-    from .introns import (
-        THE_THREE_ARE_BETTER_ON_DIFFERENT_AXES, WHY_THE_COUNTERWEIGHT_WAS_RETIRED,
+    from .intron_folding import (
+        BRANCH_IS_A_WORST_CASE, THE_GUIDE_DOES_NOT_MOVE_IT, WEAKEST_IS_DERIVED,
     )
-    from .presentation import INTRON_AXES_MEASURED
+    from .introns import (
+        BOTH_ARCHITECTURES_GO,
+        THE_FIRST_COUNTERWEIGHT_MEASURED,
+        THE_THREE_ARE_BETTER_ON_DIFFERENT_AXES,
+        WHY_THE_COUNTERWEIGHT_WAS_RETIRED,
+    )
+    from .presentation import (
+        FOLDING_MEASURED_ON,
+        INTRON_AXES_MEASURED,
+        INTRON_FOLDING_AXES,
+        TWO_QUESTIONS_NOT_ONE,
+        shared_branch_risk,
+    )
 
     bloques = [
         para(
-            "Los diez candidatos del panel se han consultado con LAS DOS arquitecturas "
-            "de intrón —20 construcciones— y estos son los ejes en los que se "
-            "diferencian. Las puntuaciones salen de la corrida de SpliceAI del "
-            "2026-09-05, guardada con su procedencia; la geometria la deriva esta app."
+            "El panel se ha consultado con LAS DOS arquitecturas de intrón y estos son "
+            "los ejes en los que se diferencian. Van en DOS bloques y NO se mezclan: "
+            "las puntuaciones de predicción de sitios salen de la corrida de SpliceAI "
+            "del 2026-09-05 —panel de DIEZ, 20 construcciones— y este proyecto no "
+            "ejecuta ese modelo, así que viajan con su procedencia; la geometría y la "
+            "accesibilidad estructural las deriva esta app, y la segunda se midió el "
+            "2026-09-06 sobre el panel de ONCE, o sea 22 construcciones. Presentarlas "
+            "bajo un mismo recuento sería decir que se midieron sobre lo mismo."
         ),
+        para("PREDICCIÓN DE SITIOS Y GEOMETRÍA (SpliceAI, 2026-09-05, 20 construcciones)"),
         table(
             ("eje", "mvm_actual", "intron_quimerico", "gana"),
             tuple(INTRON_AXES_MEASURED),
         ),
         para(WHY_THE_COUNTERWEIGHT_WAS_RETIRED),
+        para("ACCESIBILIDAD ESTRUCTURAL — este número es NUESTRO"),
+        para(FOLDING_MEASURED_ON),
+        table(
+            ("elemento", "mvm_actual", "intron_quimerico", "gana"),
+            tuple(INTRON_FOLDING_AXES),
+        ),
+        para(WEAKEST_IS_DERIVED),
+        para(BRANCH_IS_A_WORST_CASE),
+        para(THE_GUIDE_DOES_NOT_MOVE_IT),
+        # EL RIESGO COMPARTIDO VA EN EL DOCUMENTO, no sólo en la pantalla: dice dónde
+        # mirar PRIMERO si el empalme falla en las dos, y eso se lee cuando ya no se
+        # tiene la app delante. Sale de la medida registrada por las mismas funciones
+        # que lo derivan del plegado vivo en el modal.
+        para(shared_branch_risk()["texto"]),
+        para(THE_FIRST_COUNTERWEIGHT_MEASURED),
+        para(TWO_QUESTIONS_NOT_ONE),
         para(THE_THREE_ARE_BETTER_ON_DIFFERENT_AXES),
+        para(BOTH_ARCHITECTURES_GO),
     ]
     return Section(
         number=0,   # lo asigna `build_document` por POSICION; ver `_numerar`.
@@ -892,11 +975,18 @@ def _numerar(secciones: tuple[Section, ...]) -> tuple[Section, ...]:
     )
 
 
+def _marco_del_panel(selection):
+    """El marco de los inicios del panel, para los mensajes que los NOMBRAN."""
+    from .coords import tiled_frame  # noqa: PLC0415
+
+    return tiled_frame(getattr(selection, "anatomy", None))
+
+
 def build_document(
     *, species: str, tiling, selection, generated: str,
     anatomy_source: str = "no declarada en esta corrida",
     dossier_starts=None, extra_provenance=(), title: str | None = None,
-    target: str | None = None, anatomy=None, stores=None,
+    target: str | None = None, anatomy=None, stores=None, conservation=None,
 ) -> Document:
     """El informe entero. Parcial o completo segun los frentes, nunca dos documentos.
 
@@ -938,6 +1028,7 @@ def build_document(
     cerrados = fronts_closed_over_panel(
         vista_del_panel["estados"],
         starts=panel_para_frentes,
+        frame=_marco_del_panel(selection),
         origins=vista_del_panel["origenes"],
     )
     frentes = blocking_fronts(tiling, selection, closed_by_panel=cerrados)
@@ -957,7 +1048,7 @@ def build_document(
             _section_2(frentes, species=species),
             _section_3(frentes, species=species, tiling=tiling),
             *((_seccion_anatomia(anatomy),) if anatomy is not None else ()),
-            _seccion_mapa(tiling, selection),
+            _seccion_mapa(tiling, selection, conservation, species=species),
             _section_4(selection, species=species, stores=stores),
             _seccion_elegibles(tiling, selection, species=species),
             _seccion_controles(tiling, selection, species=species, target=target),

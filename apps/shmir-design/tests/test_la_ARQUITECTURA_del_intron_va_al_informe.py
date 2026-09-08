@@ -18,6 +18,7 @@ Regla 5: escrito antes.
 """
 
 import sys
+import re
 import unittest
 from pathlib import Path
 
@@ -127,16 +128,34 @@ class TestLaSECCION_sale_en_el_DOCUMENTO(unittest.TestCase):
             s for s in self.doc.sections if s.title == "Arquitecturas de intrón"
         )
         texto = "\n".join(b.text for b in seccion.blocks)
-        self.assertIn("sin contrapeso conocido", texto.lower())
         self.assertIn("Joaquín Castilla", texto)
+        # «SIN CONTRAPESO CONOCIDO» ERA CIERTO DE LO MEDIDO ENTONCES y dejó de serlo el
+        # 2026-09-06, cuando el plegado de las 22 le encontró el primero. Aquí se exigía
+        # que el informe LO AFIRMARA; ahora se exige lo contrario — que sólo aparezca
+        # CITADO entre « » como lo que fue— y que el contrapeso nuevo esté.
+        sin_citas = re.sub("«[^»]*»", "", texto).lower()
+        self.assertNotIn("sin contrapeso conocido", sin_citas)
+        self.assertIn("CONTRAPESO, medido el 2026-09-06", texto)
 
-    def test_y_la_tabla_trae_los_CINCO_ejes(self):
+    def test_y_van_DOS_tablas_que_NO_se_mezclan(self):
+        """Una de SpliceAI (panel de diez) y otra del plegado (panel de once).
+
+        No se funden en una: se midieron sobre paneles distintos, así que bajo un mismo
+        recuento se leerían como medidas sobre lo mismo. Y una de las dos es NUESTRA —
+        sale de plegar aquí— mientras la otra viene transcrita con su procedencia.
+        """
         seccion = next(
             s for s in self.doc.sections if s.title == "Arquitecturas de intrón"
         )
         tablas = [b for b in seccion.blocks if b.kind == "table"]
-        self.assertEqual(len(tablas), 1)
+        self.assertEqual(len(tablas), 2)
         self.assertEqual(len(tablas[0].rows), len(presentation.INTRON_AXES_MEASURED))
+        self.assertEqual(len(tablas[1].rows), len(presentation.INTRON_FOLDING_AXES))
+        # Y la del plegado trae UNA FILA POR ELEMENTO, derivada de `ELEMENTS` y no de
+        # una lista escrita aquí: un quinto elemento tendría que aparecer solo.
+        from shmir_design.intron_folding import ELEMENTS
+
+        self.assertEqual(len(tablas[1].rows), len(ELEMENTS))
 
     def test_las_secciones_siguen_numeradas_SIN_repetir(self):
         numeros = [s.number for s in self.doc.sections]

@@ -17,7 +17,7 @@ como incompleta.
 import unittest
 
 from shmir_design.presentation import (
-    FRONTS_WITHOUT_COLUMN, STORE_FOR_FRONT, STORES, STRANDS,
+    NO_CABE_COLUMNA_POR_CANDIDATO, STORE_FOR_FRONT, STORES, STRANDS,
 )
 
 #: Se le PIDE al que los construye. Escribirlos aqui haria que este test coincidiera
@@ -48,8 +48,8 @@ class TestNingunAlmacenSeQuedaSinCOLUMNA(unittest.TestCase):
         )
 
     def test_lo_que_NO_tiene_columna_dice_POR_QUE(self):
-        self.assertTrue(FRONTS_WITHOUT_COLUMN)
-        for frente, motivo in FRONTS_WITHOUT_COLUMN.items():
+        self.assertTrue(NO_CABE_COLUMNA_POR_CANDIDATO)
+        for frente, motivo in NO_CABE_COLUMNA_POR_CANDIDATO.items():
             with self.subTest(frente):
                 self.assertGreater(len(motivo.strip()), 40)
                 self.assertNotIn(frente, STORE_FOR_FRONT)

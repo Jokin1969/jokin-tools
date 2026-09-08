@@ -39,9 +39,11 @@ import bisect
 import hashlib
 import random
 import re
+import textwrap
 from collections import Counter
-from dataclasses import dataclass, replace
+from dataclasses import dataclass, field, replace
 
+from .coords import Frame, label
 from .errors import ShmirDesignError
 from .seed_load import FRONT_NAME, WHY_NOT_BLAST  # noqa: F401  (el frente es el mismo)
 
@@ -865,13 +867,41 @@ class SelfSite:
     position: int
     site_class: str
     own_window: bool
+    #: En qué región del `target` cae. Vacío cuando no se ha declarado la anatomía: no
+    #: haberlo podido decir NO es «está en el 3'UTR» (regla 3 aplicada a una etiqueta).
+    region: str = ""
+    #: El marco de `position`, que es el de la secuencia que se pasó como `target`. NO
+    #: se pone `3utr` a pelo: con el transcrito entero delante eso etiquetaba `tx:1164`
+    #: como `3utr:1164` — una posición válida, sólo que de otro sitio.
+    frame: Frame = field(kw_only=True)
 
     def describe(self) -> str:
         marca = "el suyo" if self.own_window else "SEGUNDO SITIO"
-        return f"3utr:{self.position} {self.site_class} ({marca})"
+        region = f" [{self.region}]" if self.region else ""
+        return f"{label(self.position, self.frame)} {self.site_class}{region} ({marca})"
 
 
-def self_sites(strand: str, *, target: str, window=None) -> tuple[SelfSite, ...]:
+#: POR QUE NO SE SUMAN LAS REGIONES, y es `WHY_NOT_SUMMED` por otro eje. Allí no se
+#: suman las CLASES porque la represión esperada de un 8mer y la de un 6mer no se
+#: parecen; aquí no se pueden mezclar las REGIONES por la misma razón: la represión
+#: mediada por seed opera **sobre todo en el 3'UTR**, así que un 6mer en el CDS no es
+#: comparable con uno en el 3'UTR aunque el conteo los sume.
+#:
+#: Y aquí se lee peor, porque la región no sale en el número: dos fichas con «2 sitios»
+#: pueden ser 2 en el 3'UTR o 1 y 1, y sólo una de las dos lecturas dice algo del
+#: knockdown. Sin esta frase, alguien compara dos números que no miden lo mismo.
+SITES_OUTSIDE_UTR3 = (
+    "OJO: hay sitios FUERA del 3'UTR (CDS o 5'UTR). Son reales y son de OTRA "
+    "naturaleza: la represión mediada por seed opera sobre todo en el 3'UTR, así que "
+    "no se suman con los del 3'UTR ni se comparan con ellos — el conteo total mezclaría "
+    "dos cosas que no miden lo mismo. Misma regla que las cuatro clases de sitio, por "
+    "el eje de la REGIÓN."
+)
+
+
+def self_sites(
+    strand: str, *, target: str, frame: Frame, window=None, anatomy=None,
+) -> tuple[SelfSite, ...]:
     """Los sitios de esta hebra en su propia diana, con posicion y CLASE.
 
     `window` es el intervalo (inicio, fin) de la ventana del candidato, para poder decir
@@ -894,10 +924,57 @@ def self_sites(strand: str, *, target: str, window=None) -> tuple[SelfSite, ...]
         posicion = i + 1
         propio = bool(window) and window[0] <= posicion <= window[1]
         sitios.append(
-            SelfSite(position=posicion, site_class=clase, own_window=propio)
+            SelfSite(
+                position=posicion, site_class=clase, own_window=propio, frame=frame,
+                region=(
+                    str(getattr(anatomy.region_of(posicion), "value", ""))
+                    if anatomy is not None
+                    else ("3'UTR" if frame is Frame.UTR3 else "")
+                ),
+            )
         )
         i = seq.find(core, i + 1)
     return tuple(sitios)
+
+
+#: CUANTOS SITIOS ESPERA CADA HEBRA EN SU PROPIA DIANA, y no es el mismo número.
+#:
+#: La **guía** es ANTISENTIDO a la diana: su seed encuentra su sitio ahí **por
+#: construcción**, así que 1 es lo esperado y un 0 significa que la secuencia analizada no
+#: es la que se cree.
+#:
+#: La **pasajera** es SENTIDO — lleva la misma secuencia que la diana, no la
+#: complementaria — así que su seed **no tiene por qué encontrar nada** ahí. **CERO ES SU
+#: RESULTADO ESPERADO**, y lo que merece mirarse es una pasajera que SÍ tenga sitio.
+#:
+#: Valía 1 para las dos, y eso daba **siete avisos falsos de once** sobre las pasajeras
+#: del panel murino (errata nº 125). Es `ANTISENSE` en el BLAST otra vez: un criterio
+#: correcto movido a la otra hebra sin el supuesto que lo sostenía.
+EXPECTED_SELF_COUNT = {"guia": 1, "pasajera": 0}
+
+WHY_THE_EXPECTED_DIFFERS = (
+    "El esperado NO es el mismo para las dos hebras. La guía es antisentido a la diana, "
+    "así que su seed cae ahí por construcción y lo esperado es 1. La pasajera es "
+    "sentido —la misma secuencia que la diana, no la complementaria—, así que lo "
+    "esperado es 0 y lo que hay que mirar es que SÍ tenga sitio."
+)
+
+
+def expected_self_count(strand_name: str) -> int:
+    """Cuántos sitios espera esa hebra en su propia diana.
+
+    Una hebra que no esté declarada ABORTA: son dos geometrías distintas y una tercera
+    no tiene valor por defecto que valga — poner 1 o 0 sería elegir una de las dos por
+    nuestra cuenta.
+    """
+    try:
+        return EXPECTED_SELF_COUNT[str(strand_name)]
+    except KeyError as exc:
+        raise ShmirDesignError(
+            f"No hay autoconteo esperado declarado para la hebra {strand_name!r}; las "
+            f"que hay son {', '.join(sorted(EXPECTED_SELF_COUNT))}. No se elige uno por "
+            f"nuestra cuenta: {WHY_THE_EXPECTED_DIFFERS}"
+        ) from exc
 
 
 @dataclass(frozen=True)
@@ -918,15 +995,40 @@ class SelfCount:
     def describe(self) -> str:
         if self.occurrences == self.expected:
             return (
-                f"{self.query}: {self.occurrences} sitio en {self.target_label}, que es "
-                f"lo esperado."
+                f"{self.query}: {self.occurrences} sitio(s) en {self.target_label}, que "
+                f"es lo esperado para esta hebra."
             )
         if self.occurrences == 0:
+            # Sólo se llega aquí con `expected != 0`, o sea con una GUIA: para una
+            # pasajera el cero es lo esperado y sale por la rama de arriba.
             return (
                 f"{self.query}: 0 sitios en {self.target_label}. ANOMALO, y hacia el "
                 f"otro lado: si la hebra no tiene su propio sitio en la diana, esa hebra "
                 f"NO sale de esa diana. Comprueba que la secuencia analizada es la que "
                 f"se cree."
+            )
+        if self.expected == 0:
+            detalle = "; ".join(s.describe() for s in self.detail)
+            # LA CLASE GRADÚA, igual que en la rama de la guía. Sin esto, dos 7mer-A1 y
+            # un 6mer suelto daban EL MISMO aviso — el criterio de lectura sin separar
+            # mientras la medida ya lo estaba (el corolario de la errata nº 125,
+            # aplicándose una segunda vez un nivel más abajo).
+            solo_6mer = bool(self.detail) and all(
+                s.site_class == "6mer" for s in self.detail
+            )
+            peso = (
+                " Todos son 6mer, así que es MARGINAL: se anota y no cambia la lectura."
+                if solo_6mer
+                else " Hay al menos un sitio de clase 7mer o mejor, así que NO es "
+                     "marginal: la represión esperada de esa clase sí es apreciable."
+            )
+            return (
+                f"{self.query}: {self.occurrences} sitio(s) en {self.target_label}"
+                f"{f' [{detalle}]' if detalle else ''}. MERECE MIRARSE: esta hebra es "
+                f"SENTIDO respecto de la diana, así que lo esperado era 0 — su seed no "
+                f"tiene por qué caer ahí. Que caiga significa que la propia diana lleva "
+                f"el núcleo de la pasajera, y entonces la pasajera cargada reprimiría "
+                f"también el mensajero que se quiere medir.{peso}"
             )
         detalle = "; ".join(s.describe() for s in self.detail)
         return (
@@ -938,15 +1040,25 @@ class SelfCount:
         )
 
 
-def self_count(strand: str, *, target: str, target_label: str,
-               query: str = "", window=None) -> SelfCount:
+def self_count(strand: str, *, target: str, target_label: str, frame: Frame,
+               query: str = "", window=None, strand_name: str = "guia",
+               anatomy=None) -> SelfCount:
+    """El autoconteo de una hebra, CON el esperado que le corresponde.
+
+    `strand_name` no tiene un valor por defecto neutro: `guia` es el caso mayoritario y
+    el histórico, y lo que NO puede pasar es que una pasajera se cuente con el esperado
+    de una guía — que es lo que daba siete avisos falsos de once.
+    """
     patrones = site_patterns(strand)
     return SelfCount(
         query=query or patrones.heptamer,
         target_label=target_label,
         occurrences=core_occurrences(target, patrones),
         sites=count_in(target, patrones),
-        detail=self_sites(strand, target=target, window=window),
+        detail=self_sites(
+            strand, target=target, frame=frame, window=window, anatomy=anatomy
+        ),
+        expected=expected_self_count(strand_name),
     )
 
 
@@ -1006,7 +1118,9 @@ def shared_network(strand_a: str, strand_b: str, *, catalog: "Catalog | None",
         """(registro, posicion) → clase. La CLAVE es la posicion, no la clase."""
         tabla: dict[tuple[str, int], str] = {}
         for nombre, secuencia in catalog.records:
-            for sitio in self_sites(hebra, target=secuencia):
+            # El catalogo son 3'UTR: la posicion de un sitio dentro de un registro va
+            # en ese espacio. Afirmado aqui porque `self_sites` ya no lo supone.
+            for sitio in self_sites(hebra, target=secuencia, frame=Frame.UTR3):
                 tabla[(nombre, sitio.position)] = sitio.site_class
         return tabla
 
@@ -1174,13 +1288,20 @@ class LoadResult:
     patterns: SitePatterns
     counts: Counts
     percentiles: dict[str, float]
+    #: El marco de `start`, DERIVADO de la anatomía de la corrida. Aquí iba `3utr:`
+    #: escrito a mano, y sobre un tilado del transcrito eso etiquetaba `tx:1398` como
+    #: `3utr:1398`. El propio fichero se delataba: doce líneas más abajo, el autoconteo
+    #: de esa misma guía —que SÍ deriva su marco— decía que su sitio propio está en
+    #: `3utr:464`, y 464 no puede caer dentro de una ventana que empieza en 1398.
+    frame: Frame = field(kw_only=True)
 
     def describe(self) -> str:
         piezas = "  ".join(
             f"{c}={self.counts.sites[c]} (p{self.percentiles[c]:.1f})"
             for c in SITE_CLASSES
         )
-        return f"3utr:{self.start:<6} {self.strand:<10} {self.patterns.heptamer}  {piezas}"
+        etiqueta = label(self.start, self.frame)
+        return f"{etiqueta:<12} {self.strand:<10} {self.patterns.heptamer}  {piezas}"
 
 
 @dataclass(frozen=True)
@@ -1246,7 +1367,9 @@ class OfftargetScan:
         lineas.extend(f"    {c.describe()}" for c in self.controls)
         lineas.extend(["", f"  {CONTROLS_NOTE}", ""])
 
-        lineas.append("  AUTOCONTEO SOBRE LA PROPIA DIANA (esperado: 1):")
+        lineas.append("  AUTOCONTEO SOBRE LA PROPIA DIANA:")
+        lineas.extend(f"    {l}" for l in textwrap.wrap(
+            WHY_THE_EXPECTED_DIFFERS, 86))
         lineas.extend(f"    {s.describe()}" for s in self.self_counts.values())
         lineas.append("")
 
@@ -1303,6 +1426,10 @@ def run_scan(selection, *, catalog: Catalog | None, mature,
     autoconteos: dict[str, SelfCount] = {}
     crudas: list[str] = []
 
+    from .coords import frame_of_target, tiled_frame  # noqa: PLC0415
+
+    marco = tiled_frame(selection.anatomy)
+    marco_diana = frame_of_target(selection.anatomy, len(_normalize(target)))
     for inicio, hebra, secuencia in _strands(
         selection, species, pedidos, guides, passengers
     ):
@@ -1332,11 +1459,23 @@ def run_scan(selection, *, catalog: Catalog | None, mature,
             LoadResult(
                 start=inicio, strand=hebra, query=consulta, sequence=secuencia,
                 patterns=patrones, counts=cuentas, percentiles=percentiles,
+                # EL MARCO SE RECIBE, sacado de la anatomía que viaja con la selección.
+                # Es la misma derivación que usan la ficha, el informe y los avisos; aquí
+                # era lo único que quedaba con `3utr:` escrito a mano.
+                frame=marco,
             )
         )
+        # LA HEBRA VIAJA, y de ella sale el ESPERADO. Sin pasarla, la pasajera se
+        # contaba con el esperado de la guia y su cero —que es lo normal, porque es
+        # SENTIDO respecto de la diana— salia como anomalia: siete falsos de once.
         autoconteos[consulta] = self_count(
             secuencia, target=target, target_label=target_label, query=consulta,
-            window=ventanas.get(inicio),
+            window=ventanas.get(inicio), strand_name=hebra,
+            # EL MARCO DE `target`, DERIVADO de su longitud contra el 3'UTR de esta
+            # anatomia. No es el marco de LO TILADO: en esta misma corrida
+            # `LoadResult.start` va en el del tilado, que con el transcrito delante es
+            # `tx`. Dos espacios en la misma corrida, y ninguno de los dos se escribe.
+            frame=marco_diana,
         )
         crudas.append(
             "\t".join(

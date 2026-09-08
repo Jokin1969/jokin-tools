@@ -53,6 +53,12 @@ class Informe:
     hallazgos: list[dict] = field(default_factory=list)
     #: Claves cuyo valor nunca esta vacio. Intermedio, util para depurar el detector.
     siempre: list[str] = field(default_factory=list)
+    #: CUANTOS ficheros y CUANTAS condiciones se miraron. Este informe era el unico de
+    #: los trece que no podia demostrar que habia hecho trabajo: publicaba hallazgos y
+    #: nada mas, asi que «ninguna condicion imposible» y «no he mirado ninguna» daban el
+    #: mismo cero (principio nº 51). Un guardia declara lo que recorrio.
+    ficheros: int = 0
+    condiciones: int = 0
 
 
 def _mapas_y_valores(arboles: dict[str, ast.Module]):
@@ -110,8 +116,13 @@ def _pruebas(n) -> list:
     return []
 
 
-def analizar_fuentes(fuentes: dict[str, str]) -> list[dict]:
-    """El análisis, sobre fuentes en memoria. Así se le puede dar el código DE ANTES."""
+def analizar_fuentes(fuentes: dict[str, str]) -> tuple[list[dict], int, list[str]]:
+    """El análisis, sobre fuentes en memoria. Así se le puede dar el código DE ANTES.
+
+    Devuelve los hallazgos, CUÁNTAS condiciones se miraron y las claves que nunca están
+    vacías. Los dos últimos no son adorno: sin ellos, un barrido que no lea nada informa
+    de cero hallazgos igual que un paquete limpio (principio nº 51).
+    """
     arboles = {nombre: ast.parse(texto) for nombre, texto in fuentes.items()}
     mapas, valores = _mapas_y_valores(arboles)
     siempre = {
@@ -119,9 +130,11 @@ def analizar_fuentes(fuentes: dict[str, str]) -> list[dict]:
         if vs and all(_no_vacio(v, mapas) is True for v in vs)
     }
     hallazgos: list[dict] = []
+    miradas = 0
     for nombre, arbol in arboles.items():
         for n in ast.walk(arbol):
             for prueba in _pruebas(n):
+                miradas += 1
                 partes = prueba.values if isinstance(prueba, ast.BoolOp) else [prueba]
                 for sub in partes:
                     if isinstance(sub, ast.UnaryOp) and isinstance(sub.op, ast.Not):
@@ -135,7 +148,7 @@ def analizar_fuentes(fuentes: dict[str, str]) -> list[dict]:
                             "clave": sub.slice.value,
                             "fuente": ast.unparse(prueba)[:100],
                         })
-    return hallazgos
+    return hallazgos, miradas, sorted(siempre)
 
 
 def _fuentes() -> dict[str, str]:
@@ -150,11 +163,19 @@ def _fuentes() -> dict[str, str]:
 
 def auditar() -> Informe:
     fuentes = _fuentes()
-    return Informe(hallazgos=analizar_fuentes(fuentes))
+    hallazgos, miradas, siempre = analizar_fuentes(fuentes)
+    return Informe(
+        hallazgos=hallazgos, siempre=siempre,
+        ficheros=len(fuentes), condiciones=miradas,
+    )
 
 
 def render(informe: Informe) -> str:
-    lineas = ["", "  Condiciones que NO PUEDEN ser falsas:"]
+    lineas = [
+        "",
+        f"  Condiciones que NO PUEDEN ser falsas ({informe.condiciones} condición(es) "
+        f"en {informe.ficheros} fichero(s)):",
+    ]
     if not informe.hallazgos:
         lineas.append("    0 — el número correcto. No es un trinquete: es un guardia.")
     for h in informe.hallazgos:

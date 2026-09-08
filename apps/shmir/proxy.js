@@ -126,6 +126,51 @@ function proxyRequest(req, res, { port, timeoutMs = 120000, path = null }) {
         cabeceras.location = rewriteLocation(cabeceras.location, { port });
       }
       res.writeHead(upRes.statusCode || 502, cabeceras);
+
+      // EL FLUJO DE RESPUESTA TAMBIÉN FALLA, y hasta hoy no lo recogía nadie.
+      //
+      // `upstream.on('error')` de abajo cubre el fallo al PEDIR —no se abre la conexión,
+      // el proceso no está— y contesta 502 con el motivo. Pero un fallo DESPUÉS de las
+      // cabeceras —el upstream que corta a mitad de una descarga— llega a `upRes`, que
+      // no tenía manejador. Sin él pasan dos cosas y las dos son malas: el `error` sin
+      // escuchador es una excepción no capturada que se lleva por delante el HUB ENTERO,
+      // y mientras tanto el cliente se queda COLGADO sin fin ni error. Medido: el test
+      // de este caso no terminaba nunca.
+      //
+      // Con las palabras de quien lo sufrió: «un error en el flujo de respuesta se traga
+      // y deja 0 bytes, que es indistinguible de una descarga vacía legítima». NO es una
+      // causa comprobada del fallo de producción —no se ha reproducido, ver la errata
+      // nº 130— pero convierte un silencio en un mensaje.
+      upRes.on('error', err => {
+        // rule2-ok (equivalente en el hub): no se traga nada. O sale como 502 con el
+        // motivo, o —si ya no se puede cambiar el estado— se rompe la respuesta Y se
+        // deja el motivo en el log del servidor.
+        if (!res.headersSent) {
+          res.writeHead(502, { 'content-type': 'text/plain; charset=utf-8' });
+          res.end(
+            `Se cortó la respuesta de shmir-design en ${HOST}:${port}: ${err.message}`
+          );
+          return;
+        }
+        // Las cabeceras ya salieron, así que el estado no se puede cambiar y el
+        // `content-length` ya prometió una longitud. Terminar limpio aquí entregaría un
+        // fichero TRUNCADO que se lee como una descarga hecha — que es justo lo que no
+        // se puede distinguir. Se ROMPE la conexión: el navegador dice que la descarga
+        // falló, que es la verdad.
+        console.error(
+          `[shmir] la respuesta se cortó después de las cabeceras (${req.originalUrl
+            || req.url}): ${err.message}`
+        );
+        res.destroy(err);
+      });
+
+      // Y EL OTRO LADO: si el cliente se va —cancela la descarga, cierra la pestaña—,
+      // `pipe` deja de escribir pero NO cierra la petición al upstream, que se queda
+      // leyendo contra un socket muerto. Es el mismo agujero por el otro extremo.
+      res.on('close', () => {
+        if (!res.writableFinished) upstream.destroy();
+      });
+
       upRes.pipe(res);
     }
   );

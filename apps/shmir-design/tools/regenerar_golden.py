@@ -86,6 +86,74 @@ VARIANTES = {
 }
 
 
+#: SOBRE QUE SE GENERA CADA GOLDEN, en su propia cabecera. Sale de que al arreglar el
+#: marco del aviso de multiplexado cambio UN golden y no cambiaron los otros tres — y esa
+#: lectura, «el que no cambia confirma donde estaba el fallo tanto como el que cambia»,
+#: solo se pudo hacer ABRIENDO ESTE FICHERO.
+#:
+#: Un artefacto de verificacion que no declara sobre que corre no permite interpretar su
+#: SILENCIO: un golden que no cambia puede significar «el fallo no esta ahi» o «desde ahi
+#: no se puede ver», y son cosas distintas. La cabecera contesta eso sin salir del fichero.
+#:
+#: LAS DOS CONFIGURACIONES SON REALES y por eso conviven. El transcrito entero es lo que
+#: tilan la pagina y el CLI; el 3'UTR pelado es la via «lo que subo YA es el 3'UTR», que la
+#: app soporta. No es el caso de `--inmunes 4`, que era una configuracion FANTASMA que
+#: ningun usuario usaba: aqui mover los goldens al transcrito PERDERIA cobertura en vez de
+#: ganar nada. Se añaden variantes, que es la regla ya escrita de este fichero.
+CONFIGURACION = {
+    "raton_informe.txt": (
+        "el CLI de diseño sobre el TRANSCRITO ENTERO de las dos especies "
+        "(NM_011170.3 + NM_000311.5, con sus .gb), configuracion POR DEFECTO"
+    ),
+    "raton_informe__con_convergencia.txt": (
+        "lo mismo sobre el TRANSCRITO ENTERO, más --convergencia: sin esta variante el "
+        "bloque de convergencia no lo lee ningún golden"
+    ),
+    "raton_informe__con_usar_manifiesto__una_especie.txt": (
+        "el CLI sobre el TRANSCRITO ENTERO del raton con --usar-manifiesto, que es LA "
+        "FORMA NORMAL DE CORRER; con una sola especie a propósito"
+    ),
+    "pagina_raton.txt": (
+        "el camino de la PAGINA entero sobre el TRANSCRITO ENTERO del raton, con la "
+        "anatomía del fixture verificado"
+    ),
+    "ficha_raton_200.txt": (
+        "la ficha de un candidato sobre el 3'UTR PELADO del raton, que es la via «lo "
+        "que subo YA es el 3'UTR»"
+    ),
+    "ficha_raton__transcrito.txt": (
+        "la MISMA ficha sobre el TRANSCRITO ENTERO, que es lo que tilan la pagina y el "
+        "CLI: sin ella, esta salida no se leia nunca en el marco de uso"
+    ),
+    "informe_documento.md": (
+        "el informe-documento sobre el 3'UTR PELADO del raton, que es la via «lo que "
+        "subo YA es el 3'UTR»"
+    ),
+    "informe_documento__transcrito.md": (
+        "el MISMO documento sobre el TRANSCRITO ENTERO, que es lo que tilan la pagina y "
+        "el CLI: sin ella, esta salida no se leia nunca en el marco de uso"
+    ),
+}
+
+
+def cabecera(nombre: str) -> str:
+    """La cabecera que declara sobre que se genera ese golden.
+
+    No se transcribe en ningun sitio: la escribe el generador y la LEE el test, las dos
+    de `CONFIGURACION`, asi que no puede describir una entrada y generarse con otra
+    (principio nº 13).
+    """
+    if nombre not in CONFIGURACION:
+        raise SystemExit(
+            f"El golden {nombre!r} no declara sobre que se genera. Añadelo a "
+            f"`CONFIGURACION`: sin eso, que no cambie no se puede interpretar."
+        )
+    texto = f"GOLDEN — se genera con: {CONFIGURACION[nombre]}."
+    if nombre.endswith(".md"):
+        return f"<!-- {texto} -->\n\n"
+    return f"# {texto}\n\n"
+
+
 def generar(destino: Path, argv: list[str] | None = None) -> str:
     """Corre el diseño de verdad y devuelve el informe del raton.
 
@@ -102,7 +170,9 @@ def generar(destino: Path, argv: list[str] | None = None) -> str:
                 f"El diseño fallo con código {proceso.returncode}; no se regenera el "
                 f"golden con una salida incompleta.\n{proceso.stdout}\n{proceso.stderr}"
             )
-        return (Path(tmp) / "raton_informe.txt").read_text(encoding="utf-8")
+        return cabecera(destino.name) + (
+            Path(tmp) / "raton_informe.txt"
+        ).read_text(encoding="utf-8")
 
 
 def generar_ficha() -> str:
@@ -130,7 +200,7 @@ def generar_ficha() -> str:
     # son las constantes del proyecto, y tecleadas aqui el golden dejaba de enterarse si
     # alguien las cambiaba. Es `--inmunes 4` con otra forma (principio nº 18).
     seleccion = select_from_report(informe, default_config())
-    return build_dossier(
+    return cabecera("ficha_raton_200.txt") + build_dossier(
         species="raton", tiling=informe, selection=seleccion, start=200,
         # Con `target` la ficha puede contar los sitios de esta seed en su PROPIA diana,
         # que es lo que descubrio que cuatro del panel tienen un segundo sitio.
@@ -162,11 +232,78 @@ def generar_documento() -> str:
     # son las constantes del proyecto, y tecleadas aqui el golden dejaba de enterarse si
     # alguien las cambiaba. Es `--inmunes 4` con otra forma (principio nº 18).
     seleccion = select_from_report(informe, default_config())
-    return build_document(
+    return cabecera("informe_documento.md") + build_document(
         species="mouse", tiling=informe, selection=seleccion,
         generated=FECHA_GOLDEN,
         anatomy_source="lo tilado ES el 3'UTR (fixture verificado por md5)",
         dossier_starts=(200,), target=utr3,
+    ).markdown()
+
+
+def _tilado_del_transcrito():
+    """El transcrito ENTERO con su anatomia, que es lo que tilan la pagina y el CLI.
+
+    Una sola fuente para las dos variantes: con dos copias, una podria quedarse con otra
+    anatomia y las dos saldrian con la forma correcta.
+    """
+    import sys as _sys
+
+    _sys.path.insert(0, str(RAIZ))
+    from shmir_design.anatomy import Anatomy, RegionSource
+    from shmir_design.reference import REFERENCES, load_reference
+    from shmir_design.selection import default_config, select_from_report
+    from shmir_design.tiling import tile_utr
+
+    referencia = REFERENCES["NM_011170.3"]
+    secuencia = load_reference(referencia)
+    anatomia = Anatomy.from_cds(
+        cds=referencia.cds,
+        length=len(secuencia),
+        source=RegionSource.FIXTURE_VERIFICADO,
+    )
+    informe = tile_utr(secuencia, anatomy=anatomia)
+    return secuencia, anatomia, informe, select_from_report(informe, default_config())
+
+
+def generar_ficha_transcrito() -> str:
+    """La MISMA ficha, sobre el transcrito entero.
+
+    No sustituye a `generar_ficha`: la acompaña. El 3'UTR pelado es una via real de la
+    app —«lo que subo YA es el 3'UTR»— y moverla habria PERDIDO esa cobertura; el
+    transcrito es lo que tilan la pagina y el CLI, y hasta hoy esta salida no se leia
+    nunca en ese marco. Es la regla ya escrita: una variante ADICIONAL cuyo nombre dice
+    que lleva, nunca un golden con parametros puestos a mano.
+    """
+    import sys as _sys
+
+    _sys.path.insert(0, str(RAIZ))
+    from shmir_design.dossier import build_dossier
+
+    secuencia, _anatomia, informe, seleccion = _tilado_del_transcrito()
+    # El candidato es el MISMO sitio que en la otra variante (`3utr:200`), en su marco:
+    # lo CONVIERTE la anatomia en vez de teclear 1149 (principio nº 13). Tecleado, el
+    # dia que cambie el CDS las dos variantes describirian sitios distintos.
+    inicio = _anatomia.transcript_position(200)
+    return cabecera("ficha_raton__transcrito.txt") + build_dossier(
+        species="raton", tiling=informe, selection=seleccion, start=inicio,
+        target=secuencia,
+    ).render()
+
+
+def generar_documento_transcrito() -> str:
+    """El MISMO documento, sobre el transcrito entero. Ver `generar_ficha_transcrito`."""
+    import sys as _sys
+
+    _sys.path.insert(0, str(RAIZ))
+    from shmir_design.informe_doc import build_document
+
+    secuencia, anatomia, informe, seleccion = _tilado_del_transcrito()
+    inicio = anatomia.transcript_position(200)
+    return cabecera("informe_documento__transcrito.md") + build_document(
+        species="mouse", tiling=informe, selection=seleccion,
+        generated=FECHA_GOLDEN,
+        anatomy_source="CDS del fixture verificado por md5 (transcrito entero)",
+        dossier_starts=(inicio,), target=secuencia, anatomy=anatomia,
     ).markdown()
 
 
@@ -191,7 +328,7 @@ def generar_pagina() -> str:
 
     referencia = REFERENCES["NM_011170.3"]
     secuencia = load_reference(referencia)
-    return page_snapshot(
+    return cabecera("pagina_raton.txt") + page_snapshot(
         species="raton",
         sequence=secuencia,
         anatomy=Anatomy.from_cds(
@@ -215,45 +352,33 @@ def escribir(destino: Path, contenido: str) -> None:
 
 
 def main() -> int:
-    for nombre, argv in VARIANTES.items():
-        escribir(GOLDEN.parent / nombre, generar(GOLDEN.parent / nombre, argv))
-    informe = generar(GOLDEN)
-    antes = GOLDEN.read_text(encoding="utf-8") if GOLDEN.is_file() else ""
-    GOLDEN.parent.mkdir(parents=True, exist_ok=True)
-    GOLDEN.write_text(informe, encoding="utf-8")
-    lineas = len(informe.splitlines())
-    if antes == informe:
-        print(f"Sin cambios: {GOLDEN} ({lineas} lineas).")
-    else:
-        print(f"Regenerado {GOLDEN}: {lineas} líneas (antes {len(antes.splitlines())}).")
-        print("Revisa el diff ANTES de commitear: es la salida entera del informe.")
-
-    ficha = generar_ficha()
-    previa = FICHA.read_text(encoding="utf-8") if FICHA.is_file() else ""
-    FICHA.write_text(ficha, encoding="utf-8")
-    if previa == ficha:
-        print(f"Sin cambios: {FICHA} ({len(ficha.splitlines())} lineas).")
-    else:
-        print(f"Regenerada {FICHA}: {len(ficha.splitlines())} lineas.")
-        print("Revisa también ese diff: la ficha se compara ENTERA.")
-
-    documento = generar_documento()
-    anterior = DOCUMENTO.read_text(encoding="utf-8") if DOCUMENTO.is_file() else ""
-    DOCUMENTO.write_text(documento, encoding="utf-8")
-    if anterior == documento:
-        print(f"Sin cambios: {DOCUMENTO} ({len(documento.splitlines())} lineas).")
-    else:
-        print(f"Regenerado {DOCUMENTO}: {len(documento.splitlines())} lineas.")
-        print("Y ese también entero: es el informe que se entrega.")
-
-    pagina = generar_pagina()
-    previo = PAGINA.read_text(encoding="utf-8") if PAGINA.is_file() else ""
-    PAGINA.write_text(pagina, encoding="utf-8")
-    if previo == pagina:
-        print(f"Sin cambios: {PAGINA} ({len(pagina.splitlines())} lineas).")
-    else:
-        print(f"Regenerado {PAGINA}: {len(pagina.splitlines())} lineas.")
-        print("Este es el camino de la PAGINA: leelo entero, es donde se junta todo.")
+    # UNA tabla: destino -> como se produce. Con cuatro bloques copiados, la variante
+    # nueva se olvida en uno y su golden deja de regenerarse sin que nadie lo note.
+    artefactos = [
+        *[(GOLDEN.parent / n, lambda a=a, n=n: generar(GOLDEN.parent / n, a))
+          for n, a in VARIANTES.items()],
+        (GOLDEN, lambda: generar(GOLDEN)),
+        (FICHA, generar_ficha),
+        (GOLDEN.parent / "ficha_raton__transcrito.txt", generar_ficha_transcrito),
+        (DOCUMENTO, generar_documento),
+        (GOLDEN.parent / "informe_documento__transcrito.md",
+         generar_documento_transcrito),
+        (PAGINA, generar_pagina),
+    ]
+    faltan = {p.name for p in (d for d, _ in artefactos)} ^ set(CONFIGURACION)
+    if faltan:
+        raise SystemExit(
+            f"Estos goldens no cuadran entre lo que se genera y lo que declara "
+            f"`CONFIGURACION`: {', '.join(sorted(faltan))}. Se aborta: una entrada "
+            f"huerfana describe algo que ya no existe, y uno sin entrada sale mudo."
+        )
+    for destino, producir in artefactos:
+        escribir(destino, producir())
+    print(
+        "Revisa los diffs ANTES de commitear: es para lo que existen. Y cada fichero "
+        "declara en su cabecera sobre que se genera, para que un golden que NO cambia "
+        "se pueda interpretar."
+    )
     return 0
 
 

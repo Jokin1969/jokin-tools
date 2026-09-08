@@ -56,7 +56,10 @@ class TestLaTablaDeLosDiez(unittest.TestCase):
         cls.filas = presentation.variant_rows(_corrida().selection)
 
     def test_hay_una_fila_POR_CANDIDATO(self):
-        self.assertEqual(len(self.filas), 10)
+        # ONCE desde el 2026-09-06. El nombre del fichero dice DIEZ y se queda: lo que
+        # el test protege es «una fila por candidato», no el numero — y renombrarlo
+        # perderia el hilo de la errata que lo abrio.
+        self.assertEqual(len(self.filas), 11)
 
     def test_cada_fila_dice_QUE_BASE_salio(self):
         for fila in self.filas:

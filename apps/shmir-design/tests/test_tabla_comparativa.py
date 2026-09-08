@@ -148,8 +148,16 @@ class TestTSV(unittest.TestCase):
     def test_lleva_una_cabecera_de_comentario_que_explica_la_columna_vacia(self):
         _, seleccion = _piezas()
         texto = comparative_tsv(seleccion, SGEP_SCAFFOLD, with_header=True)
-        self.assertIn("knockdown_medido", texto.splitlines()[0])
-        self.assertTrue(texto.startswith("#"))
+        # En el BLOQUE de comentarios, no en la primera línea: la primera es el sello
+        # `# BUILD:`, que dice qué versión produjo el fichero.
+        comentarios = "\n".join(
+            l for l in texto.splitlines() if l.startswith("#")
+        )
+        self.assertIn("knockdown_medido", comentarios)
+        # Los comentarios van DETRÁS de los datos desde la errata nº 142: arriba,
+        # Excel los tomaba como fila de títulos y la cabecera bajaba una fila.
+        self.assertFalse(texto.startswith("#"))
+        self.assertTrue(texto.rstrip().splitlines()[-1].startswith("#"))
 
 
 if __name__ == "__main__":

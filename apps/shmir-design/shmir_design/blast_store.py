@@ -25,7 +25,9 @@ from dataclasses import dataclass, field
 
 from . import blast
 from .errors import ShmirDesignError
-from .identidad import mensaje_de_id_repetido, result_fingerprint
+from .identidad import (
+    mensaje_de_id_repetido, registrar_del_log, result_fingerprint,
+)
 from .filters import FilterResult, FilterState
 
 FILTER_NAME = "especificidad"
@@ -349,7 +351,9 @@ def validate_upload(
         raise ShmirDesignError(
             f"El md5 del FASTA de consulta no coincide: se declara "
             f"{declared_query_md5!r} y el que genero esta app es {esperado!r}. Se "
-            f"RECHAZA: casi seguro es el resultado de OTRA CORRIDA. Es exactamente lo "
+            f"RECHAZA: el resultado NO es de esta consulta. Qué lo produjo no lo dice "
+            f"este fichero y no se adivina; lo seguro es que analizarlo mediría otra "
+            f"cosa. Es exactamente lo "
             f"que pasó con el CSV de miRarchitect — un fichero ajeno que entra, cuadra "
             f"de forma y produce un análisis entero sobre el dato equivocado."
         )
@@ -366,11 +370,29 @@ def validate_upload(
     return hits
 
 
+#: QUE SE SABE cuando este aborto salta — y NO se adivina lo demas (errata nº 136).
+#: Mismo caso que `splice_store.COMO_REPETIR_EMPALME`: `validate_upload` ya ha
+#: comprobado que el md5 del FASTA de consulta es el que genero esta app y que ninguna
+#: `query` del resultado es ajena al panel, asi que un fichero de otra corrida no llega
+#: hasta aqui. El texto retirado —citado aqui como lo que fue, no como lo que dice—
+#: mandaba a mirar lo unico que ya estaba descartado.
+COMO_REPETIR_BLAST = (
+    "Este fichero ha pasado la validación de esta corrida —el md5 del FASTA de consulta "
+    "y las consultas del panel—, así que NO es el resultado de otra: ésos se rechazan "
+    "antes de llegar aquí. Lo que dice el md5 es que es el mismo fichero que ya está "
+    "guardado. Si esperabas una medida distinta, hay que volver a lanzar el `blastn` y "
+    "subir ESE resultado."
+)
+
+
 @dataclass
 class BlastStore:
     """Historial por consulta. Nada se sobrescribe."""
 
     runs: list[BlastRun] = field(default_factory=list)
+    #: Los `run_id` que el LOG traia repetidos. Se apuntan al releer y no abortan: esa
+    #: linea ya esta escrita y el log es append-only (errata nº 137).
+    repetidas: list[str] = field(default_factory=list)
 
     def add(self, run: BlastRun) -> None:
         ya = next((r for r in self.runs if r.run_id == run.run_id), None)
@@ -380,14 +402,13 @@ class BlastStore:
             # abortar a secas.
             raise ShmirDesignError(mensaje_de_id_repetido(
                 run_id=ya.run_id, date=ya.date, by=ya.uploaded_by,
-                que_es="corrida de BLAST",
-                como_repetir=(
-                    "Casi seguro has cogido el fichero de resultados viejo: "
-                    "comprueba la ruta del `-out`, o vuelve a lanzar el `blastn` y "
-                    "sube ESE."
-                ),
+                que_es="corrida de BLAST", como_repetir=COMO_REPETIR_BLAST,
             ))
         self.runs.append(run)
+
+    def add_recorded(self, run: BlastRun) -> None:
+        """La via del CARGADOR: una repetida del log se omite y se apunta, no aborta."""
+        registrar_del_log(self, run)
 
     def history(self, query_name: str) -> tuple[BlastRun, ...]:
         return tuple(

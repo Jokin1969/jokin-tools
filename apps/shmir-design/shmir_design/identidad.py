@@ -165,6 +165,31 @@ def mensaje_de_id_repetido(
     )
 
 
+def registrar_del_log(almacen, run) -> None:
+    """Reproduce una linea del log en su almacen. Una REPETIDA se omite y se APUNTA.
+
+    **Leer no es escribir, y `add` contestaba a las dos** (errata nº 137). Al releer el
+    log, una corrida con un `run_id` que ya esta no es un intento de guardar dos veces:
+    es una linea que YA se escribio y que el log —append-only, con su cadena de md5— no
+    puede dejar de tener. Abortar ahi deja el proyecto **inservible para siempre**, y con
+    el todo lo que se decidio en el.
+
+    Es la misma regla que ya estaba escrita para `_rechaza_si_es_el_mismo_fichero` —«se
+    aplica al ESCRIBIR, no al leer»— y que no se aplico al guardia que ya existia.
+
+    **Se omite, y NO se calla**: la repetida queda en `almacen.repetidas` para que la app
+    lo diga. Contarla dos veces seria decir que la misma medida se comprobo dos veces, y
+    omitirla en silencio seria el `verify()` que no verificaba.
+
+    Vive aqui, en un solo sitio, porque los cuatro almacenes hacian esto identico: cuatro
+    copias de una regla son cuatro sitios donde arreglarla la proxima vez.
+    """
+    if any(r.run_id == run.run_id for r in almacen.runs):
+        almacen.repetidas.append(run.run_id)
+        return
+    almacen.runs.append(run)
+
+
 # ─────────────────────────── el SELLO de la version que produjo algo ───────────────────
 
 #: La variable por la que el hub pasa el commit desplegado al proceso hijo. Si no llega,
@@ -182,6 +207,17 @@ BUILD_NOTE = (
     "otra versión o otra entrada. Cuando el hub no declara ninguna —en local, por "
     "ejemplo— se dice «sin declarar»: eso es información, y un valor inventado no."
 )
+
+
+#: Con qué se marca el sello en un fichero de texto. Va aquí y no en cada emisor: son
+#: tres formatos —FASTA, TSV de candidatos y comparativa— y con el prefijo escrito en
+#: cada uno, cambiarlo dejaría a los demás sin sello y a sus tests pasando igual.
+BUILD_PREFIX = "# BUILD:"
+
+
+def build_line() -> str:
+    """La línea del sello, tal cual se escribe en la cabecera de un fichero de texto."""
+    return f"{BUILD_PREFIX} {build_stamp()}"
 
 
 def build_stamp() -> str:

@@ -192,6 +192,63 @@ npm run check:tildes      # el castellano de los mensajes que ve el usuario
 npm run test:shmir        # tests de shmir-design (sin dependencias externas)
 ```
 
+`npm test` incluye `test/calendario.test.js`, que **vuelve a correr la suite entera con el
+reloj 400 días por delante** (cruza día, mes y año, y cae en otro día de la semana). Existe
+porque una prueba del overview de Asignación **se puso roja sola el 1 de septiembre de
+2026**: su valor esperado era cierto mientras «el mes en curso» fuese el mes que tenía
+escrito. Nadie la rompió — caducó. Si una prueba nueva depende del calendario, falla hoy
+aquí en vez de dentro de un año en la máquina de otro. Un test que necesite tiempo lo
+**recibe como parámetro**; si el código bajo prueba mira el reloj por dentro, la entrada y
+el valor esperado salen **del mismo reloj**, nunca una escrita y el otro calculado. Está
+en `npm test` y no en un comando aparte a propósito: una comprobación que hay que
+acordarse de pedir es una comprobación que nadie pide. Ver el principio nº 48 y la errata
+nº 127 en `apps/shmir-design/docs/`.
+
+Y lo que hizo que aquel rojo durase cinco días importa más que el fallo: estaba **fuera de
+la zona** de quien miraba la suite y se leyó como ruido de fondo. Una suite con un rojo
+permanente no dice «hay un fallo», dice «hay un rojo» — y a partir de ahí ningún rojo se
+atiende. **Un rojo ajeno se abre igual: o se arregla, o se dice de quién es.**
+
+Y ese test **corre la suite entera otra vez, así que el hijo compite con el padre por
+todo lo que sea de un solo ejemplar**. El caso real (2026-09-06): el puerto de Streamlit
+está fijo en 8501 (`apps/shmir/process.js`), y las dos corridas levantaban la interfaz
+ahí. Lo que pasa entonces no es un choque limpio y por eso costaba de leer: el segundo
+Streamlit muere con `EADDRINUSE`, **`waitUntilReady` sondea el puerto, encuentra
+contestando al proceso del OTRO y da el arranque por bueno**, así que las dos primeras
+pruebas del test de humo pasan y las dos siguientes sacan **502** en cuanto el otro para
+el suyo. Salía rojo unas veces y verde otras, y el rojo **no señalaba a nada de lo que el
+guardia del calendario existe para vigilar** — que es exactamente cómo un guardia deja de
+leerse. El hijo lleva ahora su propio `SHMIR_PORT`.
+
+**Y el cabo que dejaba, CERRADO (2026-09-07)**: que un arranque se diera por bueno porque
+*alguien* contesta en ese puerto era un guardia aprobando lo que no es suyo — «el sondeo
+no distingue *mi proceso está listo* de *alguien contesta en ese puerto*», que es el
+«Alu 0 %» en su forma más pura. En producción significa servir la interfaz de un proceso
+viejo que quedó vivo (caso que el propio `process.diagnose` ya contempla) mientras el
+despliegue nuevo NO ha arrancado, sin un solo error en ningún log: el síntoma es «está
+fusionado pero no lo veo».
+
+`waitUntilReady` comprueba ahora **dos cosas, y ninguna sustituye a la otra**:
+
+- **el hijo propio sigue vivo, y se mira ANTES de sondear.** Esa comprobación ya estaba
+  escrita — y estaba DESPUÉS del sondeo, así que el sondeo le ganaba siempre. Un orden;
+- **quien escucha en el puerto es ESE hijo** (`process.portOwner`): el inodo del socket
+  en escucha (`/proc/net/tcp`) tiene que estar entre los descriptores del hijo
+  (`/proc/<pid>/fd`). Lo primero no basta — un hijo vivo que todavía no escucha, con
+  otro contestando, da el mismo verde falso.
+
+**Tres estados y el tercero NO es «coincide»**: sin `/proc` la respuesta es
+`NO_COMPROBABLE` **con el motivo**, y eso no bloquea el arranque —fuera de Linux la app
+tiene que poder correr— pero viaja a `status().identidad`, que es donde se lee. Callarlo
+lo convertiría en un «comprobado» silencioso, que es el fallo que esto cierra.
+
+**Y el guardia está CALIBRADO contra el proceso real**, no supuesto: si Streamlit
+bifurcara, el socket sería de un nieto y esto daría `AJENO` sobre un arranque correcto —
+un guardia con falsos positivos se acaba apagando. `test/shmir.smoke.test.js` lo mide
+sobre la interfaz de verdad y exige `PROPIO`; `test/shmir.puerto_ocupado.test.js`
+reproduce el caso entero —un impostor que contesta `ok` en la ruta de salud— y exige que
+el arranque FALLE nombrando el puerto.
+
 `check:shmir` imprime además el **informe de alcanzabilidad**: qué función pública de
 `apps/shmir-design/` no tiene ningún llamador fuera de su propio módulo y de sus tests.
 No es un fallo automático —hay casos legítimos— pero aparecer ahí obliga a decidir: o se
@@ -199,6 +256,16 @@ cablea, o se justifica por escrito en `apps/shmir-design/data/alcanzabilidad.tom
 borra. Existe porque el proyecto llegó **tres veces** a lo mismo: código con tests en
 verde y sin caller. El golden lee lo que se emite; esto detecta lo que nunca llega a
 emitirse.
+
+**Si salen VARIOS rojos a la vez en zonas que tu cambio no toca, mira el disco antes de
+atribuirlos al cambio.** Pasó el 2026-09-07: ocho tests del CLI de shmir-design en rojo en
+mitad de la suite, justo después de tocar los ficheros que esos tests leen — y era el
+disco del contenedor lleno; con espacio libre pasan las 5096. En este entorno el disco
+escribible es un cupo por sesión, así que **`df` engaña**: `Avail` a cero con `Used` bajo
+es el cupo agotado, no la máquina rota, y una escritura truncada no se parece a un fallo
+de disco, se parece a un test roto. Un fallo suele ser el cambio; ocho a la vez, casi
+nunca. Y la atribución se verifica **volviendo a correr**, no razonando. Errata nº 143 y
+principio nº 3 en `apps/shmir-design/docs/`.
 
 La interfaz Streamlit de `apps/shmir-design/` es opcional y se instala aparte
 (`pip install -r apps/shmir-design/requirements-ui.txt`); ni el hub ni los CLI la

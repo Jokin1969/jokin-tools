@@ -127,7 +127,16 @@ class TestLaProcedenciaVUELVE_del_manifiesto(_ConDeposito):
             fichero.missing_provenance,
             ("ensamblaje", "tabla", "fecha_tabla", "representante"),
         )
-        self.assertIn("Reemplázalo por el gestor", fichero.describe())
+        # 2026-09-06: el texto mandaba REEMPLAZARLO, y desde la errata nº 120 eso es
+        # el consejo equivocado — `declare_provenance` completa la linea SOBRE el
+        # fichero que ya esta, sin resubir 84 MB. Un aviso que no nombra el paso que lo
+        # cierra no es una instruccion (errata nº 83); uno que nombra el paso que NO lo
+        # cierra es peor, porque se sigue.
+        texto = fichero.describe()
+        self.assertNotIn("Reemplázalo", texto)
+        self.assertNotIn("Vuelve a subirlo", texto)
+        self.assertIn("sin volver a subirlo", texto)
+        self.assertIn("Ficheros de referencia", texto)
 
     def test_y_un_rol_que_NO_las_pide_no_sale_con_huecos(self):
         # Un casete de AAV no sale de ninguna tabla: ahi el vacio es la VERDAD, y

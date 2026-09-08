@@ -42,6 +42,9 @@ let starting = null;
 let restarts = 0;
 let lastError = '';
 let lastOutput = '';
+//: Qué dijo la última comprobación de identidad. Empieza sin comprobar, que es la
+//: verdad mientras no se haya lanzado nada.
+let lastIdentity = 'NO_COMPROBABLE';
 
 function buildArgs({ port = PORT, basePath = BASE_PATH } = {}) {
   return [
@@ -185,6 +188,11 @@ function status() {
     running: Boolean(child && child.exitCode === null),
     startedAt,
     port: PORT,
+    // EL PID Y LA IDENTIDAD SALEN, o la comprobación no se ve. Una comprobación que
+    // corre y no llega a ninguna pantalla es la mitad del arreglo, y `identidad` es
+    // además el sitio donde se lee un NO_COMPROBABLE — que no es «coincide».
+    pid: child ? child.pid : null,
+    identidad: lastIdentity,
     restarts,
     lastError,
     lastOutput: lastOutput.slice(-2000),
@@ -210,14 +218,156 @@ function esperar(ms) {
   return new Promise(r => setTimeout(r, ms));
 }
 
-async function waitUntilReady({ port = PORT, timeoutMs = READY_TIMEOUT_MS } = {}) {
-  const limite = Date.now() + timeoutMs;
-  while (Date.now() < limite) {
-    if (await probe(port)) return true;
-    if (child && child.exitCode !== null) return false;   // se murió por el camino
-    await esperar(POLL_MS);
+// ─── ¿Quién contesta en ese puerto? ─────────────────────────────────────────────
+//
+// UN SONDEO NO DISTINGUE «mi proceso está listo» de «alguien contesta en ese puerto», y
+// eso es afirmar una cosa a partir de una comprobación que no la mira. Con el puerto
+// fijo, un proceso de una ejecución anterior que quede vivo —caso que `diagnose` ya
+// contempla— hace que un despliegue cuyo Streamlit NO arrancó se dé por arrancado, y lo
+// que se sirve es la interfaz del despliegue viejo. El síntoma es «está fusionado pero
+// no lo veo», y no hay ningún error en ningún log.
+//
+// Se comprueba por el PID DUEÑO DEL SOCKET EN ESCUCHA, que es lo comprobable sin añadir
+// dependencias ni protocolo: el inodo del socket que escucha en ese puerto
+// (`/proc/net/tcp`) tiene que estar entre los descriptores del hijo (`/proc/<pid>/fd`).
+// MEDIDO sobre el proceso real: Streamlit no bifurca, el socket lo tiene el mismo
+// proceso que se lanza — si bifurcara, este guardia daría falsos positivos y un guardia
+// con falsos positivos se acaba apagando.
+//
+// TRES ESTADOS, y el tercero NO es «coincide»: donde no hay `/proc` —desarrollo fuera de
+// Linux— la respuesta es NO_COMPROBABLE **con el motivo**, y no haber podido comprobarlo
+// no es haberlo comprobado. Es la regla del `.out` sin resumen.
+const IDENTIDAD = { PROPIO: 'PROPIO', AJENO: 'AJENO', NO_COMPROBABLE: 'NO_COMPROBABLE' };
+
+//: Los inodos de los sockets EN ESCUCHA en ese puerto. `null` = no se pudo mirar.
+function _inodosEnEscucha(port, procRoot) {
+  const hex = Number(port).toString(16).toUpperCase().padStart(4, '0');
+  const inodos = new Set();
+  let leido = false;
+  for (const nombre of ['net/tcp', 'net/tcp6']) {
+    let texto = '';
+    try {
+      texto = fs.readFileSync(path.join(procRoot, nombre), 'utf8');
+    } catch {
+      // rule2-ok (equivalente en el hub): la ausencia de UNO de los dos ficheros es
+      // normal —hay sistemas sin IPv6— y no se traga nada: si no se lee NINGUNO, el
+      // llamador devuelve NO_COMPROBABLE con el motivo.
+      continue;
+    }
+    leido = true;
+    for (const linea of texto.split('\n').slice(1)) {
+      const campos = linea.trim().split(/\s+/);
+      if (campos.length < 10) continue;
+      if (campos[3] !== '0A') continue;                 // 0A = LISTEN
+      if (!campos[1].endsWith(':' + hex)) continue;     // dirección local:puerto
+      inodos.add(campos[9]);                            // inodo del socket
+    }
+  }
+  return leido ? inodos : null;
+}
+
+function _tieneElInodo(pid, inodos, procRoot) {
+  let entradas = [];
+  try {
+    entradas = fs.readdirSync(path.join(procRoot, String(pid), 'fd'));
+  } catch {
+    // rule2-ok: el proceso puede haber muerto entre una cosa y otra. No se esconde
+    // ningún fallo — el llamador lo traduce a AJENO, que es la respuesta conservadora.
+    return false;
+  }
+  for (const fd of entradas) {
+    let destino = '';
+    try {
+      destino = fs.readlinkSync(path.join(procRoot, String(pid), 'fd', fd));
+    } catch {
+      continue;   // rule2-ok: un descriptor cerrado mientras se recorre. Se sigue.
+    }
+    for (const inodo of inodos) {
+      if (destino === `socket:[${inodo}]`) return true;
+    }
   }
   return false;
+}
+
+// ¿El que escucha en `port` es el proceso `pid`? Devuelve `{ estado, motivo }`.
+function portOwner(pid, port, { procRoot = '/proc' } = {}) {
+  if (!pid) {
+    return {
+      estado: IDENTIDAD.NO_COMPROBABLE,
+      motivo: 'No hay ningún pid con el que comparar, así que no se ha comprobado nada.',
+    };
+  }
+  const inodos = _inodosEnEscucha(port, procRoot);
+  if (inodos === null) {
+    return {
+      estado: IDENTIDAD.NO_COMPROBABLE,
+      motivo:
+        `No se ha podido leer ${path.join(procRoot, 'net/tcp')}, así que no se sabe de `
+        + `quién es el puerto ${port}. NO se ha comprobado, que no es lo mismo que `
+        + `haber comprobado que es el nuestro.`,
+    };
+  }
+  if (inodos.size === 0) {
+    return {
+      estado: IDENTIDAD.NO_COMPROBABLE,
+      motivo:
+        `No aparece ningún socket en escucha en el puerto ${port}: no hay de quién `
+        + `comprobar la identidad. NO se ha comprobado, que no es «es el nuestro».`,
+    };
+  }
+  if (_tieneElInodo(pid, inodos, procRoot)) {
+    return {
+      estado: IDENTIDAD.PROPIO,
+      motivo: `El socket en escucha en el puerto ${port} es del proceso ${pid}.`,
+    };
+  }
+  return {
+    estado: IDENTIDAD.AJENO,
+    motivo:
+      `Quien escucha en el puerto ${port} NO es el proceso ${pid}, que es el que se `
+      + `acaba de lanzar. Puede quedar vivo un proceso de una ejecución anterior: `
+      + `servirle a él sería servir OTRA versión de la interfaz sin ningún error.`,
+  };
+}
+
+//: Motivos, en un sitio: los usa `waitUntilReady` y los leen sus tests.
+const MOTIVO_MURIO = 'el proceso terminó antes de llegar a contestar';
+const MOTIVO_AJENO = 'quien contesta no es el que se acaba de lanzar';
+
+// Espera a que conteste EL HIJO PROPIO. Devuelve `{ ok, reason, identidad }`.
+//
+// EL ORDEN NO ES UN DETALLE. Esto sondeaba primero y miraba si el hijo se había muerto
+// después, así que un hijo muerto con otro contestando en el puerto salía LISTO — el
+// sondeo le ganaba siempre a la comprobación. Ahora se mira la vida del hijo ANTES, y
+// además se comprueba de quién es el puerto: un hijo vivo que todavía no escucha, con
+// otro contestando, da el mismo verde falso.
+async function waitUntilReady(
+  { port = PORT, timeoutMs = READY_TIMEOUT_MS, child: propio = undefined } = {}
+) {
+  const hijo = propio === undefined ? child : propio;
+  const limite = Date.now() + timeoutMs;
+  while (Date.now() < limite) {
+    if (hijo && hijo.exitCode !== null) {
+      return { ok: false, reason: MOTIVO_MURIO, identidad: IDENTIDAD.NO_COMPROBABLE };
+    }
+    if (await probe(port)) {
+      const duenno = portOwner(hijo && hijo.pid, port);
+      if (duenno.estado === IDENTIDAD.AJENO) {
+        return { ok: false, reason: `${MOTIVO_AJENO}. ${duenno.motivo}`,
+                 identidad: duenno.estado };
+      }
+      // NO_COMPROBABLE no bloquea el arranque —fuera de Linux no hay `/proc` y la app
+      // tiene que poder correr—, pero VIAJA al estado y se dice. Callarlo lo convertiría
+      // en un «comprobado» silencioso, que es el fallo que esto viene a cerrar.
+      return { ok: true, reason: duenno.motivo, identidad: duenno.estado };
+    }
+    await esperar(POLL_MS);
+  }
+  return {
+    ok: false,
+    reason: `no contestó en ${timeoutMs} ms`,
+    identidad: IDENTIDAD.NO_COMPROBABLE,
+  };
 }
 
 function spawnChild({ referenceDir, projectDir }) {
@@ -277,19 +427,24 @@ async function ensureRunning({ referenceDir = '', projectDir = '' } = {}) {
     }
     startedAt = new Date().toISOString();
     const listo = await waitUntilReady();
-    if (!listo) {
+    lastIdentity = listo.identidad;
+    if (!listo.ok) {
       restarts += 1;
       if (child) child.kill('SIGTERM');
+      // EL ENCABEZADO DICE CUÁL DE LAS TRES COSAS PASÓ —se murió, contesta otro, o no
+      // contestó a tiempo— en vez de las tres bajo el mismo texto. Un «no llegó a
+      // contestar» sobre un puerto que SÍ contesta manda a mirar el sitio equivocado,
+      // que es la lección de `diagnose`.
       return {
         ok: false,
         reason: failureText(
           lastOutput || lastError,
-          `El proceso de shmir-design no llegó a contestar en ${READY_TIMEOUT_MS} ms.`
+          `El proceso de shmir-design no arrancó: ${listo.reason}.`
         ),
       };
     }
     restarts = 0;
-    return { ok: true, alreadyRunning: false };
+    return { ok: true, alreadyRunning: false, identidad: listo.identidad };
   })();
 
   try {
@@ -306,7 +461,8 @@ function stop() {
 }
 
 module.exports = {
-  ensureRunning, stop, status, probe, waitUntilReady,
+  ensureRunning, stop, status, probe, waitUntilReady, portOwner,
   buildArgs, buildEnv, diagnose, failureText, _recordFailure,
+  IDENTIDAD, MOTIVO_MURIO, MOTIVO_AJENO,
   PORT, BASE_PATH, SHMIR_ROOT, APP_FILE, PYTHON_BIN,
 };

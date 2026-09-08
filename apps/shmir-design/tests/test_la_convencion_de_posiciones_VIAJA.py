@@ -34,6 +34,7 @@ RAIZ = Path(__file__).resolve().parent.parent
 if str(RAIZ) not in sys.path:
     sys.path.insert(0, str(RAIZ))
 
+from tests.nombres_heredados import por_nombre_heredado, starts_del_medido
 from shmir_design import presentation, spliceai  # noqa: E402
 from shmir_design.anatomy import Anatomy, RegionSource  # noqa: E402
 from shmir_design.errors import ShmirDesignError  # noqa: E402
@@ -74,6 +75,25 @@ def _casete() -> str:
 
 
 def _panel(corrida, intrones=("mvm_actual",)):
+    # EL PANEL SE RECONSTRUYE DESDE EL FICHERO MEDIDO, no desde la seleccion de hoy.
+    # La corrida del 2026-09-05 es la del panel de ENTONCES, y el 2026-09-07 se retiro
+    # `3utr:10` y entro `3utr:359`: con el panel de hoy, las diez construcciones no
+    # cruzarian con las diez filas del fichero y el analisis saldria VACIO — que se lee
+    # como «limpio». Los inicios se derivan del propio fichero (principio nº 13); el
+    # fichero medido no se reescribe nunca.
+    return spliceai.build_panel(
+        corrida.selection, intron_names=intrones, scaffold=SGEP_SCAFFOLD,
+        starts=starts_del_medido(MEDIDO),
+        cassette=_casete(), context_nt=5000,
+    )
+
+
+def _panel_de_hoy(corrida, intrones=("mvm_actual",)):
+    """El panel de HOY, sin reconstruir el de la corrida medida.
+
+    Lo usa lo que no lee `data/medido/`: qué panel declara el FASTA en su cabecera es
+    una propiedad de la corrida que se está emitiendo, no de la de aquel día.
+    """
     return spliceai.build_panel(
         corrida.selection, intron_names=intrones, scaffold=SGEP_SCAFFOLD,
         cassette=_casete(), context_nt=5000,
@@ -91,7 +111,9 @@ def _resultado_medido(panel, *, convencion: str | None) -> str:
     3.133, donante en 3134, aceptor en 3428—, así que las posiciones medidas son
     exactamente las mismas en la construcción de hoy.
     """
-    por_nombre = {c.name: c for c in panel.constructions}
+    # Los nombres del fichero medido son los de ANTES del arreglo del marco; se
+    # leen con `tests/nombres_heredados.py`, que es quien sabe cuál era la forma.
+    por_nombre = por_nombre_heredado(panel.constructions)
     lineas = []
     if convencion:
         lineas.append(f"# convencion: {convencion}")
@@ -156,12 +178,12 @@ class TestElESTADO_viaja_DENTRO_del_fichero(unittest.TestCase):
     @classmethod
     def setUpClass(cls):
         cls.corrida = _corrida()
-        cls.parcial = _panel(cls.corrida, intrones=PARCIAL)
-        cls.entero = _panel(cls.corrida)
+        cls.parcial = _panel_de_hoy(cls.corrida, intrones=PARCIAL)
+        cls.entero = _panel_de_hoy(cls.corrida)
 
     def _fasta(self, panel, intrones):
         resumen = presentation.splice_panel_summary(
-            panel, introns=intrones, candidates=10,
+            panel, introns=intrones, candidates=11,
         )
         return spliceai.constructions_fasta(panel.constructions, summary=resumen)
 
@@ -177,15 +199,15 @@ class TestElESTADO_viaja_DENTRO_del_fichero(unittest.TestCase):
         # El comentario lo puede tirar un parser; una cabecera «>» no la tira ninguno.
         fasta = self._fasta(self.parcial, PARCIAL)
         cabeceras = [l for l in fasta.splitlines() if l.startswith(">")]
-        self.assertEqual(len(cabeceras), 10)
+        self.assertEqual(len(cabeceras), 11)
         for cabecera in cabeceras:
-            self.assertIn("panel=10de20", cabecera)
+            self.assertIn("panel=11de22", cabecera)
             self.assertIn("estado=PARCIAL", cabecera)
 
     def test_un_panel_COMPLETO_lo_dice_igual_de_explicito(self):
         fasta = self._fasta(self.entero, ("mvm_actual",))
         for cabecera in (l for l in fasta.splitlines() if l.startswith(">")):
-            self.assertIn("panel=10de10", cabecera)
+            self.assertIn("panel=11de11", cabecera)
             self.assertIn("estado=COMPLETO", cabecera)
 
     def test_sin_resumen_NO_se_inventa_un_estado(self):
@@ -228,13 +250,16 @@ class TestElGuardiaDelMARCO(unittest.TestCase):
         por_nombre = {p.construction: p for p in scan.pairs}
         # Las puntuaciones MEDIDAS, ya en el sitio que la app declara.
         self.assertAlmostEqual(
-            por_nombre["mvm_actual__3utr959"].legit_donor, 0.6638, places=3,
+            # `tx:959` es el candidato `3utr:10`, y el nombre lo dice desde el
+            # 2026-09-07: antes ponía `3utr959`, que se lee como otra ventana
+            # (errata nº 133). El fichero medido conserva los nombres de entonces.
+            por_nombre["mvm_actual__tx:959"].legit_donor, 0.6638, places=3,
         )
         self.assertAlmostEqual(
-            por_nombre["mvm_actual__3utr1684"].legit_donor, 0.8714, places=3,
+            por_nombre["mvm_actual__tx:1684"].legit_donor, 0.8714, places=3,
         )
         self.assertAlmostEqual(
-            por_nombre["mvm_actual__3utr959"].legit_acceptor, 0.7979, places=3,
+            por_nombre["mvm_actual__tx:959"].legit_acceptor, 0.7979, places=3,
         )
 
     def test_una_convencion_DESCONOCIDA_no_se_adivina(self):
@@ -347,10 +372,10 @@ class TestLaGuiaMODULA_el_donante_legitimo(unittest.TestCase):
         filas = presentation.splice_result_rows(self.scan)
         por_nombre = {f["construccion"]: f for f in filas}
         self.assertAlmostEqual(
-            por_nombre["mvm_actual__3utr1684"]["donante_vs_hermanas"], 1.0, places=6,
+            por_nombre["mvm_actual__tx:1684"]["donante_vs_hermanas"], 1.0, places=6,
         )
         self.assertLess(
-            por_nombre["mvm_actual__3utr959"]["donante_vs_hermanas"], 0.80,
+            por_nombre["mvm_actual__tx:959"]["donante_vs_hermanas"], 0.80,
         )
 
     def test_el_sitio_del_CONTEXTO_apenas_se_mueve_y_ese_es_el_contraste(self):

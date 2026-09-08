@@ -217,10 +217,14 @@ class TestElPanelDeRefinamiento(unittest.TestCase):
             self.panel["progreso"]["cerrados"], self.vacio["progreso"]["cerrados"]
         )
 
-    def test_los_estados_son_CUATRO_y_siempre_los_mismos(self):
+    def test_los_estados_son_CINCO_y_siempre_los_mismos(self):
+        # 2026-09-06: eran cuatro. Entra `SIN PROCEDENCIA` (errata nº 120): un fichero
+        # que ESTA en el deposito y aun asi no cierra su frente porque a su linea del
+        # manifiesto le faltan campos. No es CERRADO (no cierra) y no es FALTA (esta),
+        # y colapsarlo con cualquiera de los dos escondia la unica salida del problema.
         self.assertEqual(
             [e["estado"] for e in presentation.REFINEMENT_STATES],
-            ["CERRADO", "FALTA", "OPCIONAL", "NO USADO"],
+            ["CERRADO", "SIN PROCEDENCIA", "FALTA", "OPCIONAL", "NO USADO"],
         )
         for entrada in presentation.REFINEMENT_STATES:
             self.assertTrue(entrada["color"])
@@ -448,10 +452,12 @@ class TestLaPaginaSoloPinta(unittest.TestCase):
         vacio se lee como un paso que no hace nada."""
         self.assertIn("WHY_TWO_MOMENTS", PAGINA)
 
-    def test_la_pagina_no_escribe_ninguno_de_los_cuatro_estados_a_mano(self):
+    def test_la_pagina_no_escribe_ninguno_de_los_estados_a_mano(self):
+        # La lista se DERIVA de `REFINEMENT_STATES` en vez de transcribirse: un estado
+        # nuevo queda cubierto sin que nadie se acuerde (principio nº 13).
         bloque = _bloque_del_panel()
-        for estado in ("CERRADO", "FALTA", "OPCIONAL", "NO USADO"):
-            self.assertNotIn(f'"{estado}"', bloque)
+        for entrada in presentation.REFINEMENT_STATES:
+            self.assertNotIn(f'"{entrada["estado"]}"', bloque)
 
 
 def _bloque_del_panel() -> str:

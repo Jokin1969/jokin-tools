@@ -36,18 +36,24 @@ from types import MappingProxyType
 
 from .accessibility import CONTEXT_WINDOWS as _CTX
 from .anatomy import Anatomy, Region
-from .coords import Frame, frame_of, label
+from .coords import Frame, label, labels, requested_labels, tiled_frame
 from .errors import ShmirDesignError
 from .filters import FilterState, Verdict
 from .hard_filters import gc_fraction
 from .polya import CLEAVAGE_MAX, CLEAVAGE_MIN, PolyASignal, Tercio
 from .tiling import TiledWindow, TilingReport
 
-#: El panel del proyecto son DIEZ, no seis. El 6 venia de antes de que se fijaran las
-#: cuotas y ya no coincidia con nada: con 6 se quedan fuera `3utr:10`, `143`, `200` y
-#: `735` — tres de los cuatro inmunes—, asi que el valor por defecto de la interfaz
-#: producia un panel que contradecia lo decidido sin que nadie lo dijera.
-DEFAULT_CANDIDATES = 10
+#: El panel del proyecto son ONCE. Fueron diez hasta el 2026-09-06, y antes seis — el 6
+#: venia de antes de que se fijaran las cuotas y ya no coincidia con nada: se quedaban
+#: fuera `3utr:10`, `143`, `200` y `735`, tres de los cuatro inmunes.
+#:
+#: LA PLAZA ONCE ES EL SEGUNDO DISTAL, y es una decision del responsable del proyecto
+#: (2026-09-06) con la cuenta delante: *«con 414 nt colgando de 3utr:1018 —y siendo este
+#: el penalizado por ACTAAA— un solo candidato en ese tramo es una apuesta innecesaria»*.
+#: Sale `3utr:1071-1092`: asimetria +4,28, cabe con TODO el panel y queda a 53 nt de
+#: 3utr:1018. Y no se apoya en la asimetria para entrar —ahi seria una coincidencia—:
+#: entra por `tercio_quota_by_start`, que la EXIGE.
+DEFAULT_CANDIDATES = 11
 
 #: Minimo de candidatos INMUNES al truncamiento por la señal proximal. Valia 0, o sea
 #: que por defecto NO habia cuota de inmunes y solo mandaba la de tercios — y entonces
@@ -60,7 +66,29 @@ DEFAULT_CANDIDATES = 10
 #: hay de donde rebalancear. Cuatro es lo que cabe con el espaciado de 50 nt, medido, no
 #: elegido. Ver la entrada de `CLAUDE.md` sobre por que el espaciado no se baja para
 #: meter un quinto.
-DEFAULT_IMMUNE_QUOTA = 4
+#: CUOTA DE INMUNES AL APA. Bajó de 4 a 3 el 2026-09-07 POR GEOMETRÍA, no por criterio:
+#: ver `WHY_THE_IMMUNE_QUOTA_IS_THREE`. No se ha renunciado a la reserva — no cabe.
+DEFAULT_IMMUNE_QUOTA = 3
+
+WHY_THE_IMMUNE_QUOTA_IS_THREE = (
+    "La cuota de inmunes al APA bajó de CUATRO a TRES el 2026-09-07 por GEOMETRÍA, no "
+    "por criterio, y queda escrito para que nadie lo lea como que se renunció a la "
+    "reserva. Al retirar `3utr:10` por el frente de empalme, su plaza tenía que ocuparla "
+    "otro inmune — y no hay: los 16 sitios inmunes se apelotonan entre `3utr:10` y "
+    "`3utr:200`, así que con `3utr:60`, `143` y `200` puestos ninguno de los trece "
+    "restantes queda a 50 nt de todo el panel. El espaciado NO se baja para que quepa "
+    "uno: compra independencia entre apuestas, no número de apuestas. Con tres inmunes "
+    "el panel sigue sin depender de un solo supuesto, que es lo que la reserva "
+    "compraba."
+)
+
+#: Cuantos candidatos tienen que EMPEZAR en el tercio distal. Decidido por el responsable
+#: del proyecto el 2026-09-06, con la cuenta delante: el tramo son 414 nt y colgaban de
+#: `3utr:1018` — que ademas es el penalizado por ACTAAA—, asi que un solo candidato ahi
+#: era una apuesta innecesaria. Y NO estaba limitado por la geometria: de los 16 sitios
+#: elegibles del tramo, 13 quedan a 50 nt o mas de `3utr:1018`. Lo limitaba la cuota, y
+#: la cuota es esto.
+DEFAULT_DISTAL_BY_START = 2
 DEFAULT_MIN_SPACING = 50
 #: Penalizacion de ranking, en kcal/mol, para una ventana que solapa una variante rara
 #: de poliadenilacion. No excluye: la baja en la lista. El valor es una convencion.
@@ -118,6 +146,31 @@ class SelectionConfig:
     #: resuelve: `Tercio` etiqueta por punto MEDIO de la ventana y la particion simple
     #: va por INICIO, asi que 3utr:819 sale «distal» etiquetado y «medio» por inicio.
     start_window_quota: tuple[tuple[int, int, int], ...] | None = None
+    #: Cuota por tercio POR POSICION DE INICIO, del tipo ((DISTAL, 2),). Es la hermana de
+    #: `tercio_quota`, que va por PUNTO MEDIO, y lleva la definicion en el nombre porque
+    #: las dos discrepan en el borde: `3utr:819-840` empieza en el tercio medio y su punto
+    #: medio cae en el distal, asi que por punto medio el panel «ya tiene dos distales» y
+    #: por inicio tiene uno. Pedir el segundo distal con la definicion equivocada es
+    #: pedir algo que ya se cumple.
+    #:
+    #: La resuelve `select_from_report`, que es quien tiene el informe y por tanto los
+    #: limites del 3'UTR: aqui llega en tercios y baja a `start_window_quota` en
+    #: coordenadas. El nucleo sigue trabajando con datos minimos.
+    tercio_quota_by_start: tuple[tuple[Tercio, int], ...] | None = None
+    #: Inicios (en el marco de LO TILADO) cuyo SITIO queda FUERA DE LA SELECCION por una
+    #: decision declarada — no por un filtro. Ver `data/candidatos_retirados.toml`.
+    #:
+    #: FUERA DE LA SELECCION, NO FUERA DE LOS ELEGIBLES, y la diferencia es el fallo que
+    #: costo cazar: quitarlos de `eligible_choices` los borraba tambien de la piscina, de
+    #: la tabla de sitios y del alcance de los modales — o sea que un candidato retirado
+    #: del PANEL dejaba de poder consultarse, y sus veredictos desaparecian con el. Lo
+    #: que se decidio es que no va en el panel; todo lo demas sigue igual.
+    #:
+    #: Se retira el SITIO ENTERO, no la ventana: bajo el espaciado de 50 nt una ventana
+    #: corrida 1 nt es el MISMO sitio (`spacing.same_site`), asi que dejarla elegible
+    #: seria dejar que la retirada se esquive con un vecino que lleva practicamente la
+    #: misma guia.
+    retired_starts: tuple[int, ...] = ()
 
     def __post_init__(self) -> None:
         if self.n_candidates < 1:
@@ -274,6 +327,13 @@ class Selection:
     config: SelectionConfig
     quota_unfilled: tuple[str, ...] = field(default=())
     notes: tuple[str, ...] = field(default=())
+    #: DECISIONES REGISTRADAS, que no son avisos. `notes` dice lo que se PIDIO y no se
+    #: pudo dar —«se pedian 50 y salen 13»—, o sea algo que quien lee puede querer
+    #: cambiar. Esto dice lo que alguien DECIDIO, con su motivo: una retirada del panel.
+    #: Van aparte porque una decision tomada sale en TODAS las corridas de esa secuencia,
+    #: y un aviso que sale siempre deja de leerse — el control adversario del aviso del
+    #: espaciado lo exigia vacio y con la retirada dentro nunca volvia a estarlo.
+    decisions: tuple[str, ...] = field(default=())
     _ranked: tuple[int, ...] = field(default=())
 
     def rank_of(self, start: int) -> int:
@@ -397,7 +457,19 @@ def choose(sites: list[Site], config: SelectionConfig) -> Selection:
     rellenan con candidatos de otra region, porque el reparto es una decision de diseño
     y no un cupo que se pueda mover solo.
     """
-    ordenados = sorted(sites, key=lambda s: (-s.best.asymmetry, s.best.start))
+    # LAS RETIRADAS DECLARADAS SALEN DE LA SELECCION, y sale el SITIO entero: bajo el
+    # espaciado una ventana corrida 1 nt es el MISMO sitio, asi que quitar solo la
+    # ventana dejaria que la retirada se esquive con un vecino que lleva practicamente
+    # la misma guia. Siguen siendo elegibles y siguen en la tabla con sus veredictos —
+    # lo que se decidio es que no van en el panel.
+    elegibles = sites
+    if config.retired_starts:
+        retirados = set(config.retired_starts)
+        elegibles = [
+            s for s in sites
+            if not any(c.start in retirados for c in s.choices)
+        ]
+    ordenados = sorted(elegibles, key=lambda s: (-s.best.asymmetry, s.best.start))
     chosen: list[Choice] = []
     usados: set[int] = set()
     quota_unfilled: list[str] = []
@@ -651,9 +723,17 @@ class ReportSelection:
                 por_inicio.setdefault(choice.start, choice)
         faltan = sorted(set(int(s) for s in starts) - set(por_inicio))
         if faltan:
+            # CON SU MARCO: aqui llegan `starts` pelados y este mensaje los NOMBRA. El
+            # marco sale de la anatomia que viaja con la seleccion, que es la del panel
+            # sobre el que se piden (errata nº 138, la forma sin etiqueta).
+            marco = tiled_frame(getattr(self, "anatomy", None))
+            # `requested_labels` y no `labels`: lo que se nombra aqui es lo PEDIDO, y lo
+            # pedido puede no ser una posicion —un `99999` tecleado en el modal—. Con
+            # `labels`, este aborto abortaba a su vez por el invariante de rango y el
+            # motivo que importa se perdia.
             raise ShmirDesignError(
                 f"No hay ninguna ventana elegible que empiece en "
-                f"{', '.join(str(f) for f in faltan)}: se aborta en vez de emitir menos "
+                f"{requested_labels(faltan, marco)}: se aborta en vez de emitir menos "
                 f"consultas de las que la etiqueta del alcance anuncia. El alcance de "
                 f"esta corrida son los {len(por_inicio)} sitios elegibles, de los que "
                 f"{len(self.selection.chosen)} están en el panel."
@@ -762,12 +842,69 @@ def default_config(n_candidates: int = DEFAULT_CANDIDATES, **extra) -> Selection
     """
     return SelectionConfig(
         n_candidates=n_candidates,
+        # LA PLAZA ONCE: un segundo candidato que EMPIECE en el tercio distal. Por
+        # INICIO y no por punto medio, porque por punto medio ya se cumplia con
+        # `3utr:819-840` — que empieza en el tercio medio y acaba en el nt 840 de un
+        # tramo que llega al 1242, o sea que cubre su primer nucleotido y no el tramo.
+        # Pedirlo con la definicion equivocada habria sido pedir algo que ya pasaba.
+        tercio_quota_by_start=((Tercio.DISTAL, DEFAULT_DISTAL_BY_START),),
         apa_immune_quota=min(DEFAULT_IMMUNE_QUOTA, n_candidates),
         # Marcada como DEL PROYECTO, no pedida. Ver `apa_immune_quota_por_defecto`: sin
         # esto, toda corrida sobre una secuencia sin señal de APA aborta por una cuota
         # que quien llama no ha pedido.
         apa_immune_quota_por_defecto=True,
         **extra,
+    )
+
+
+def _ventanas_de_tercio(
+    report: TilingReport, cuota: tuple[tuple[Tercio, int], ...]
+) -> tuple[tuple[int, int, int], ...]:
+    """Los tercios pedidos, bajados a coordenadas DE LO TILADO.
+
+    Los limites de los tercios se calculan sobre el 3'UTR, y `start_window_quota` compara
+    contra `choice.start`, que va en el marco de lo tilado — con un tilado de transcrito
+    los dos no coinciden. Se suma el desfase aqui, una vez, en vez de dejar que cada lado
+    suponga el suyo: es la misma familia de fallo que `3utr:1684`.
+    """
+    anatomia = report.anatomy
+    desfase = anatomia.utr3[0] - 1 if anatomia is not None and anatomia.utr3 else 0
+    largo = (
+        anatomia.utr3_length
+        if anatomia is not None and anatomia.utr3
+        else report.utr_length
+    )
+    limites = {
+        Tercio.PROXIMAL: (1, largo // 3),
+        Tercio.MEDIO: (largo // 3 + 1, 2 * largo // 3),
+        Tercio.DISTAL: (2 * largo // 3 + 1, largo),
+    }
+    return tuple(
+        (limites[tercio][0] + desfase, limites[tercio][1] + desfase, plazas)
+        for tercio, plazas in cuota
+    )
+
+
+def _retiradas(report, choices):
+    """Qué inicios retira la tabla declarada sobre ESTE informe, y qué se dice de ellos.
+
+    El md5 del 3'UTR y el desfase salen del informe, no de quien llama: una retirada
+    aplicada sobre la secuencia equivocada quitaría una ventana que nadie ha mirado, y un
+    desfase supuesto la quitaría en el sitio equivocado (errata nº 133).
+    """
+    from . import retirados
+
+    if not report.utr3_md5:
+        # Sin md5 del 3'UTR no hay con qué comparar, así que no se aplica nada — y no se
+        # aplica «por si acaso», que es como una retirada acaba cayendo sobre la ventana
+        # de otra secuencia.
+        return set(), ()
+    entradas = retirados.para(report.utr3_md5)
+    if not entradas:
+        return set(), ()
+    return retirados.aplicar(
+        [c.start for c in choices], entradas=entradas,
+        offset=report.utr3_offset, md5_utr3=report.utr3_md5,
     )
 
 
@@ -812,9 +949,34 @@ def select_from_report(
             config = replace(config, apa_immune_quota=0)
         else:
             config = replace(config, apa_immune_before=derivado)
+    # LA CUOTA POR TERCIO POR INICIO SE RESUELVE AQUI, que es donde esta el informe: baja
+    # a `start_window_quota` en coordenadas del 3'UTR. El nucleo (`choose`) sigue
+    # trabajando con datos minimos y sin saber cuanto mide el 3'UTR.
+    if config.tercio_quota_by_start:
+        config = replace(
+            config,
+            start_window_quota=(
+                tuple(config.start_window_quota or ())
+                + _ventanas_de_tercio(report, config.tercio_quota_by_start)
+            ),
+        )
     choices = eligible_choices(report, config)
+    # LAS RETIRADAS DECLARADAS. Un candidato que sale del panel por una DECISIÓN —no por
+    # un filtro— tiene que dejar rastro: quitarlo a mano no deja más huella que una
+    # piscina más pequeña. Se aplican por el md5 del 3'UTR, así que sobre otra secuencia
+    # no retiran nada.
+    #
+    # Y salen de la SELECCIÓN, no de los ELEGIBLES: la ventana sigue en la piscina, en
+    # la tabla de sitios y en el alcance de los modales, con sus veredictos. Quitarla de
+    # `choices` la borraba de todo eso, y entonces un candidato retirado del panel
+    # dejaba de poder consultarse — que es más de lo que se decidió.
+    fuera, notas_retirados = _retiradas(report, choices)
+    if fuera:
+        config = replace(config, retired_starts=tuple(sorted(fuera)))
     sites = group_choices(choices)
     selection = choose(sites, config)
+    if notas_retirados:
+        selection = replace(selection, decisions=notas_retirados + selection.decisions)
     if sin_corte:
         selection = replace(selection, notes=(sin_corte,) + selection.notes)
     return ReportSelection(
@@ -907,7 +1069,7 @@ class PolyAModeComparison:
     eligible: dict[str, int]
     stable: bool
     #: Espacio de las posiciones de `selections`: el de LO TILADO.
-    frame: Frame = Frame.UTR3
+    frame: Frame = field(kw_only=True)
 
     def format_text(self) -> str:
         lines = [
@@ -962,6 +1124,10 @@ def polya_mode_comparison(
                 list(report.signals),
                 utr_length=report.utr_length,
                 mode=modo,
+                # EL MARCO, que hasta hoy no se pasaba: la comparativa lo declaraba en su
+                # propio campo y las anotaciones de dentro se quedaban con el valor por
+                # defecto. Es el mismo de la comparativa, y ahora sale de un solo sitio.
+                frame=tiled_frame(report.anatomy),
             )
             ventanas.append(
                 replace(
@@ -977,7 +1143,7 @@ def polya_mode_comparison(
         selections=selections,
         eligible=elegibles,
         stable=len(set(selections.values())) == 1,
-        frame=frame_of(report.anatomy) if report.anatomy is not None else Frame.UTR3,
+        frame=tiled_frame(report.anatomy),
     )
 
 
@@ -1330,7 +1496,7 @@ def measured_promotion_cost(report: TilingReport) -> PromotionCost:
     Solo cuentan las que fallan UNICAMENTE el filtro de polyA: una ventana que ya fallaba
     GC no la tumba la promocion, y contarla inflaria la factura.
     """
-    from .coords import Frame, frame_of
+    from .coords import Frame, tiled_frame
     from .polya import SignalClass
 
     # Solo las que la medida SUBIO. Una señal canonica ya era APA_POSIBLE por la
@@ -1350,7 +1516,7 @@ def measured_promotion_cost(report: TilingReport) -> PromotionCost:
     if not promovidas:
         return PromotionCost()
 
-    marco = frame_of(report.anatomy) if report.anatomy is not None else Frame.UTR3
+    marco = tiled_frame(report.anatomy)
     caidas = []
     for ventana in report.windows:
         fallos = [f for f in ventana.filters if f.state is FilterState.FAIL]
@@ -1621,11 +1787,11 @@ def apa_ceiling_table(
     """
     from .polya import SignalClass
 
-    from .coords import Frame, frame_of
+    from .coords import Frame, tiled_frame
 
     elegibles = [w.window.start for w in report.windows if is_eligible(w, config)]
     medido = getattr(report, "measured_apa", None)
-    marco = frame_of(report.anatomy) if report.anatomy is not None else Frame.UTR3
+    marco = tiled_frame(report.anatomy)
     filas: list[ApaCeilingRow] = []
     for señal in report.signals:
         if señal.classification is not SignalClass.APA_POSSIBLE:
@@ -1767,6 +1933,305 @@ def tercio_counts(
     )
 
 
+# ─── Cobertura por tercios: cuánto margen queda en cada tramo ────────────────
+#
+# `tercio_counts` cuenta lo que HAY. Esto contesta otra pregunta: ¿está cubierto cada
+# tramo, con qué margen, y cuál sería el siguiente si hiciera falta uno más? Con el
+# panel murino el tercio distal son 414 nt con UN candidato dentro —`3utr:1018`, que
+# además es el penalizado por ACTAAA—, así que ese tramo depende de uno. La cuota se
+# decidió por tercios: si se cumple o no tiene que verse, no deducirse.
+
+
+@dataclass(frozen=True)
+class NextInTercio:
+    """Un sitio elegible que cabría en el panel sin romper el espaciado."""
+
+    start: int
+    end: int
+    asymmetry: float
+
+    def describe(self) -> str:
+        from .coords import Frame, span
+
+        return f"{span(self.start, self.end, Frame.UTR3)} (asimetría {self.asymmetry:+.2f})"
+
+
+@dataclass(frozen=True)
+class TercioCoverage:
+    """Un tercio del 3'UTR: lo que hay, lo que se cogió y lo que quedaría."""
+
+    tercio: str
+    bounds: tuple[int, int]
+    #: Sitios elegibles en el tramo, con las DOS definiciones. No se elige una: la
+    #: cuota usa el punto medio y la partición del 3'UTR el inicio, y con ventanas de
+    #: 22 nt discrepan en el borde.
+    sites_by_start: int
+    sites_by_midpoint: int
+    panel_by_start: tuple[int, ...]
+    panel_by_midpoint: tuple[int, ...]
+    #: Los del panel que caen en este tercio por PUNTO MEDIO y no por inicio: están en
+    #: el borde de entrada del tramo y cubren su primer nucleótido, no el tramo.
+    borderline: tuple[int, ...]
+    quota: int
+    spacing: int
+    #: Candidatos y sitios del panel que NO caen en el 3'UTR. En un tilado de transcrito
+    #: los hay —los del CDS y el 5'UTR— y no tienen tercio: se cuentan y se dicen, en vez
+    #: de meterlos en un tramo por descarte.
+    outside_utr3: int
+    #: Cuántos sitios elegibles del tramo quedan libres respecto de UNA referencia (el
+    #: candidato del panel que ya está en el tramo) y respecto de TODO el panel. Son
+    #: dos números distintos y el segundo es el que manda: añadir uno al panel exige
+    #: espaciado con todos, no solo con su vecino.
+    free_of_reference: int
+    free_of_panel: int
+    reference: int | None
+    #: Los mejores que caben con TODO el panel, por el orden con que se eligió.
+    next_free: tuple[NextInTercio, ...]
+    #: Los mejores que sólo tienen que respetar el espaciado con la REFERENCIA del
+    #: tramo. Son dos listas y no una porque son dos preguntas: «¿qué cabe sin tocar
+    #: nada?» y «¿qué cabe en ESTE tramo?». La segunda es la que hay que mirar para
+    #: decidir si la cobertura del tramo está limitada por la geometría o por la cuota:
+    #: si hay de sobra a ≥ espaciado de su propio vecino, lo que falta son plazas.
+    next_free_of_reference: tuple[NextInTercio, ...] = ()
+    #: Los sitios del tramo que están RETIRADOS por decisión declarada. No aparecen en
+    #: ninguna de las dos listas de «el siguiente que cabe» —proponer el que alguien
+    #: retiró es lo que esto impide— y salen nombrados, porque un hueco que se quita en
+    #: silencio no se distingue de uno que nunca estuvo.
+    retired: tuple[int, ...] = ()
+
+    @property
+    def quota_met(self) -> bool:
+        """Con la definición que USA la cuota, que es el punto medio."""
+        return len(self.panel_by_midpoint) >= self.quota
+
+    @property
+    def length(self) -> int:
+        from .audit import Span
+
+        return Span(*self.bounds).length
+
+    def describe(self) -> list[str]:
+        """TODAS las posiciones que salen de aquí van en el marco del 3'UTR.
+
+        No es un detalle de formato: los tercios se cuentan sobre el 3'UTR y el panel
+        puede venir de un tilado del TRANSCRITO, así que las posiciones se convierten al
+        entrar (`tercio_coverage`) y no al imprimir. Etiquetar `tx:1684` como `3utr:1684`
+        es la familia de fallo que `coords` ya cazó cuatro veces.
+        """
+        from .coords import Frame, label, span
+
+        estado = "cumplida" if self.quota_met else "SIN CUBRIR"
+        lineas = [
+            f"{self.tercio} — {span(*self.bounds, Frame.UTR3)}, {self.length} nt: "
+            f"{self.sites_by_start} sitios elegibles por inicio "
+            f"({self.sites_by_midpoint} por punto medio).",
+            f"  Panel: {len(self.panel_by_midpoint)} candidato(s) por PUNTO MEDIO "
+            f"—la definición que usa la cuota— y {len(self.panel_by_start)} por inicio. "
+            f"Cuota {self.quota}: {estado}.",
+        ]
+        if self.outside_utr3:
+            lineas.append(
+                f"  {self.outside_utr3} candidato(s) del panel NO caen en el 3'UTR "
+                f"—el tilado es del transcrito—, así que no tienen tercio y no se "
+                f"cuentan en ningún tramo."
+            )
+        if self.borderline:
+            lineas.append(
+                "  OJO, borde: "
+                + ", ".join(label(p, Frame.UTR3) for p in self.borderline)
+                + f" cuenta(n) en este tercio por punto medio y empieza(n) en el "
+                f"anterior. Cubre(n) el primer nucleótido del tramo, no el tramo."
+            )
+        if self.retired:
+            lineas.append(
+                "  RETIRADO(S) por decisión declarada, fuera de las listas de abajo: "
+                + ", ".join(label(p, Frame.UTR3) for p in self.retired)
+                + ". Siguen siendo sitios elegibles y siguen en la tabla con sus "
+                "veredictos; lo que no vuelven a hacer es proponerse para una plaza."
+            )
+        if self.reference is not None:
+            lineas.append(
+                f"  Margen: {self.free_of_reference} sitio(s) del tramo quedan a "
+                f"{self.spacing} nt o más de {label(self.reference, Frame.UTR3)}, y "
+                f"{self.free_of_panel} lo cumplen con TODO el panel. El que manda es "
+                f"el segundo: añadir uno exige espaciado con todos."
+            )
+        else:
+            lineas.append(
+                f"  Margen: {self.free_of_panel} sitio(s) del tramo caben en el panel "
+                f"respetando el espaciado de {self.spacing} nt."
+            )
+        if self.next_free_of_reference:
+            lineas.append(
+                f"  Los mejores del tramo a {self.spacing} nt o más de "
+                + (
+                    label(self.reference, Frame.UTR3)
+                    if self.reference is not None
+                    else "el panel"
+                )
+                + ", por el mismo orden con que se eligió el panel (asimetría): "
+                + "; ".join(s.describe() for s in self.next_free_of_reference)
+                + "."
+            )
+        if self.next_free and self.next_free != self.next_free_of_reference:
+            lineas.append(
+                "  Los que además caben con TODO el panel NO son los mismos: "
+                + "; ".join(s.describe() for s in self.next_free)
+                + "."
+            )
+        elif self.next_free:
+            lineas.append(
+                f"  Los tres son también los mejores que caben con TODO el panel, así "
+                f"que aquí las dos preguntas dan la misma respuesta."
+            )
+        if not self.next_free:
+            lineas.append(
+                "  No queda ninguno: o no hay más sitios elegibles en el tramo o todos "
+                f"caen a menos de {self.spacing} nt de un candidato ya elegido."
+            )
+        return lineas
+
+
+#: Cuántos «siguientes» se ofrecen por tercio. No es un ranking de reserva: son los
+#: primeros por el MISMO orden con que se eligió el panel, para que la comparación
+#: signifique algo.
+NEXT_PER_TERCIO = 3
+
+
+def tercio_coverage(
+    report: TilingReport,
+    selection,
+    config: SelectionConfig | None = None,
+    *,
+    top: int = NEXT_PER_TERCIO,
+) -> tuple[TercioCoverage, ...]:
+    """Los tres tercios, con su cobertura, su margen y su siguiente candidato.
+
+    `selection` es lo que devuelve `select_from_report` o el propio `Selection`: de él
+    salen los candidatos elegidos, que son contra los que se mide el espaciado.
+
+    **Y de él sale también la CONFIGURACIÓN, si no la pasa el llamador.** Antes se
+    fabricaba un `SelectionConfig()` pelado, así que una selección hecha con otro
+    espaciado —o con una retirada aplicada— se describía con los valores por defecto: el
+    informe decía «espaciado 50 nt» de un panel elegido con 30, con la forma correcta y
+    sin dar ningún error. La configuración que produjo la selección la lleva la propia
+    selección; pedírsela es derivar en vez de suponer (principio nº 13).
+    """
+    elegida_para_config = getattr(selection, "selection", selection)
+    ajustes = config or getattr(elegida_para_config, "config", None) or SelectionConfig()
+    cuenta = tercio_counts(report, ajustes)
+    nombres = ("proximal", "medio", "distal")
+    limites = cuenta.bounds
+
+    def por_inicio(posicion: int) -> str:
+        for nombre, (a, b) in zip(nombres, limites, strict=True):
+            if a <= posicion <= b:
+                return nombre
+        return nombres[-1]
+
+    elegida = getattr(selection, "selection", selection)
+
+    # AL MARCO DEL 3'UTR, AQUI Y NO AL IMPRIMIR. Los tercios se cuentan sobre el 3'UTR y
+    # el panel puede venir de un tilado del TRANSCRITO: mezclar los dos marcos en la
+    # misma frase da `3utr:1684` sobre un 3'UTR de 1242 — la familia de fallo que
+    # `coords` ya cazo cuatro veces, y que aqui abortaba la corrida entera del CLI.
+    def al_utr3(posicion: int) -> int | None:
+        return report.utr3_of(int(posicion))
+
+    # UN CANDIDATO RETIRADO NO SE VUELVE A PROPONER. Sigue siendo un sitio elegible —la
+    # retirada sale de la SELECCIÓN, no de la piscina— así que sin esto aparecería como
+    # «el siguiente que cabe» en su tercio: la app recomendaría ocupar la plaza con
+    # exactamente el candidato que alguien retiró, y el motivo escrito no se vería por
+    # ninguna parte. Se excluye y se CUENTA, porque un hueco que se quita en silencio no
+    # se distingue de uno que nunca estuvo.
+    retirados_utr3 = {
+        p for p in (al_utr3(x) for x in ajustes.retired_starts) if p is not None
+    }
+    panel_bruto = sorted(int(c.start) for c in elegida.chosen)
+    panel = [p for p in (al_utr3(x) for x in panel_bruto) if p is not None]
+    fuera_del_utr3 = len(panel_bruto) - len(panel)
+    tercio_de_elegido: dict[int, str] = {}
+    for choice in elegida.chosen:
+        convertida = al_utr3(choice.start)
+        if convertida is not None:
+            tercio_de_elegido[convertida] = choice.tercio.value if choice.tercio else ""
+
+    sitios = []
+    for sitio in sorted(
+        group_choices(eligible_choices(report, ajustes)),
+        key=lambda s: (-s.best.asymmetry, s.best.start),
+    ):
+        inicio = al_utr3(sitio.best.start)
+        fin = al_utr3(sitio.best.end)
+        if inicio is None or fin is None:
+            continue
+        sitios.append((sitio, inicio, fin))
+
+    cuotas = dict.fromkeys(nombres, 0)
+    if ajustes.tercio_quota:
+        cuotas.update({t.value: n for t, n in ajustes.tercio_quota})
+    elif ajustes.require_one_per_tercio:
+        cuotas.update(dict.fromkeys(nombres, ajustes.min_per_tercio))
+
+    salida = []
+    for nombre, limite in zip(nombres, limites, strict=True):
+        del_tercio_medio = [
+            (s, a, b) for (s, a, b) in sitios
+            if s.best.tercio is not None and s.best.tercio.value == nombre
+        ]
+        panel_inicio = tuple(p for p in panel if por_inicio(p) == nombre)
+        panel_medio = tuple(p for p in panel if tercio_de_elegido.get(p) == nombre)
+        referencia = panel_medio[-1] if panel_medio else None
+        de_la_referencia = (
+            [
+                (s, a, b) for (s, a, b) in del_tercio_medio
+                if a not in panel
+                and a not in retirados_utr3
+                and respects_spacing(a, referencia, spacing=ajustes.min_spacing)
+            ]
+            if referencia is not None
+            else []
+        )
+        libres_referencia = len(de_la_referencia)
+        caben = [
+            (s, a, b) for (s, a, b) in del_tercio_medio
+            if a not in panel
+            and a not in retirados_utr3
+            and all(
+                respects_spacing(a, p, spacing=ajustes.min_spacing) for p in panel
+            )
+        ]
+        salida.append(
+            TercioCoverage(
+                tercio=nombre,
+                bounds=limite,
+                sites_by_start=cuenta.sites_by_start.get(nombre, 0),
+                sites_by_midpoint=len(del_tercio_medio),
+                panel_by_start=panel_inicio,
+                panel_by_midpoint=panel_medio,
+                borderline=tuple(p for p in panel_medio if p not in panel_inicio),
+                quota=cuotas.get(nombre, 0),
+                spacing=ajustes.min_spacing,
+                outside_utr3=fuera_del_utr3,
+                free_of_reference=libres_referencia,
+                free_of_panel=len(caben),
+                reference=referencia,
+                retired=tuple(
+                    sorted(p for p in retirados_utr3 if por_inicio(p) == nombre)
+                ),
+                next_free=tuple(
+                    NextInTercio(start=a, end=b, asymmetry=s.best.asymmetry)
+                    for (s, a, b) in caben[:top]
+                ),
+                next_free_of_reference=tuple(
+                    NextInTercio(start=a, end=b, asymmetry=s.best.asymmetry)
+                    for (s, a, b) in de_la_referencia[:top]
+                ),
+            )
+        )
+    return tuple(salida)
+
+
 # ─── Los frentes que bloquean el pedido de oligo ─────────────────────────────
 #
 # No son «los filtros en NOT_RUN». Hay uno mas que no es un filtro de ventana y bloquea
@@ -1857,7 +2322,7 @@ def blocking_fronts(
     Un frente es un filtro que **se cierra consiguiendo algo**: un fichero, o una lectura
     de banco. Lo demas se cuenta en el semaforo, con las ventanas tiladas.
     """
-    from .coords import Frame, frame_of, label
+    from .coords import Frame, label, tiled_frame
     from .filters import BIOPHYSICAL_FILTERS
     from .polya import CLEAVAGE_MIN, SignalClass
 
@@ -1958,7 +2423,7 @@ def blocking_fronts(
         if con_inmunes
         else "ninguno en ningún tramo"
     )
-    marco = frame_of(report.anatomy) if report.anatomy is not None else Frame.UTR3
+    marco = tiled_frame(report.anatomy)
     inmunes = len(selection.selection.chosen) - len(con_techo)
     medido = getattr(report, "measured_apa", None)
     frentes.append(

@@ -568,11 +568,59 @@ WHY_THE_COUNTERWEIGHT_WAS_RETIRED = (
     "MVM sin comprobar que el quimérico se monta sin espaciadores. La diferencia era "
     "exactamente 65 = 20 + 45 — la errata nº 35, cometida por mí esta vez». Medido "
     "sobre el intrón que de verdad se monta, el quimérico está en 249-253 nt: no es "
-    "peor en geometría, empata y queda marginalmente por debajo. CONSECUENCIA, y va "
-    "escrita porque decide qué se sintetiza: el quimérico GANA EN TODO LO MEDIDO, SIN "
-    "CONTRAPESO CONOCIDO. Lo que sí se sostiene del contrapeso es que LOS DOS quedan "
-    "muy por encima del rango típico de mamífero, y eso no lo arregla cambiar de "
-    "intrón."
+    "peor en geometría, empata y queda marginalmente por debajo. Lo que sí se "
+    "sostiene del contrapeso es que LOS DOS quedan muy por encima del rango típico de "
+    "mamífero, y eso no lo arregla cambiar de intrón. CORREGIDO (2026-09-06): aquí "
+    "seguía «el quimérico GANA EN TODO LO MEDIDO, SIN CONTRAPESO CONOCIDO», y eso era "
+    "cierto de lo medido ENTONCES. Ya no: ver el contrapeso medido, "
+    "más abajo. Lo que se retira sigue retirado — la "
+    "geometría no discrimina —, y el contrapeso nuevo es de otro eje."
+)
+
+#: EL PRIMER CONTRAPESO MEDIDO DEL QUIMERICO (2026-09-06). Sale de plegar las 22
+#: construcciones —el panel de once con las dos arquitecturas— y **las dos mitades van
+#: juntas o mienten las dos**: el quimerico deja el punto de ramificacion mas libre, que
+#: es un eje a su favor que no estaba medido, y a la vez deja el donante bastante mas
+#: secuestrado, que es el primer contrapeso que se le conoce.
+#:
+#: NO SE RECONCILIA CON SpliceAI, y no hace falta: del mismo donante, SpliceAI dice
+#: 0,966 en el quimerico frente a 0,873 en el MVM. Son dos preguntas —la secuencia dice
+#: que el sitio existe, el plegado dice si se puede usar— y promediarlas seria perder la
+#: informacion que lleva dentro la discrepancia, que es la misma regla que
+#: `apa.EXPECTED_DIRECTION`.
+#:
+#: Y no excluye nada: la accesibilidad estructural es DESEMPATE Y ALERTA, NUNCA FILTRO.
+#: Lo que cambia es que la eleccion entre las dos arquitecturas deja de ser unanime.
+#: LA MATRIZ DEJA DE SER «UNO GANA». DECIDIDO (2026-09-07) por el responsable del
+#: proyecto, y con sus palabras: *«dos arquitecturas que hay que probar las dos, porque
+#: ninguna medida las separa de forma unánime y el gel es quien decide»*.
+#:
+#: Es la consecuencia de que cada eje mande a un lado distinto —SpliceAI al quimérico en
+#: donante y aceptor, el plegado al MVM en donante y tracto, la geometría a ninguno— y de
+#: que NINGUNO de esos números prediga el empalme. Mientras se buscaba un ganador, la
+#: comparación empujaba a sintetizar UNA; puesta así, empuja a lo correcto: se construyen
+#: las dos y el experimento decide, que es el único árbitro que hay.
+#:
+#: Y NO ES UN EMPATE NI UNA INDECISIÓN: los ejes están medidos, emitidos y cada uno dice
+#: a quién favorece. Lo que se retira es la conclusión agregada, no las medidas.
+BOTH_ARCHITECTURES_GO = (
+    "DECIDIDO (2026-09-07): VAN LAS DOS A SÍNTESIS. Ninguna medida separa a las dos "
+    "arquitecturas de forma unánime —cada eje manda a un lado y ninguno predice el "
+    "empalme—, así que esto no es una comparación para elegir una: son dos "
+    "construcciones que hay que probar las dos, y el gel es quien decide. La matriz "
+    "deja de ser «cuál gana» y pasa a ser «qué sabemos de cada una antes de meterlas "
+    "en el banco»."
+)
+
+THE_FIRST_COUNTERWEIGHT_MEASURED = (
+    "CONTRAPESO, medido el 2026-09-06 sobre las 22 construcciones: el quimérico deja el "
+    "punto de ramificación —el menos accesible de los cuatro en las DOS "
+    "arquitecturas— más libre (0,355 frente a 0,257), y ése es un eje a su favor que no "
+    "estaba medido; pero en el mismo plegado su donante queda bastante más secuestrado "
+    "(0,533 frente a 0,889). Las dos frases van juntas: sola, la primera deja la "
+    "decisión pareciendo tomada. Y del MISMO donante SpliceAI dice lo contrario: 0,966 "
+    "frente a 0,873. Nada de esto excluye a ninguna: sigue siendo desempate y alerta, "
+    "nunca filtro."
 )
 
 #: CORREGIDO (2026-09-05), errata nº 106. Aquí ponía que el quimérico es PEOR en el eje
@@ -586,10 +634,12 @@ THE_THREE_ARE_BETTER_ON_DIFFERENT_AXES = (
     "dos espaciadores, así que intercala 214 nt frente a 149 y acaba en 256 nt frente a "
     "los 249-253 del quimérico. Los dos quedan fuera del rango típico de mamífero y la "
     "diferencia entre ellos es de unos pocos nucleótidos, así que ESTE EJE NO "
-    "DISCRIMINA — era el único contrapeso que se le conocía al quimérico y queda "
-    "retirado. Lo que sí separa a los dos es lo demás —el quimérico tiene mejor "
-    "donante, mejor tracto y 97 posiciones de inserción frente a 39—, y ninguno de esos "
-    "números predice el empalme. Las opciones van a síntesis; el gel decide."
+    "DISCRIMINA y queda retirado como contrapeso. Lo que sí separa a los dos es lo "
+    "demás: POR SECUENCIA Y POR SpliceAI el quimérico tiene mejor donante, mejor tracto "
+    "y 97 posiciones de inserción frente a 39. POR PLEGADO no: el MVM deja el donante y "
+    "el tracto más accesibles, y el quimérico el punto de ramificación y el aceptor "
+    "(el contrapeso medido, más arriba). Así que la elección deja de ser unánime, y "
+    "ninguno de esos números predice el empalme."
 )
 
 OPEN_QUESTION_DONOR_TO_BRANCH = (

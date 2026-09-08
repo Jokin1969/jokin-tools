@@ -20,6 +20,7 @@ emparejan con las posiciones 15-21 de la ventana, que en coordenadas de 3'UTR so
 
 import unittest
 
+from shmir_design.coords import Frame
 from shmir_design.filters import FilterState
 from shmir_design.polya import (
     CLEAVAGE_MAX,
@@ -30,12 +31,31 @@ from shmir_design.polya import (
     SEED_TARGET_START,
     SignalClass,
     Window,
-    annotate_polya,
+    annotate_polya as _annotate_polya,
     classify_signal,
     seed_target_span,
 )
 
 UTR = 1242
+
+
+#: EL MARCO DE ESTE FICHERO, declarado UNA vez porque es una propiedad del FIXTURE y no
+#: de cada caso: aqui todo se tila sobre el 3'UTR PELADO, asi que las posiciones van en
+#: el espacio del 3'UTR. Escribirlo en las 37 llamadas no lo haria mas cierto y
+#: escondería que lo que lo decide es la entrada, no la llamada.
+#:
+#: Y por eso el marco dejo de tener valor por defecto en el nucleo (errata nº 138): ahi
+#: un olvido daba una posicion de otro sitio, callada. Aqui es una afirmacion sobre este
+#: fixture, y por eso puede estar escrita — igual que los tests SI pueden escribir el
+#: prefijo `3utr:`, que es lo que los hace control adversario de esa regla.
+MARCO_DEL_FIXTURE = Frame.UTR3
+
+
+def annotate_polya(*args, **kwargs):
+    """`polya.annotate_polya` con el marco de este fichero. Ver `MARCO_DEL_FIXTURE`."""
+    kwargs.setdefault("frame", MARCO_DEL_FIXTURE)
+    return _annotate_polya(*args, **kwargs)
+
 
 
 def _señal(motif, position, clase=None, utr_length=UTR):

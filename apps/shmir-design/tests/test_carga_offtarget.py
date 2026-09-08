@@ -18,6 +18,8 @@ Lo que se comprueba aqui es que el numero no se pueda leer mal:
 """
 
 import unittest
+
+from shmir_design.coords import Frame
 from pathlib import Path
 
 from shmir_design import offtarget
@@ -154,6 +156,8 @@ class TestElAutoconteoSobrePrnp(unittest.TestCase):
             elegido.start: offtarget.self_count(
                 self.seleccion.window_of(elegido).evaluation.guide,
                 target=self.utr3, target_label="3\'UTR de Prnp",
+                # El fixture tila el 3'UTR PELADO: las posiciones van en su espacio.
+                frame=Frame.UTR3,
             )
             for elegido in self.seleccion.selection.chosen
         }
@@ -177,7 +181,10 @@ class TestElAutoconteoSobrePrnp(unittest.TestCase):
             inicio for inicio, propio in self._autoconteos().items()
             if not propio.anomalous
         }
-        self.assertEqual(limpios, {10, 60, 143, 359, 652, 735})
+        # SEIS, y ya no son los mismos: `3utr:10` está retirado desde el 2026-09-07
+        # y su plaza en un panel sin cuota de inmunes la ocupa `3utr:1071`. El
+        # hallazgo —CUATRO con segundo sitio— no se mueve: los cuatro siguen dentro.
+        self.assertEqual(limpios, {60, 143, 359, 652, 735, 1071})
 
     def test_el_aviso_dice_que_son_MULTIPLES_DIANAS_en_el_mismo_mensajero(self):
         texto = self._autoconteos()[819].describe()
@@ -200,13 +207,17 @@ class TestElAutoconteoSobrePrnp(unittest.TestCase):
         guia = self.seleccion.window_of(
             self.seleccion.selection.chosen[0]
         ).evaluation.guide
-        propio = offtarget.self_count(guia, target=self.utr3, target_label="Prnp")
+        propio = offtarget.self_count(
+            guia, target=self.utr3, target_label="Prnp", frame=Frame.UTR3
+        )
         self.assertEqual(propio.expected, 1)
 
     def test_cero_sitios_tambien_es_ANOMALO_y_lo_dice(self):
         """Cero significa que la guia NO sale de esa diana. Es otro fallo, no un exito."""
         otra = "T" + "ACGTACGTACGTACGTACGTA"[:21]
-        propio = offtarget.self_count(otra, target="AAAA" * 20, target_label="x")
+        propio = offtarget.self_count(
+            otra, target="AAAA" * 20, target_label="x", frame=Frame.UTR3
+        )
         if propio.occurrences == 0:
             self.assertTrue(propio.anomalous)
             self.assertIn("0", propio.describe())

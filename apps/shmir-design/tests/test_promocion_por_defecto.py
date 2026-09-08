@@ -122,9 +122,17 @@ class TestSonDosVEREDICTOSNoDosOrdenaciones(unittest.TestCase):
 
 @unittest.skipUnless(HAY, "NOT_RUN: falta el fixture del ratón")
 class TestElPanelDeDIEZ(unittest.TestCase):
-    """Lo que cierra la validación: los diez, con los cuatro inmunes."""
+    """Lo que cierra la validación: los once, con los TRES inmunes que caben."""
 
-    ESPERADO = [10, 60, 143, 200, 449, 553, 652, 735, 819, 1018]
+    # ONCE desde el 2026-09-06: `3utr:1071` es el segundo distal, exigido por cuota.
+    #
+    # Y DESDE EL 2026-09-07 sin `3utr:10` y con `3utr:359`: el primero se retira POR EL
+    # FRENTE DE EMPALME —es el único de los once que introduce crípticos que sus hermanas
+    # no tienen— y su plaza NO la puede ocupar otro inmune, porque los 16 sitios inmunes
+    # se apelotonan entre `3utr:10` y `3utr:200` y con `60`, `143` y `200` puestos ninguno
+    # de los trece restantes cabe a 50 nt. La cuota baja a TRES por geometría, y la plaza
+    # once se la lleva el mejor disponible.
+    ESPERADO = [60, 143, 200, 359, 449, 553, 652, 735, 819, 1018, 1071]
 
     def test_el_panel_por_defecto_es_el_del_responsable(self):
         from shmir_design.selection import default_config, select_from_report
@@ -135,14 +143,26 @@ class TestElPanelDeDIEZ(unittest.TestCase):
         )
         self.assertEqual(panel, self.ESPERADO)
 
-    def test_y_los_cuatro_inmunes_estan(self):
-        from shmir_design.selection import default_config, select_from_report
+    def test_y_los_TRES_inmunes_que_caben_estan(self):
+        """TRES, no cuatro — y la diferencia es GEOMETRIA, no criterio.
+
+        `3utr:10` era el cuarto y se retiró el 2026-09-07. Que no lo sustituya otro
+        inmune no es una renuncia a la reserva: es que no cabe ninguno. Lo demuestra
+        `tests/test_QUIEN_puede_ocupar_una_plaza_INMUNE.py`, que emite los dieciséis con
+        el motivo de por qué cada uno choca.
+        """
+        from shmir_design.selection import (
+            DEFAULT_IMMUNE_QUOTA, default_config, select_from_report,
+        )
 
         informe = tile_utr(load_3utr(RATON))
         panel = sorted(
             c.start for c in select_from_report(informe, default_config()).selection.chosen
         )
-        self.assertEqual([p for p in panel if p <= 251], [10, 60, 143, 200])
+        inmunes = [p for p in panel if p <= 251]
+        self.assertEqual(inmunes, [60, 143, 200])
+        # La cuota se CUMPLE: no es que falte uno, es que la cuota son tres.
+        self.assertEqual(len(inmunes), DEFAULT_IMMUNE_QUOTA)
 
 
 if __name__ == "__main__":

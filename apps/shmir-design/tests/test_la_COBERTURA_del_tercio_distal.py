@@ -1,0 +1,169 @@
+"""Cuántos sitios elegibles hay por tercio, y cuál sería el siguiente.
+
+Regla 5: escritos antes que `selection.tercio_coverage`.
+
+## De qué va
+
+El tercio distal del 3'UTR murino son 414 nt y el panel pone ahí UN candidato —
+`3utr:1018`, que además es el penalizado por ACTAAA. Ese tramo depende de uno, y la
+cuota se decidió POR TERCIOS: hay que poder ver si se cumple y con cuánto margen.
+
+## Las dos definiciones no coinciden, y aquí muerde
+
+`Tercio` etiqueta por el PUNTO MEDIO de la ventana; la partición del 3'UTR va por la
+POSICIÓN DE INICIO. `3utr:819-840` empieza en el tercio medio (819 <= 828) y su punto
+medio (829,5) cae en el distal. Con la definición que usa la CUOTA el panel tiene DOS
+distales; con la otra, uno.
+
+Ninguna de las dos es incorrecta y las dos se emiten, pero el «dos» es un artefacto del
+borde: 819-840 se acaba en el nucleótido 840 de un tercio que llega al 1242. Contarlo
+como cobertura distal sin decir dónde está es lo que hace que un tramo vacío parezca
+cubierto.
+"""
+
+import unittest
+from pathlib import Path
+
+from shmir_design.selection import (
+    DEFAULT_MIN_SPACING,
+    default_config,
+    select_from_report,
+    tercio_coverage,
+)
+
+DIR = Path(__file__).resolve().parent.parent / "data" / "reference"
+RATON = DIR / "NM_011170.3.fa"
+
+
+def _tiling():
+    from shmir_design.reference import REFERENCES, load_3utr
+    from shmir_design.tiling import tile_utr
+
+    return tile_utr(load_3utr(REFERENCES["NM_011170.3"]))
+
+
+@unittest.skipUnless(RATON.is_file(), "NOT_RUN: falta data/reference/NM_011170.3.fa")
+class TestLaCoberturaPorTercios(unittest.TestCase):
+
+    @classmethod
+    def setUpClass(cls):
+        cls.tiling = _tiling()
+        # LA CONFIGURACION POR DEFECTO, que es la que corren la pagina y el CLI. Aqui
+        # habia un `select_from_report(tiling)` pelado, o sea `SelectionConfig()` — una
+        # configuracion que no usa nadie, con la cuota de inmunes apagada. Es el
+        # principio nº 18 por el otro lado: no un parametro tecleado de mas, sino la
+        # decision del proyecto ausente. Se vio al retirar `3utr:10`: con la cuota
+        # apagada la plaza libre se la llevaba `3utr:900` y el tercio distal pasaba a
+        # tener tres, que es un panel que la app no produce.
+        cls.seleccion = select_from_report(cls.tiling, default_config())
+        cls.cobertura = tercio_coverage(cls.tiling, cls.seleccion)
+        cls.por_nombre = {c.tercio: c for c in cls.cobertura}
+
+    def test_los_tres_tercios_salen_siempre(self):
+        self.assertEqual(
+            [c.tercio for c in self.cobertura], ["proximal", "medio", "distal"]
+        )
+
+    def test_los_limites_son_los_del_3utr(self):
+        self.assertEqual(
+            [c.bounds for c in self.cobertura], [(1, 414), (415, 828), (829, 1242)]
+        )
+
+    def test_sitios_elegibles_por_tercio_MEDIDOS(self):
+        # Los SITIOS no cambian al cambiar el panel: es el conjunto sobre el que se
+        # elige, no lo elegido.
+        self.assertEqual(
+            {c.tercio: c.sites_by_start for c in self.cobertura},
+            {"proximal": 28, "medio": 42, "distal": 16},
+        )
+
+    def test_el_distal_tiene_DOS_por_inicio_y_TRES_por_punto_medio(self):
+        """Desde el 2026-09-06 el panel lleva `3utr:1071` como SEGUNDO distal.
+
+        El «tres por punto medio» sigue siendo dos de verdad: `3utr:819-840` entra ahí
+        por su punto medio y acaba en el nt 840 de un tramo que llega al 1242. Es la
+        misma discrepancia que hizo que la cuota fuera POR INICIO.
+        """
+        distal = self.por_nombre["distal"]
+        self.assertEqual(distal.panel_by_start, (1018, 1071))
+        self.assertEqual(distal.panel_by_midpoint, (819, 1018, 1071))
+
+    def test_la_cuota_se_cumple_y_se_dice_con_que_definicion(self):
+        distal = self.por_nombre["distal"]
+        self.assertEqual(distal.quota, 1)
+        self.assertTrue(distal.quota_met)
+        texto = "\n".join(distal.describe())
+        self.assertIn("punto medio", texto)
+
+    def test_el_dos_del_borde_se_marca_como_borde(self):
+        """819-840 acaba en el nt 840 de un tercio que llega al 1242."""
+        distal = self.por_nombre["distal"]
+        self.assertEqual(distal.borderline, (819,))
+        self.assertIn("819", "\n".join(distal.describe()))
+
+    def test_el_siguiente_distal_con_espaciado(self):
+        distal = self.por_nombre["distal"]
+        self.assertEqual(distal.spacing, DEFAULT_MIN_SPACING)
+        self.assertTrue(distal.next_free)
+        # 1071 YA está en el panel desde el 2026-09-06, así que el siguiente es otro.
+        self.assertEqual(distal.next_free[0].start, 900)
+        self.assertEqual(distal.next_free[0].end, 921)
+        # Todos los que se ofrecen respetan el espaciado con TODO el panel.
+        elegidos = [c.start for c in self.seleccion.selection.chosen]
+        for siguiente in distal.next_free:
+            for start in elegidos:
+                self.assertGreaterEqual(abs(siguiente.start - start), 50)
+
+    def test_los_TRES_MEJORES_a_50_nt_de_1018_se_EMITEN(self):
+        """Pedido el 2026-09-06: la cobertura del distal no la limita la geometría.
+
+        De los 16 elegibles del tramo, 13 quedan a 50 nt o más de `3utr:1018` — o sea
+        que si ahí hay un solo candidato NO es porque no quepan más, es porque la cuota
+        pide uno. Los tres mejores por asimetría son la lista con la que se decide.
+        """
+        distal = self.por_nombre["distal"]
+        # Con `3utr:1071` YA en el panel, la referencia del tramo pasa a ser él y el
+        # margen baja de 13 a 8: exactamente lo que cuesta ocupar una plaza. La cuenta
+        # que motivó la decisión —13 de 16 libres respecto de 3utr:1018— está en la
+        # errata nº 116 y ya no se puede reproducir desde aquí, porque el panel cambió.
+        self.assertEqual(
+            [(s.start, s.end) for s in distal.next_free_of_reference],
+            [(900, 921), (851, 872), (846, 867)],
+        )
+        self.assertEqual(distal.free_of_reference, 8)
+        texto = "\n".join(distal.describe())
+        self.assertIn("3utr:900-921", texto)
+        self.assertIn("3utr:1071", texto)
+
+    def test_las_DOS_listas_son_dos_preguntas(self):
+        """En el proximal NO coinciden, y ahí se ve que no son la misma."""
+        proximal = self.por_nombre["proximal"]
+        self.assertNotEqual(proximal.next_free_of_reference, proximal.next_free)
+        self.assertIn("NO son los mismos", "\n".join(proximal.describe()))
+
+    def test_se_distingue_libre_de_1018_de_libre_del_panel_entero(self):
+        distal = self.por_nombre["distal"]
+        self.assertEqual(distal.free_of_reference, 8)
+        self.assertEqual(distal.free_of_panel, 4)
+        texto = "\n".join(distal.describe())
+        self.assertIn("8", texto)
+        self.assertIn("4", texto)
+
+    def test_el_tercio_MEDIO_esta_saturado_y_tambien_se_dice(self):
+        """MEDIDO: 41 sitios elegibles y CERO caben — todos a menos de 50 nt.
+
+        Los cinco elegidos del tramo (449, 553, 652, 735, 819) dejan una franja de
+        +/-50 nt que cubre casi los 414. No es lo mismo que el distal, donde quedan
+        nueve: un tramo se lee lleno y el otro depende de uno. Los dos números salen del
+        mismo sitio y por eso se pueden comparar.
+        """
+        medio = self.por_nombre["medio"]
+        self.assertEqual(medio.sites_by_midpoint, 41)
+        self.assertEqual(medio.free_of_panel, 0)
+        self.assertTrue(medio.quota_met)
+        self.assertEqual(medio.next_free, ())
+        self.assertIn("No queda ninguno", "\n".join(medio.describe()))
+
+
+if __name__ == "__main__":
+    unittest.main()

@@ -25,8 +25,11 @@ from __future__ import annotations
 
 from dataclasses import dataclass, field
 
+from .coords import Frame, label
 from .errors import ShmirDesignError
-from .identidad import mensaje_de_id_repetido, result_fingerprint
+from .identidad import (
+    mensaje_de_id_repetido, registrar_del_log, result_fingerprint,
+)
 from .filters import FilterResult, FilterState
 from .spliceai import (
     NO_ABSOLUTE_THRESHOLD,
@@ -71,13 +74,29 @@ class SpliceRun:
             scan=scan, raw=raw, folding=dict(folding or {}),
         )
 
-    def verdict(self, candidate_start: int, intron: str) -> FilterResult:
+    @property
+    def candidate_frame(self) -> Frame:
+        """El espacio en que van los `candidate_start` de ESTA corrida.
+
+        Sale de los pares, no de un valor tecleado: todos los de una corrida se montaron
+        sobre el mismo tilado, asi que llevan el mismo marco. Sin ningun par —una
+        corrida vacia— queda `UTR3`, que es lo unico que puede haber sido.
+        """
+        return self.scan.pairs[0].candidate_frame if self.scan.pairs else Frame.UTR3
+
+    def verdict(self, candidate_start: int, intron: str, *,
+                frame: Frame | None = None) -> FilterResult:
         par = self.scan.for_candidate(candidate_start, intron)
         if par is None:
+            # El marco de un par que NO esta en la corrida no se puede heredar de el.
+            # Se usa el que pasa quien pregunta —que tiene la anatomia delante— y si no
+            # lo pasa, el de los pares que SI estan: todos los de una corrida van en el
+            # mismo espacio porque salen del mismo tilado.
+            etiqueta = label(candidate_start, frame or self.candidate_frame)
             return FilterResult(
                 name=FILTER_NAME, state=FilterState.NOT_RUN,
                 reason=(
-                    f"La corrida {self.run_id} no incluye el par 3utr:{candidate_start} "
+                    f"La corrida {self.run_id} no incluye el par {etiqueta} "
                     f"x {intron}: ese cassette no se consulto. NOT_RUN no es PASS."
                 ),
             )
@@ -102,7 +121,8 @@ class SpliceRun:
                 + "."
             )
         motivo = (
-            f"[3utr:{candidate_start} x {intron}] REFERENTE INTERNO: donante legítimo "
+            f"[{label(candidate_start, par.candidate_frame)} x {intron}] REFERENTE "
+            f"INTERNO: donante legítimo "
             f"{par.legit_donor:.3f}, aceptor {par.legit_acceptor:.3f}. {cifra}."
             f"{conocido} Contexto declarado {par.context_5}/{par.context_3} nt. "
             f"Corrida {self.run_id} ({self.date}, {self.ran_by}, {self.executor}). "
@@ -123,6 +143,30 @@ class SpliceRun:
         return lineas
 
 
+#: QUE SE SABE cuando este aborto salta — y NO se adivina lo demas (errata nº 136).
+#:
+#: Aqui se mandaba a buscar el resultado viejo de SpliceAI, y con un adverbio de
+#: conjetura delante que le daba la forma de un hecho. No se habia comprobado, y ademas
+#: estaba **descartado por el guardia que ese fichero acababa de pasar**: `spliceai.parse_result` valida CADA fila contra las construcciones de ESTA
+#: corrida —por nombre y por md5, con el nombre heredado admitido solo si el md5 lo
+#: confirma— y rechaza el fichero entero si alguna nombra una que este panel no genera.
+#: Un resultado del panel anterior lleva filas de un candidato que hoy esta retirado, asi
+#: que **no puede llegar hasta aqui**: aborta antes y con otro mensaje.
+#:
+#: O sea que la unica cosa que el fichero NO podia ser era justo la que el texto mandaba
+#: a buscar, y se mando dos veces. Principio nº 3: un diagnostico equivocado cuesta mas
+#: que ninguno — la misma forma que «comprueba que Streamlit esta instalado» pegado a un
+#: conflicto de configuracion.
+COMO_REPETIR_EMPALME = (
+    "Este fichero ha pasado la validación contra las construcciones de ESTA corrida "
+    "—nombre y md5, fila a fila—, así que NO es el resultado de otro panel: ésos se "
+    "rechazan antes de llegar aquí. Lo que dice el md5 es que es el mismo fichero que "
+    "ya está guardado. Si esperabas una medida distinta, lo que tienes delante es la "
+    "misma corrida de SpliceAI: hay que volver a correrla sobre el conjunto que se "
+    "descarga de este modal y subir ESE resultado."
+)
+
+
 @dataclass
 class SpliceStore:
     """Inmutable: nada se sobrescribe. Repetir un `run_id` aborta."""
@@ -131,37 +175,49 @@ class SpliceStore:
     POSSIBLE_VERDICTS = (FilterState.NOT_RUN, FilterState.PASS)
 
     runs: list[SpliceRun] = field(default_factory=list)
+    #: Los `run_id` que el LOG traia repetidos. Se apuntan al releer y no abortan: esa
+    #: linea ya esta escrita y el log es append-only (errata nº 137).
+    repetidas: list[str] = field(default_factory=list)
 
     def add(self, run: SpliceRun) -> None:
         ya = next((r for r in self.runs if r.run_id == run.run_id), None)
         if ya is not None:
             raise ShmirDesignError(mensaje_de_id_repetido(
                 run_id=ya.run_id, date=ya.date, by=ya.ran_by,
-                que_es="corrida de empalme",
-                como_repetir=(
-                    "Casi seguro has cogido el resultado viejo de SpliceAI: "
-                    "comprueba el fichero, o vuelve a correrlo y sube ESE."
-                ),
+                que_es="corrida de empalme", como_repetir=COMO_REPETIR_EMPALME,
             ))
         self.runs.append(run)
+
+    def add_recorded(self, run: SpliceRun) -> None:
+        """La via del CARGADOR: una repetida del log se omite y se apunta, no aborta."""
+        registrar_del_log(self, run)
 
     @property
     def latest(self) -> SpliceRun | None:
         return self.runs[-1] if self.runs else None
 
-    def verdict_for(self, candidate_start: int, intron: str) -> FilterResult:
-        """El veredicto del par. Sin corrida, NOT_RUN — nunca FAIL."""
+    def verdict_for(self, candidate_start: int, intron: str, *,
+                    frame: Frame) -> FilterResult:
+        """El veredicto del par. Sin corrida, NOT_RUN — nunca FAIL.
+
+        `frame` NO tiene valor por defecto a proposito. Aqui habia un `3utr:` escrito a
+        mano y sobre un tilado del transcrito imprimia `3utr:1684` — la errata nº 121 en
+        un septimo sitio, en el mensaje de un frente que aun no ha corrido, que es donde
+        menos se mira. Un defecto `UTR3` habria dejado el fallo exactamente igual: la
+        unica forma de que no vuelva es que quien pregunta tenga que decir en que
+        espacio esta preguntando.
+        """
         ultima = self.latest
         if ultima is None:
             return FilterResult(
                 name=FILTER_NAME, state=FilterState.NOT_RUN,
                 reason=(
                     f"No hay ninguna corrida de predicción de sitios de splicing para "
-                    f"3utr:{candidate_start} x {intron}. NOT_RUN no es PASS: no se ha "
-                    f"consultado, que no es lo mismo que salir limpio."
+                    f"{label(candidate_start, frame)} x {intron}. NOT_RUN no es "
+                    f"PASS: no se ha consultado, que no es lo mismo que salir limpio."
                 ),
             )
-        return ultima.verdict(candidate_start, intron)
+        return ultima.verdict(candidate_start, intron, frame=frame)
 
     def history(self) -> list[str]:
         lineas: list[str] = []

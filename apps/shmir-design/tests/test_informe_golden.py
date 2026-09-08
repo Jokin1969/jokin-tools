@@ -119,9 +119,13 @@ class TestLasVariantesTambienSeComparanENTERAS(unittest.TestCase):
 
     def test_y_ninguna_se_ha_quedado_sin_declarar(self):
         """Un golden huérfano en la carpeta es un artefacto que nadie regenera."""
-        from tools.regenerar_golden import DOCUMENTO, FICHA, PAGINA, VARIANTES
+        # LOS CONOCIDOS SE DERIVAN de `CONFIGURACION`, que desde 2026-09-06 es la unica
+        # tabla que enumera los goldens —cada uno con la entrada sobre la que se genera—.
+        # Escritos a mano aqui, una variante nueva salia como «huerfana» y el arreglo
+        # obvio era añadirla al test en vez de declararla donde se declara todo.
+        from tools.regenerar_golden import CONFIGURACION
 
-        conocidos = {GOLDEN.name, FICHA.name, DOCUMENTO.name, PAGINA.name} | set(VARIANTES)
+        conocidos = set(CONFIGURACION)
         sobran = sorted(
             p.name for p in GOLDEN.parent.iterdir() if p.name not in conocidos
         )
@@ -226,15 +230,44 @@ class TestNingunGeneradorPONEunParametro(unittest.TestCase):
             [self.ast.unparse(c) for c in self._llamadas("SelectionConfig")], []
         )
 
-    def test_tile_utr_recibe_la_SECUENCIA_y_nada_mas(self):
-        """Sus parámetros son todos de palabra clave y todos son configuración o
-        recursos. Pasar uno aquí abre el segundo camino: el golden se generaría con lo
-        tecleado mientras la app lee el fichero del gestor."""
+    #: Lo UNICO que `tile_utr` puede recibir aqui ademas de la secuencia. NO es una
+    #: relajacion del guardia: es la distincion que le faltaba. Todo lo demas que acepta
+    #: es CONFIGURACION o un RECURSO —umbrales, mascara, maduros, tabla de APA— y pasarlo
+    #: abre el segundo camino que la errata nº 32 describe: el golden generado con lo
+    #: tecleado mientras la app lee el fichero del gestor.
+    #:
+    #: La `anatomy` no es ninguna de las dos cosas: es una propiedad de LA ENTRADA, la
+    #: pasan la pagina y el CLI, y sin ella `tile_utr` no puede saber donde empieza el
+    #: 3'UTR — que es justo lo que `resolve.py` prohibe adivinar. La variante sobre el
+    #: transcrito no puede existir sin pasarla, y esa variante es la que caza los fallos
+    #: de marco (errata nº 122).
+    TILADO_PERMITIDO = {"anatomy"}
+
+    def test_tile_utr_no_recibe_CONFIGURACION_ni_RECURSOS(self):
+        """La lista de lo prohibido se DERIVA de la firma de `tile_utr` menos lo
+        permitido, asi que un parametro nuevo queda cubierto sin que nadie se acuerde."""
+        import inspect
+
+        from shmir_design.tiling import tile_utr
+
+        prohibidos = {
+            n for n, p in inspect.signature(tile_utr).parameters.items()
+            if p.kind is inspect.Parameter.KEYWORD_ONLY
+        } - self.TILADO_PERMITIDO
+        self.assertTrue(prohibidos, "la firma de tile_utr no tiene nada que prohibir")
         llamadas = self._llamadas("tile_utr")
         self.assertTrue(llamadas, "ningún generador tila")
         for llamada in llamadas:
             self.assertEqual(len(llamada.args), 1, self.ast.unparse(llamada))
-            self.assertEqual(llamada.keywords, [], self.ast.unparse(llamada))
+            puestos = sorted(
+                k.arg for k in llamada.keywords if k.arg in prohibidos
+            )
+            self.assertEqual(puestos, [], self.ast.unparse(llamada))
+
+    def test_y_lo_permitido_es_CORTO_y_esta_justificado(self):
+        """Un permiso que crece deja de ser un permiso. Si esta lista se alarga, lo que
+        hay que revisar es por que, no ampliarla."""
+        self.assertEqual(self.TILADO_PERMITIDO, {"anatomy"})
 
     def test_ningun_campo_de_la_CONFIGURACION_aparece_como_argumento(self):
         """El trinquete derivado (principio nº 13): la lista de lo prohibido sale de los

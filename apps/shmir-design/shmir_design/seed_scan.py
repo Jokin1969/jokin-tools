@@ -21,14 +21,38 @@ Python 3.11+, solo libreria estandar (regla 6).
 
 from __future__ import annotations
 
-from dataclasses import dataclass, replace
+from dataclasses import dataclass, field, replace
 
+from .coords import Frame, label, tiled_frame
 from .errors import ShmirDesignError
 from .mirna import MIR30_FAMILY, core_hits
 
 #: Las dos ventanas que se admiten, y su longitud. Nada mas: una ventana inventada
 #: cambiaria el espacio de seeds y la tasa base sin que nadie lo note.
 SEED_WINDOWS = {"2-8": (2, 8), "2-7": (2, 7)}
+
+#: La ventana ESTÁNDAR. Se DERIVA de aquí en los dos sitios que la necesitan —el
+#: veredicto y el valor por defecto de `SeedParams`— en vez de escribirse dos veces: dos
+#: literales acabarían diciendo «2-8» sobre una corrida de 2-7.
+STANDARD_WINDOW = "2-8"
+
+WHY_2_8_IS_THE_SEED = (
+    "La seed son las posiciones 2-8 POR DEFINICIÓN del bolsillo de Ago2, no por "
+    "convención de este proyecto. Con 2-7 el espacio de seeds pasa de 16.384 a 4.096, "
+    "así que la tasa base sube y un LIMPIO SIGNIFICA MUCHO MENOS: hay cuatro veces más "
+    "sitio donde no chocar. Por eso la ventana no estándar viaja en el VEREDICTO y no "
+    "sólo en la cabecera de parámetros — la cabecera se lee una vez y el veredicto se "
+    "lee siempre, y además se descarga."
+)
+
+WHY_THE_RATE_FOLLOWS_THE_LEVEL = (
+    "La tasa base se calcula sobre EL CONJUNTO QUE SE CONSULTA, no sobre el fichero "
+    "entero. Con `level=nucleo` el veredicto sólo se emite contra los del núcleo, así "
+    "que una tasa calculada sobre todos los maduros de la especie NO DESCRIBE lo que el "
+    "resultado mide — y se equivoca hacia el lado cómodo: hace parecer excepcionalmente "
+    "limpio algo que sólo se comparó contra diez secuencias. Reportado con la corrida "
+    "delante el 2026-09-06: cabecera del 31 % y resultado de 1 de 176."
+)
 
 LEVELS = ("nucleo", "ampliado", "ambos")
 
@@ -186,20 +210,26 @@ class PreviewRow:
     shared_core_with: tuple[int, ...] = ()
     core: str = ""
     checked: bool = True
+    #: El marco de `start` y de los compartidos, DERIVADO de la anatomia de la corrida.
+    #: Aqui iba `3utr:` escrito a mano — el quinto y sexto sitio de la errata nº 121.
+    frame: Frame = field(kw_only=True)
 
     def describe(self) -> str:
+        def etiquetas(starts) -> str:
+            return ", ".join(label(s, self.frame) for s in starts)
+
         compartido = (
-            "  ⚠ COMPARTE heptamero con 3utr:"
-            + ", 3utr:".join(str(s) for s in self.shared_with)
+            "  ⚠ COMPARTE heptamero con " + etiquetas(self.shared_with)
             if self.shared_with else ""
         )
         if self.shared_core_with:
             compartido += (
-                "  ⚠ COMPARTE NÚCLEO de 6 nt con 3utr:"
-                + ", 3utr:".join(str(s) for s in self.shared_core_with)
+                "  ⚠ COMPARTE NÚCLEO de 6 nt con "
+                + etiquetas(self.shared_core_with)
             )
+        etiqueta = label(self.start, self.frame)
         return (
-            f"3utr:{self.start:<6} {self.strand:<10} {self.sequence:<24} "
+            f"{etiqueta:<12} {self.strand:<10} {self.sequence:<24} "
             f"{self.heptamer}{compartido}"
         )
 
@@ -249,6 +279,7 @@ def preview_rows(selection, *, species: str, params: SeedParams = DEFAULTS, star
             selection, species, starts, guides, passengers
         )
     ]
+    marco = tiled_frame(getattr(selection, "anatomy", None))
     por_hepta: dict[str, list[int]] = {}
     por_nucleo: dict[str, list[int]] = {}
     for inicio, _, _, hepta, nucleo in crudas:
@@ -265,6 +296,7 @@ def preview_rows(selection, *, species: str, params: SeedParams = DEFAULTS, star
             shared_core_with=tuple(
                 sorted(set(por_nucleo[nucleo]) - set(por_hepta[hepta]))
             ),
+            frame=marco,
         )
         for inicio, hebra, secuencia, hepta, nucleo in crudas
     )
@@ -279,6 +311,9 @@ class BaseRate:
     space: int
     window: str
     species_prefix: str
+    #: EL CONJUNTO sobre el que se ha contado, que es el mismo contra el que se emite el
+    #: veredicto. Ver `WHY_THE_RATE_FOLLOWS_THE_LEVEL`.
+    level: str = "ambos"
 
     @property
     def fraction(self) -> float:
@@ -292,7 +327,10 @@ class BaseRate:
         no viaja en la descarga. La fila se lee siempre, y sin la tasa al lado un LIMPIO
         no dice si es notable o es lo que predice el azar.
         """
-        return f"{self.fraction * 100:.0f}% ({self.distinct}/{self.space}, {self.window})"
+        return (
+            f"{self.fraction * 100:.0f}% ({self.distinct}/{self.space}, "
+            f"{self.window}, {self.level})"
+        )
 
     def describe(self) -> str:
         return (
@@ -308,29 +346,53 @@ class BaseRate:
                     or "de todas las especies del fichero (elegido a propósito)"
                 )
             )
-            + f" dan "
+            + f" DEL CONJUNTO CONSULTADO ({_LEVEL_LABELS[self.level]}) dan "
             f"{self.distinct} seed(s) distinta(s) de {self.window} sobre un espacio de "
             f"{self.space}, así que cerca del {self.fraction:.0%} de las guías colisiona "
             f"con alguna POR AZAR. Sin esta cifra al lado, un AVISO parece más grave de "
-            f"lo que es. Sale del fichero cargado y del filtro de especie que se use: no "
-            f"está tecleada."
+            f"lo que es. Sale del fichero cargado, del filtro de especie y DEL NIVEL: no "
+            f"está tecleada. " + WHY_THE_RATE_FOLLOWS_THE_LEVEL
         )
 
 
+#: Como se llama cada conjunto al imprimirlo. En un solo sitio: la etiqueta viaja en el
+#: parrafo y en la celda, y dos literales acabarian discrepando.
+_LEVEL_LABELS = {
+    "nucleo": "el NÚCLEO de abundantes en cerebro",
+    "ampliado": "los maduros de la especie FUERA del núcleo",
+    "ambos": "todos los maduros de la especie",
+}
+
+
 def base_rate(mature, params: SeedParams = DEFAULTS) -> BaseRate:
+    """La tasa base DEL CONJUNTO QUE SE CONSULTA. Ver `WHY_THE_RATE_FOLLOWS_THE_LEVEL`.
+
+    El nivel entra en la cuenta por el mismo camino por el que entra en el veredicto
+    —`mirna.core_hits`—, no por una segunda definición de qué es el núcleo: si fueran
+    dos, la tasa podría describir un conjunto y el veredicto otro, que es exactamente el
+    defecto que esto cierra.
+    """
+    from .mirna import core_hits  # noqa: PLC0415
+
     prefijo = params.require_prefix()
     largo = params.length
     nombres = 0
     seeds = set()
     for seed, lista in mature.seeds.items():
         propios = [n for n in lista if not prefijo or n.startswith(prefijo)]
+        if params.level != "ambos":
+            del_nucleo = {h.name for h in core_hits(propios)}
+            propios = [
+                n for n in propios
+                if (n in del_nucleo) == (params.level == "nucleo")
+            ]
         if not propios:
             continue
         nombres += len(propios)
         seeds.add(seed[:largo])
     return BaseRate(
         matures=nombres, distinct=len(seeds), space=params.space,
-        window=params.window, species_prefix=prefijo,
+        window=params.window, species_prefix=prefijo, level=params.level,
     )
 
 
@@ -351,21 +413,42 @@ class SeedResult:
     window: str
     collisions: tuple[SeedCollision, ...]
     level: str
+    #: El marco de `start`, DERIVADO de la anatomía de la corrida (errata nº 121).
+    frame: Frame = field(kw_only=True)
 
     @property
     def mir30(self) -> bool:
         return any(c.mir30 for c in self.collisions)
 
+    @property
+    def window_standard(self) -> bool:
+        """Se DERIVA de la ventana de la corrida; no es un campo que alguien rellene."""
+        return self.window == STANDARD_WINDOW
+
+    @property
+    def verdict(self) -> str:
+        """El veredicto CON la ventana pegada cuando no es la estándar.
+
+        `level` sigue siendo el estado a secas —lo leen los almacenes y el semáforo— y
+        esto es lo que se PINTA. Que la ventana viaje aquí y no sólo en la cabecera es
+        el mismo criterio que puso la tasa base en la fila: la cabecera se lee una vez
+        y el veredicto se lee siempre. Ver `WHY_2_8_IS_THE_SEED`.
+        """
+        if self.window_standard:
+            return self.level
+        return f"{self.level} (ventana {self.window}, NO ESTÁNDAR)"
+
     def describe(self) -> str:
+        etiqueta = label(self.start, self.frame)
         if not self.collisions:
             return (
-                f"3utr:{self.start:<6} {self.strand:<10} {self.heptamer}  LIMPIO — "
-                f"ninguna colisión entre los maduros del filtro."
+                f"{etiqueta:<12} {self.strand:<10} {self.heptamer}  "
+                f"{self.verdict} — ninguna colisión entre los maduros del filtro."
             )
         nombres = ", ".join(c.name for c in self.collisions)
         marca = "  ⚠ miR-30" if self.mir30 else ""
         return (
-            f"3utr:{self.start:<6} {self.strand:<10} {self.heptamer}  {self.level}"
+            f"{etiqueta:<12} {self.strand:<10} {self.heptamer}  {self.verdict}"
             f"{marca} — {len(self.collisions)}: {nombres}"
         )
 
@@ -465,6 +548,7 @@ def run_scan(
         if propios:
             indice.setdefault(seed[:largo], []).extend(propios)
 
+    marco = tiled_frame(getattr(selection, "anatomy", None))
     resultados = []
     crudas = []
     for inicio, hebra, secuencia in _strands(
@@ -499,7 +583,7 @@ def run_scan(
             SeedResult(
                 start=inicio, strand=hebra, query=consulta, sequence=secuencia,
                 heptamer=hepta, window=params.window, collisions=colisiones,
-                level=nivel,
+                level=nivel, frame=marco,
             )
         )
         crudas.append(f"{consulta}\t{hepta}\t{nivel}\t{','.join(nombres)}")

@@ -28,10 +28,15 @@ from shmir_design.hard_filters import DEFAULT_THRESHOLDS, Thresholds  # noqa: E4
 from shmir_design.blast import DEFAULTS as DEFAULT_BLAST  # noqa: E402
 from shmir_design.seed_scan import DEFAULTS as SEED_DEFAULTS  # noqa: E402
 from shmir_design.offtarget import DEFAULTS as OFFTARGET_DEFAULTS  # noqa: E402
+from shmir_design.offtarget import WHY_THE_EXPECTED_DIFFERS  # noqa: E402
 from shmir_design.masking import RepeatMask  # noqa: E402
 from shmir_design.polya import normalize_sequence  # noqa: E402
 from shmir_design.presentation import (  # noqa: E402
+    ACCION_DISENAR,
+    ACCION_ESTIMAR,
     BLAST_MODAL_NOTE,
+    build_banner,
+    design_action,
     arms_rows,
     arms_warning,
     control_choices,
@@ -48,6 +53,8 @@ from shmir_design.presentation import (  # noqa: E402
     upload_path,
     anatomy_source_label,
     chosen_starts,
+    panel_frame,
+    saved_selection_note,
     scope_rows,
     selection_notes,
     obsolete_rows,
@@ -109,6 +116,12 @@ from shmir_design.presentation import (  # noqa: E402
     splice_context_note,
     splice_fasta_name,
     splice_panel_summary,
+    CASETE_NO_COINCIDE,
+    DEPOSITO_DISTINTO,
+    DEPOSITO_MISMO_DIRECTORIO,
+    CASETE_SIN_COMPROBAR,
+    cassette_deposit_check,
+    deposit_vs_versioned,
     splice_constructions,
     SPLICE_CONTEXT_DEFAULT,
     SPLICE_CONTEXT_MAX,
@@ -123,6 +136,9 @@ from shmir_design.presentation import (  # noqa: E402
     splice_modulation_rows,
     splice_query_text,
     splice_result_rows,
+    GUARDADA_SI,
+    run_saved_state,
+    splice_edge_note,
     splice_scan_from_result,
     splice_warning_rows,
     WHY_NO_GLOBAL_TOGGLE,
@@ -146,9 +162,14 @@ from shmir_design.presentation import (  # noqa: E402
     blast_defaults_for,
     front_card_rows,
     fronts_closed_over_panel,
+    QUITAR_SUBIDA_AYUDA,
+    duplicated_runs_note,
     panel_states_by_front,
+    pending_after_duplicate,
     verdicts_changed,
     folding_capability,
+    folding_contrast_rows,
+    folding_highlights,
     check_can_emit_dna,
     front_progress,
     informe_documento,
@@ -173,11 +194,16 @@ from shmir_design.presentation import (  # noqa: E402
     offtarget_upload_rows,
     offtarget_upper_bound,
     seed_highlights,
+    immune_panel_members,
+    immune_replacements,
     selection_warnings,
+    EXPORT_VS_ICONO_NOTE,
+    selected_export_file,
     site_table_rows,
     TABLE_SCOPE_NOTE,
     vector_note,
     seed_load_placeholder,
+    seed_load_highlights,
     seed_load_reference,
     seed_preview_rows,
     seed_setting_rows,
@@ -201,6 +227,11 @@ from shmir_design.presentation import (  # noqa: E402
     map_svg,
     page_run,
     block_rows,
+    ASSEMBLY_NEEDS_BOTH,
+    FRAGMENT_NEEDS_CASSETTE,
+    assembly_report,
+    fragment_bundle,
+    fragment_rows,
     conservation_for,
     output_bundle,
     status_light,
@@ -496,8 +527,11 @@ def bloque_especie(nombre, transcrito, secuencia, anat, umbrales, config, seeds,
     # en la barra lateral veia la MISMA tabla y concluia, con razon, que la app no le
     # hacia caso. Un parametro que no hace lo que dice y no lo dice es un parametro que
     # miente (principio nº 23).
+    # Y una DECISION registrada —un candidato retirado del panel— no se pinta en rojo:
+    # sale en todas las corridas de esa secuencia, y un aviso permanente deja de leerse.
+    # Quien decide cual es cual es `presentation` (regla 6), no esta linea.
     for nota in selection_notes(seleccion):
-        st.warning(nota["texto"])
+        (st.warning if nota["avisa"] else st.info)(nota["texto"])
 
     # EL SEMAFORO TAMBIEN LEE LOS ALMACENES. Contaba los filtros de la ventana, que no
     # saben nada del registro del proyecto: decia «6 de 10» con una corrida de BLAST
@@ -514,6 +548,9 @@ def bloque_especie(nombre, transcrito, secuencia, anat, umbrales, config, seeds,
     frentes_cerrados = fronts_closed_over_panel(
         vista_del_panel["estados"],
         starts=panel_abierto,
+        # EL MARCO, que hace falta para NOMBRAR a los que faltan. Lo decide
+        # `presentation`; aquí sólo se pasa la selección que ya está delante.
+        frame=panel_frame(seleccion),
         origins=vista_del_panel["origenes"],
     )
     semaforo(status_light(seleccion, resueltos=tuple(frentes_cerrados)))
@@ -547,6 +584,20 @@ def bloque_especie(nombre, transcrito, secuencia, anat, umbrales, config, seeds,
         stores=almacenes, species=nombre, starts=chosen_starts(seleccion),
     )
     (st.caption if referencia_carga["hay"] else st.warning)(referencia_carga["texto"])
+
+    # Y LA LECTURA DE ESOS PERCENTILES, ARRIBA Y NO DENTRO DE LA TABLA. Once candidatos
+    # por cuatro clases son 44 celdas: el percentil esta pegado a su conteo desde el
+    # 2026-09-03 y aun asi el hallazgo se queda dentro. Mismo caso que el punto de
+    # ramificacion. La CONVERGENCIA con el autoconteo no la puede leer ninguna de las dos
+    # tablas: salen de barridos distintos.
+    destacados_carga = seed_load_highlights(
+        stores=almacenes, species=nombre, starts=chosen_starts(seleccion),
+    )
+    for clave in ("carga", "convergencia", "bien_colocados", "uso"):
+        bloque = destacados_carga[clave]
+        if bloque["activo"]:
+            (st.warning if clave == "convergencia" else st.info)(bloque["texto"])
+
     if referencia_carga["controles"]:
         st.markdown("**Controles biológicos** — la magnitud, no el percentil")
         st.dataframe(referencia_carga["controles"], hide_index=True)
@@ -566,6 +617,36 @@ def bloque_especie(nombre, transcrito, secuencia, anat, umbrales, config, seeds,
             "de abajo se recalculan con lo que esté marcado."
         )
         st.info(TABLE_SCOPE_NOTE)
+
+        # EL BOTON DEL EXPORT VA AQUI: ANTES de la tabla y no debajo. `st.dataframe`
+        # pinta en su esquina un icono de descarga que NO es nuestro —baja la vista como
+        # `…_export.csv`, sin sello y sin las columnas de frente— y no se puede quitar.
+        # Lo unico que queda es que el de verdad se vea primero, y que la nota diga cual
+        # es cual: dos botones que se parecen y uno solo visible es como se paso una
+        # semana creyendo que fallaba el despliegue.
+        entrega = selected_export_file(
+            seleccion, species=nombre, tiling=tiling, stores=almacenes,
+        )
+        st.download_button(
+            entrega["etiqueta"],
+            data=entrega["datos"],
+            file_name=entrega["nombre"],
+            mime=entrega["mime"],
+            key=f"exp_sel_{nombre}",
+            width="stretch",
+            type="primary",
+        )
+        st.caption(entrega["nota"])
+        st.caption(EXPORT_VS_ICONO_NOTE)
+        # LA SEGUNDA VIA, que este boton no tenia. La exencion que lo tapaba decia que
+        # la alternativa era el ZIP de la seccion Descargas — y el ZIP es OTRO
+        # `download_button`, o sea exactamente el mecanismo que se cuelga (errata nº 130,
+        # sin causa asignada todavia). Una via y su alternativa no pueden compartir el
+        # mecanismo que falla: es el corolario que costo tres dias en la errata nº 124.
+        _tambien_para_copiar(
+            entrega["datos"], nombre=entrega["nombre"], clave=f"exp_sel_{nombre}",
+        )
+
         st.dataframe(
             # LOS ALMACENES VAN AQUI. La capacidad estaba cableada y probada desde
             # hacía días, y ESTA llamada —la única que se ejecuta— no la usaba: la celda
@@ -578,6 +659,32 @@ def bloque_especie(nombre, transcrito, secuencia, anat, umbrales, config, seeds,
         )
         for aviso in selection_warnings(tiling, seleccion, selected=marcados):
             (st.error if aviso["rojo"] else st.warning)(aviso["texto"])
+
+        # RETIRAR UN INMUNE NO ES RETIRAR UNO CUALQUIERA. Su plaza la tiene que ocupar
+        # OTRO inmune o la cuota de cuatro baja, y con este 3'UTR la respuesta puede ser
+        # que no cabe ninguno — un hecho geométrico que hay que ver ANTES de decidir, no
+        # después. La app no elige: emite y ordena por asimetría (`presentation`).
+        with st.expander("¿Y si retiro un candidato inmune al APA?", expanded=False):
+            elegibles = immune_panel_members(tiling, seleccion)
+            if not elegibles:
+                st.caption(
+                    "En este panel no hay ningún candidato inmune al APA, así que no "
+                    "hay ninguna plaza de inmune que sustituir."
+                )
+            else:
+                cual = st.selectbox(
+                    "Candidato inmune a retirar", [f["etiqueta"] for f in elegibles],
+                    key=f"retirar_inmune_{nombre}",
+                )
+                plan = immune_replacements(
+                    tiling, seleccion,
+                    retire=next(f["inicio"] for f in elegibles
+                                if f["etiqueta"] == cual),
+                )
+                (st.warning if not plan["disponibles"] else st.info)(plan["texto"])
+                st.dataframe(
+                    plan["disponibles"] or plan["descartados"], hide_index=True,
+                )
 
     # ── AQUI TERMINA EL PRIMER TRAMO, y hasta ahora no lo decia ─────────────────
     #
@@ -610,6 +717,9 @@ def bloque_especie(nombre, transcrito, secuencia, anat, umbrales, config, seeds,
         generated=today_text(),
         anatomy_source=anatomy_source_label(anat),
         anatomy=anat,
+        # LA CONSERVACION LLEGA AL MAPA. Sin ella el carril sale NOT_RUN, y NOT_RUN no
+        # es «no hay bloques conservados»: es que nadie ha mirado.
+        conservation=conservacion,
         # LOS ALMACENES. Sin ellos las fichas del documento se construian con uno vacio
         # y decia `NOT_RUN` de frentes cerrados — sobre el artefacto que defiende la
         # seleccion. Con proyecto cerrado va `None`, que es la verdad: no hay corridas
@@ -651,6 +761,12 @@ def bloque_especie(nombre, transcrito, secuencia, anat, umbrales, config, seeds,
     # Es el mismo patrón que `store.save_*` y que `page_run`, tercera vez en dos días.
     if proyecto is not None:
         st.caption(stored_runs_note(almacenes))
+        # EL LOG PUEDE TRAER UNA CORRIDA DOS VECES, y ahora se lee en vez de reventar
+        # (errata nº 137). Que se lea obliga a decirlo: un log que se abre en silencio
+        # despues de aquello seria el `verify()` que no verificaba.
+        repetidas = duplicated_runs_note(almacenes)
+        if repetidas["activo"]:
+            st.warning(repetidas["texto"])
 
     _modal_blast(seleccion, nombre, proyecto, tiling)
     # LOS CUATRO RECIBEN EL TILADO. Sin el, `_guardar_corrida` no podia decir cuantos
@@ -690,6 +806,13 @@ def bloque_especie(nombre, transcrito, secuencia, anat, umbrales, config, seeds,
             "brazos de homologia, más la hoja de pedido."
         ),
     )
+    # LO QUE SE AÑADE A LA DESCARGA aparte del paquete estandar. Existe porque este
+    # `return` de emergencia hacia `return ficheros` sobre un nombre QUE NUNCA SE
+    # DEFINIA: sin motor de plegado —que es lo normal, ViennaRNA es opcional— marcar la
+    # casilla de bloques tumbaba la pagina entera con un NameError en vez de enseñar el
+    # «PARA» que el propio codigo habia escrito. El mensaje estaba bien; el camino de
+    # salida, no.
+    extras: dict[str, str] = {}
     if bloques and has_selection(seleccion):
         # SIN MOTOR DE PLEGADO NO SE EMITE ADN. La pasajera de este modulo se elige
         # plegando, y sin plegado se elegiria con la regla que este proyecto descarto
@@ -697,23 +820,97 @@ def bloque_especie(nombre, transcrito, secuencia, anat, umbrales, config, seeds,
         try:
             check_can_emit_dna()
         except ShmirDesignError as exc:
-            # rule2-ok: frontera de la interfaz. No se emite nada y se dice por que.
+            # rule2-ok: frontera de la interfaz. No se emite ADN y se dice por que; el
+            # resto de la corrida sigue descargandose.
             st.error(f"**PARA** — {exc}")
-            return ficheros
-        aviso_vector = vector_note(nombre)
-        if not aviso_vector["aplica"]:
-            st.error(aviso_vector["texto"])
         else:
-            st.caption(aviso_vector["texto"])
-        st.dataframe(block_rows(seleccion, scaffold, species=nombre), hide_index=True)
-        st.caption(
-            "XhoI y EcoRI van DENTRO del módulo, heredadas de SGEP, y en el plásmido "
-            "final no son únicas: el clonaje va por NheI/SacI o por síntesis. "
-            "`modulo_seguro = no` significa que no se ha confirmado que la horquilla "
-            "sobreviva dentro del intrón."
-        )
+            aviso_vector = vector_note(nombre)
+            if not aviso_vector["aplica"]:
+                st.error(aviso_vector["texto"])
+            else:
+                st.caption(aviso_vector["texto"])
+            st.dataframe(
+                block_rows(seleccion, scaffold, species=nombre), hide_index=True
+            )
+            st.caption(
+                "XhoI y EcoRI van DENTRO del módulo, heredadas de SGEP, y en el "
+                "plásmido final no son únicas: el clonaje va por NheI/SacI o por "
+                "síntesis. `modulo_seguro = no` significa que no se ha confirmado que "
+                "la horquilla sobreviva dentro del intrón."
+            )
 
-    return output_bundle(
+            st.markdown("**Fragmento de síntesis — el intrón completo**")
+            casete = cassette_sequence(tiling)
+            filas_fragmento = fragment_rows(seleccion, scaffold, cassette=casete)
+            if not filas_fragmento:
+                st.info(FRAGMENT_NEEDS_CASSETTE)
+            else:
+                st.dataframe(filas_fragmento, hide_index=True)
+                st.caption(
+                    "Se pega SOBRE la feature del intrón en SnapGene: el plásmido "
+                    "crece lo que crece el intrón, sin digerir ni ensamblar. Los 15 nt "
+                    "de cada extremo son para comprobarlos a ojo contra la selección — "
+                    "los 5 de exón son iguales en las dos arquitecturas y los 10 de al "
+                    "lado no. NheI y SacI salen por defecto: dentro de un fragmento "
+                    "sintetizado entero no cortan nada."
+                )
+            paquete = fragment_bundle(
+                seleccion, scaffold, species=nombre, cassette=casete
+            )
+            extras.update(paquete)
+
+            # EL ULTIMO ESLABON: entre lo que la app emite y lo que acaba en el vector
+            # no habia ninguna comprobacion. Aqui no se GENERA el plasmido —un vector de
+            # 5.400 pb ensamblado por codigo es demasiada superficie para un error
+            # silencioso—: se comprueba el que se montó a mano, y por SECUENCIA.
+            with st.expander("Comprobar el plásmido montado a mano"):
+                st.caption(ASSEMBLY_NEEDS_BOTH)
+                antes = st.checkbox(
+                    "Es el vector RECEPTOR, todavía sin pegar",
+                    key=f"antes_{nombre}",
+                    help=(
+                        "Cambia la pregunta: sobre el receptor se comprueba QUÉ INTRÓN "
+                        "lleva y si el fragmento va ahí; sobre el montado, si está "
+                        "dentro lo que emitió la app. La primera no se puede hacer "
+                        "después — al pegar, el intrón anterior desaparece."
+                    ),
+                )
+                cambio = st.checkbox(
+                    "La sustitución CAMBIA de arquitectura de intrón, a propósito",
+                    key=f"cambio_{nombre}",
+                    disabled=not antes,
+                    help=(
+                        "Pegar el fragmento de un intrón sobre un plásmido que lleva "
+                        "otro es cómo se cambia de arquitectura, así que no es un "
+                        "error: es una decisión, y se declara. Sin declararla, una "
+                        "sustitución cruzada sale FAIL."
+                    ),
+                )
+                subido = st.file_uploader(
+                    "El vector",
+                    key=f"montaje_{nombre}",
+                    help=(
+                        "GenBank, FASTA, secuencia pelada o el `.dna` de SnapGene. No "
+                        "se guarda: se lee, se compara y se descarta."
+                    ),
+                )
+                emitido = paquete.get(f"{nombre}_fragmentos.fasta", "")
+                if subido is None or not emitido:
+                    st.info(ASSEMBLY_NEEDS_BOTH)
+                else:
+                    try:
+                        informe_montaje = assembly_report(
+                            subido.getvalue(), emitido, name=subido.name,
+                            before_pasting=antes, architecture_change=cambio,
+                        )
+                    except ShmirDesignError as exc:
+                        # rule2-ok: frontera de la interfaz. No se comprueba nada y se
+                        # dice por que; el resto de la pagina sigue funcionando.
+                        st.error(f"**PARA** — {exc}")
+                    else:
+                        st.code(informe_montaje.render(), language="text")
+
+    salida = output_bundle(
         species=nombre,
         tiling=tiling,
         selection=seleccion,
@@ -721,7 +918,14 @@ def bloque_especie(nombre, transcrito, secuencia, anat, umbrales, config, seeds,
         transcript=transcrito,
         conservation=conservacion,
         blocks=bloques,
+        # LOS ALMACENES LLEGAN AL EXPORT DE CANDIDATOS. Sin ellos ese fichero decia
+        # MENOS que la pantalla —sin columna de `offtarget_seed` ni de `empalme_sitios`,
+        # y con estados de filtro de ventana en vez de veredictos de frente— y es el
+        # fichero que VIAJA: se manda por correo y se lee dentro de un año.
+        stores=almacenes,
     )
+    salida.update(extras)
+    return salida
 
 
 
@@ -1000,10 +1204,17 @@ def _gestionar_proyectos(especie: str, raiz, catalogo, fecha: str) -> None:
                         st.rerun()
             with columnas[1]:
                 try:
+                    registro = project_export(raiz, slug)
                     st.download_button(
-                        "Descargar", data=project_export(raiz, slug),
+                        "Descargar", data=registro,
                         file_name=f"{slug}.txt", key=f"pr_dl_{especie}_{slug}",
                         width="stretch",
+                    )
+                    # SEGUNDA VIA. Era la unica, y su exencion alegaba el ZIP de la copia
+                    # de seguridad — que es otro `download_button`, o sea el mecanismo que
+                    # se cuelga (errata nº 140, el mismo defecto que en `bloque_especie`).
+                    _tambien_para_copiar(
+                        registro, nombre=f"{slug}.txt", clave=f"pr_{especie}_{slug}",
                     )
                 except (ShmirDesignError, OSError) as exc:
                     # rule2-ok: frontera de la interfaz.
@@ -1031,6 +1242,31 @@ def _gestionar_proyectos(especie: str, raiz, catalogo, fecha: str) -> None:
                         st.rerun()
             st.divider()
 
+
+
+def _tambien_para_copiar(texto: str, *, nombre: str, clave: str) -> None:
+    """El MISMO contenido, copiable, al lado del botón de descarga.
+
+    **Por qué existe y por qué no es un parche.** El 2026-09-06 la descarga del FASTA de
+    construcciones se quedó colgada en producción y el frente de empalme quedó bloqueado:
+    sin ese fichero no se puede correr SpliceAI. La causa **no está determinada** — el
+    contenido es determinista y la descarga, reproducida con un navegador de verdad por
+    el proxy real del hub, baja entera (ver la errata nº 130)—. Lo que sí se puede
+    afirmar es que había UNA sola vía para sacar el fichero, y que cuando esa vía falla no
+    queda ninguna.
+
+    Es el principio nº 47: la salida tiene que estar donde está el bloqueo. Y su
+    corolario, que costó tres días: una vía y su alternativa no pueden compartir el
+    mecanismo que falla. Ésta no comparte nada con `st.download_button` — es texto en la
+    página, y el botón de copiar lo pone el navegador.
+    """
+    with st.expander(f"¿No baja el fichero? Copia el contenido de `{nombre}`"):
+        st.caption(
+            f"El mismo contenido que el botón, {len(texto.encode('utf-8')):,} bytes. "
+            f"Pégalo en un fichero llamado `{nombre}`. El botón de copiar está arriba a "
+            f"la derecha del bloque."
+        )
+        st.code(texto, language=None)
 
 
 def _descargar_todo(directorio) -> None:
@@ -1086,7 +1322,7 @@ def _declarar_procedencia(fila, directorio) -> None:
     metadatos.
 
     La página no decide nada: `fila["falta_procedencia"]` dice qué falta,
-    `fila["procedencia"]` con qué texto se pide, y `presentation.declare_provenance`
+    `fila["procedencia_pedida"]` con qué texto se pide, y `presentation.declare_provenance`
     escribe — comprobando que el fichero de disco siga siendo el que su línea registra.
     """
     faltan = fila.get("falta_procedencia") or []
@@ -1198,7 +1434,7 @@ def _casillas_de_procedencia(fila, *, prefijo: str) -> dict[str, str]:
     de una corrida, asi que el modal que las usa las lee luego del manifiesto en vez de
     volver a preguntarlas.
     """
-    campos = fila.get("procedencia") or []
+    campos = fila.get("procedencia_pedida") or []
     if not campos:
         return {}
     st.caption(
@@ -1303,6 +1539,23 @@ def _panel_refinamiento(especie: str) -> None:
     if is_declared():
         st.caption(f"Se guardan en `{directorio}`. {WHY_A_WORKING_DIR}")
 
+    # EL DEPÓSITO CONTRA LO VERSIONADO. Es el tercer eje y el único que mira los dos
+    # sitios a la vez: la siembra respeta lo que ya está y el rol valida contra el
+    # manifiesto del propio volumen, así que un fichero viejo aquí es invisible por
+    # construcción (errata nº 129). INFORME, no veredicto: que difieran no es un fallo.
+    comparacion = deposit_vs_versioned()
+    if comparacion["estado"] != DEPOSITO_MISMO_DIRECTORIO:
+        distintos = [
+            f for f in comparacion["filas"] if f["estado"] == DEPOSITO_DISTINTO
+        ]
+        with st.expander(
+            f"Depósito contra lo versionado — {len(distintos)} distinto(s) de "
+            f"{len(comparacion['filas'])}",
+            expanded=bool(distintos),
+        ):
+            st.caption(comparacion["motivo"])
+            st.dataframe(comparacion["filas"], hide_index=True, width="stretch")
+
     _descargar_todo(directorio)
 
     filas = panel["filas"]
@@ -1327,7 +1580,19 @@ def _panel_refinamiento(especie: str) -> None:
         with st.container(border=True):
             st.markdown(titular)
             st.caption(fila["si_no_llega"])
-            _fila_ausente(fila, directorio)
+            # LA RAMA ABIERTA ELIGE IGUAL QUE LA COLAPSADA. Llamaba a `_fila_ausente`
+            # SIEMPRE, asi que un fichero que ESTA y no esta colapsado salia con el
+            # hueco de subida en vez de con sus cuatro acciones. Mientras «presente»
+            # implicaba «CERRADO» —y CERRADO implicaba colapsada— no se notaba: los
+            # botones existian solo dentro del expander, que es lo que hacia que el
+            # gestor se leyera como una lista de nombres. Con `SIN PROCEDENCIA` la
+            # combinacion presente + abierta existe, y es justo donde hay que poder
+            # declarar, ver y reemplazar.
+            if fila["presente"]:
+                st.caption(fila["resumen"])
+                _fila_presente(fila, directorio)
+            else:
+                _fila_ausente(fila, directorio)
 
 
 def _estilo() -> None:
@@ -1523,6 +1788,18 @@ def main() -> None:
     st.set_page_config(page_title="shmir-design", layout="wide")
     _estilo()
     st.title("shmir-design")
+
+    # QUE VERSION ESTA SIRVIENDO ESTO, arriba del todo y sin abrir nada. Reportado tres
+    # veces como «esta fusionado pero no lo veo»: sin el sello en pantalla, «esta
+    # desplegado» y «lo estas viendo» son indistinguibles desde aqui, y separarlos exige
+    # que alguien vaya a mirar el despliegue. El dato ya lo tenia la app —`SHMIR_BUILD`,
+    # que el hub pasa desde `RAILWAY_GIT_COMMIT_SHA`— y su unico consumidor era la
+    # cabecera de un FASTA: habia que generar un artefacto para leerlo.
+    sello = build_banner()
+    st.caption(sello["texto"])
+    with st.expander("¿No ves algo que debería estar?", expanded=False):
+        st.markdown(sello["ayuda"])
+        st.code(sello["commit"], language=None)
 
     # EL INICIO, que no existia. Sin el, la primera pantalla es un formulario sin
     # pregunta: quien entra no sabe si esta herramienta hace lo que necesita.
@@ -1748,11 +2025,16 @@ def main() -> None:
     # cuales CAEN van en el paso 5, DESPUES del boton: pedirlos todos aqui hacia creer
     # que sin ellos no se puede empezar, y eso es falso — se puede diseñar hoy y refinar
     # mañana. Ver `presentation.WHY_TWO_MOMENTS`.
+    # LA ACCION SE RESUELVE UNA VEZ, aqui, y la usan los DOS sitios que dependian de
+    # ella. Habia dos definiciones: esta preguntaba solo por el boton y la de mas abajo
+    # sabia ademas que retomar un proyecto es ver su resultado. Con un proyecto retomado
+    # se pintaban los modales y NO se pintaba el paso 5 (errata nº 124).
+    accion = design_action(st.session_state.get("accion"), resumed=retomado is not None)
     pasos = steps_rows(
         species=nombre_modelo,
         sequence_loaded=secuencia_modelo is not None,
         directory=reference_dir(),
-        designed=st.session_state.get("accion") == "diseñar",
+        designed=accion == ACCION_DISENAR,
     )
     # EL PASO DE «FICHEROS DE REFERENCIA PARA DISEÑAR» YA NO ESTA AQUI, y no es una
     # supresion: es que su lista esta VACIA —para obtener candidatos no hace falta
@@ -1854,7 +2136,7 @@ def main() -> None:
         acciones = st.columns([2, 2, 3])
         with acciones[0]:
             if st.button(BUTTON_DESIGN, type="primary", width="stretch"):
-                st.session_state["accion"] = "diseñar"
+                st.session_state["accion"] = ACCION_DISENAR
         with acciones[1]:
             if st.button(
                 BUTTON_ESTIMATE,
@@ -1864,11 +2146,11 @@ def main() -> None:
                     "busca nada: sólo dice si esto son segundos o minutos."
                 ),
             ):
-                st.session_state["accion"] = "estimar"
+                st.session_state["accion"] = ACCION_ESTIMAR
 
     # RETOMAR ES VER EL RESULTADO. Pedir otra vez «Buscar candidatos» sobre un proyecto
     # que ya los tiene guardados es pedir que se repita lo que se acaba de recuperar.
-    accion = "diseñar" if retomado is not None else st.session_state.get("accion")
+    # Ya resuelta arriba, en UN solo sitio: ver `presentation.design_action`.
     if accion is None:
         st.info(
             "Todo listo. **Estimar coste** dice cuanto va a tardar sin diseñar nada; "
@@ -1908,7 +2190,7 @@ def main() -> None:
             for aviso in avisos:
                 st.warning(f"**{nombre}** — {aviso}")
 
-        if accion == "estimar":
+        if accion == ACCION_ESTIMAR:
             for nombre, (_, anat) in anatomias.items():
                 st.subheader(f"{nombre} — estimación")
                 st.code(
@@ -1986,6 +2268,10 @@ def main() -> None:
         st.caption(paquete["texto"])
         for nombre, contenido in sorted(ficheros.items()):
             st.download_button(nombre, contenido, nombre, "text/plain", key=f"dl_{nombre}")
+            # Y SU BLOQUE COPIABLE. Sin el, la alternativa del ZIP era este boton suelto
+            # —otra descarga— y la de este boton, ninguna. Ahora la alternativa de los dos
+            # es el texto de abajo, que no comparte mecanismo con ninguno.
+            _tambien_para_copiar(contenido, nombre=nombre, clave=f"res_{nombre}")
     else:
         st.info(paquete["texto"])
 
@@ -2005,8 +2291,34 @@ def main() -> None:
 
 
 
+def _clave_de_subida(base: str) -> str:
+    """La clave del `file_uploader`, con un CONTADOR que permite VACIARLO.
+
+    Streamlit retiene el fichero soltado mientras el widget conserve su clave, y en
+    Streamlit **cada tecla es un repintado**: si lo que se soltó hace abortar algo, el
+    aborto vuelve en cada uno. Reportado el 2026-09-07: *«si al recargar vuelve a estar
+    puesto y vuelve a abortar, quedo atrapado sin forma de quitarlo»*.
+
+    Cambiar la clave es lo único que descarta lo subido sin recargar. Va aqui —y no en
+    cada modal— porque los TRES que suben fichero tienen el mismo problema, y arreglar
+    solo el que se reporto es como se llega a tener tres.
+    """
+    return f"{base}__{st.session_state.get(f'{base}__vaciados', 0)}"
+
+
+def _boton_de_quitar(base: str, subido) -> None:
+    """«Quitar el fichero», al lado del uploader y SOLO cuando hay uno puesto."""
+    if subido is None:
+        return
+    if st.button("Quitar el fichero", key=f"{base}__quitar", help=QUITAR_SUBIDA_AYUDA):
+        st.session_state[f"{base}__vaciados"] = (
+            st.session_state.get(f"{base}__vaciados", 0) + 1
+        )
+        st.rerun()
+
+
 def _guardar_corrida(proyecto, nombre: str, *, construir, guardar, clave: str,
-                     tiling=None, seleccion=None) -> None:
+                     tiling=None, seleccion=None, frente: str = "") -> None:
     """Guarda la corrida de un modal en el log del proyecto.
 
     Es el mismo formulario para los cuatro: sin fecha y sin quién la corrió el registro
@@ -2024,6 +2336,16 @@ def _guardar_corrida(proyecto, nombre: str, *, construir, guardar, clave: str,
     ranura = f"{clave}_guardada_{nombre}"
     hecho = st.session_state.pop(ranura, None)
     if hecho is not None:
+        # EL AVISO FLOTANTE ES LO QUE HACE VISIBLE EL GUARDADO, y no es un adorno.
+        # Guardar repinta la página entera —hace falta: la tabla, el semáforo y las
+        # tarjetas se pintan ARRIBA de este formulario—, y el repintado deja al usuario
+        # al principio de la página mientras la confirmación se pinta aquí, al final del
+        # modal, donde ya no está mirando. Reportado el 2026-09-07 como «se reinicia
+        # todo y hay que empezar de nuevo»: la corrida SÍ se había guardado, y la única
+        # señal de que había pasado algo quedaba fuera de la pantalla. El `toast` flota
+        # sobre la página y se ve caiga donde caiga el scroll; el banner se queda porque
+        # es el que se lee al volver.
+        st.toast(hecho["texto"], icon="✅" if hecho["verde"] else "⚠️")
         (st.success if hecho["verde"] else st.warning)(hecho["texto"])
     columnas = st.columns([2, 2, 3])
     with columnas[0]:
@@ -2051,6 +2373,36 @@ def _guardar_corrida(proyecto, nombre: str, *, construir, guardar, clave: str,
             except (ShmirDesignError, ValueError, OSError) as exc:
                 # rule2-ok: frontera de la interfaz. Nada se guarda y se dice por qué.
                 st.error(f"**PARA** — {exc}")
+                # Y LO QUE SIGUE FALTANDO, aquí y no en la tarjeta del frente. El
+                # aborto por fichero repetido dice que no hay nada nuevo que guardar;
+                # quien lo suelta estaba intentando cubrir a alguien. Se leyó como «no
+                # te deja seguir» (2026-09-07), y es lo que se lee siempre de un aborto
+                # que no nombra la salida. Principio nº 47: la salida va donde está el
+                # bloqueo. Lo decide `presentation`, no esta página (regla 6).
+                if frente and tiling is not None and seleccion is not None:
+                    # EN UN `except` NO SE PUEDE LLAMAR A ALGO QUE PUEDA FALLAR sin
+                    # recogerlo: una excepcion lanzada aqui dentro se propaga, se lleva
+                    # `main()` por delante y borra la pagina POR DEBAJO del mensaje que
+                    # se acaba de pintar — o sea, borra la salida que este bloque existe
+                    # para dar. Es la errata nº 137 en el propio arreglo de la nº 135.
+                    try:
+                        pendiente = pending_after_duplicate(
+                            tiling, seleccion, species=nombre, front=frente,
+                            stores=load_stores(proyecto),
+                        )
+                    except (ShmirDesignError, ValueError, OSError) as otro:
+                        # rule2-ok: frontera de la interfaz, y DENTRO de un except. El
+                        # aborto principal ya esta dicho; esto es el añadido, asi que se
+                        # dice que no se ha podido calcular y no se pierde lo de arriba.
+                        st.caption(
+                            f"(No se ha podido calcular qué falta de este frente: "
+                            f"{otro})"
+                        )
+                    else:
+                        if pendiente["texto"]:
+                            (st.warning if pendiente["activo"] else st.caption)(
+                                pendiente["texto"]
+                            )
             else:
                 if tiling is None or seleccion is None:
                     resumen = {
@@ -2082,9 +2434,11 @@ def _guardar_seleccion(proyecto, seleccion, nombre: str, *,
     if proyecto is None:
         return
     st.markdown("**Guardar la selección en el proyecto**")
-    guardada = selected_starts(proyecto)
-    if guardada:
-        st.caption(f"Última selección guardada: {', '.join(str(s) for s in guardada)}")
+    nota_guardada = saved_selection_note(
+        selected_starts(proyecto), selection=seleccion
+    )
+    if nota_guardada:
+        st.caption(nota_guardada)
     # ¿LA CONFIGURACION DE AHORA ES LA QUE PRODUJO LO GUARDADO? Se DERIVA comparando
     # huellas, igual que `insumos.obsoleta`. Los ajustes NO se restauran al reabrir —eso
     # daria dos fuentes de verdad en la barra lateral— asi que decirlo es la mitad del
@@ -2145,8 +2499,15 @@ def _panel_deposito(tipo: str, nombre: str, *, clave: str) -> list[dict]:
         (st.warning if fila["avisa"] else (st.caption if fila["presente"] else st.info))(
             fila["texto"]
         )
-        for campo in fila["procedencia"]:
+        for campo in fila["procedencia_declarada"]:
             st.caption(f"· {campo['campo']}: {campo['valor']}")
+        # LA SALIDA VA DONDE APARECE EL PROBLEMA. El modal aborta por los cuatro campos
+        # y hasta hoy sólo decía dónde estaba la caja para declararlos — en el gestor,
+        # que es otro paso y está más abajo. Un aviso que nombra el paso correcto sigue
+        # siendo un aviso: hay que ir a buscarlo, y quien está aquí está bloqueado aquí.
+        # Es la misma caja (`_declarar_procedencia`), no una segunda: dos formularios
+        # para lo mismo acabarían escribiendo cosas distintas.
+        _declarar_procedencia(fila, reference_dir())
     return filas
 
 
@@ -2218,7 +2579,7 @@ def _modal_blast(seleccion, nombre: str, proyecto=None, tiling=None) -> None:
     marcados = []
     for fila in filas:
         if st.checkbox(
-            f"3utr:{fila['start']}  asim {fila['asimetria']}  {fila['veredicto']}"
+            f"{fila['etiqueta']}  asim {fila['asimetria']}  {fila['veredicto']}"
             + ("  · panel" if fila["panel"] else ""),
             key=f"blast_c_{nombre}_{fila['start']}",
             value=todos,
@@ -2264,6 +2625,7 @@ def _modal_blast(seleccion, nombre: str, proyecto=None, tiling=None) -> None:
             file_name=ruta,
             key=f"blast_dl_{nombre}",
         )
+        _tambien_para_copiar(consulta.text, nombre=ruta, clave=f"blast_{nombre}")
         # SIN PROYECTO NO SE ACEPTA EL FICHERO. Antes se aceptaba y se avisaba en gris de
         # que no se guardaba nada — detras de este fichero hay una descarga de decenas de
         # GB y una corrida de horas, asi que dejarlo soltar era una trampa (errata nº 42).
@@ -2273,12 +2635,13 @@ def _modal_blast(seleccion, nombre: str, proyecto=None, tiling=None) -> None:
             return
         subido = st.file_uploader(
             "Soltar aquí el resultado (-outfmt 6)",
-            key=f"blast_up_{nombre}",
+            key=_clave_de_subida(f"blast_up_{nombre}"),
             help=(
                 "Se valida contra el md5 del FASTA de consulta y contra los nombres del "
                 "panel antes de almacenarse. Un resultado de otra corrida se rechaza."
             ),
         )
+        _boton_de_quitar(f"blast_up_{nombre}", subido)
         if subido is not None:
             # LA PROCEDENCIA DE LA CORRIDA, que es fecha, quien y parametros — y el md5
             # de la consulta, que la app genero. Los TRES campos de la base ya NO se
@@ -2305,7 +2668,7 @@ def _modal_blast(seleccion, nombre: str, proyecto=None, tiling=None) -> None:
                     database=base,
                     date=fecha, uploaded_by=quien,
                 ),
-                guardar=save_blast_run, clave="blast",
+                guardar=save_blast_run, clave="blast", frente="especificidad",
                 tiling=tiling, seleccion=seleccion,
             )
     else:
@@ -2400,18 +2763,21 @@ def _modal_seed(seleccion, nombre: str, maduros, proyecto=None,
             st.error(destacados["mir30"]["texto"])
         st.info(destacados["pasajeras"]["texto"])
         st.dataframe(seed_result_rows(scan), hide_index=True)
+        bloque_seed = scan.export_block()
+        nombre_seed = f"{nombre}_colision_seed.txt"
         st.download_button(
             "Descargar el bloque para el documento",
-            data=scan.export_block(),
-            file_name=f"{nombre}_colision_seed.txt",
+            data=bloque_seed,
+            file_name=nombre_seed,
             key=f"seed_dl_{nombre}",
         )
+        _tambien_para_copiar(bloque_seed, nombre=nombre_seed, clave=f"seed_{nombre}")
         _guardar_corrida(
             proyecto, nombre,
             construir=lambda fecha, quien: seed_run_from_scan(
                 scan, date=fecha, ran_by=quien
             ),
-            guardar=save_seed_run, clave="seed",
+            guardar=save_seed_run, clave="seed", frente="seed_colision",
             # QUE VEREDICTOS CAMBIA, tambien aqui. Sin `tiling` y `seleccion` la
             # confirmacion era un «Guardada en el log» plano, y el CERO —que es la señal
             # de que el guardado no ha movido nada— no se veia en tres de los cuatro
@@ -2438,10 +2804,11 @@ def _panel_controles(seleccion, nombre: str, tiling, diana: str) -> None:
         return
     with st.expander(f"Controles del experimento — {nombre}"):
         opciones = control_choices(seleccion)
+        etiqueta_de = {o["inicio"]: o["etiqueta"] for o in opciones}
         elegido = st.selectbox(
             "¿Para qué candidato?",
             options=[o["inicio"] for o in opciones],
-            format_func=lambda inicio: f"3utr:{inicio}",
+            format_func=lambda inicio: etiqueta_de[inicio],
             key=f"ctrl_sitio_{nombre}",
             help=(
                 "Las dos construcciones se derivan de LA GUÍA de ese candidato, así que "
@@ -2462,7 +2829,8 @@ def _panel_controles(seleccion, nombre: str, tiling, diana: str) -> None:
         st.dataframe(arms_rows(marcados), hide_index=True)
 
         if not st.button(
-            f"Construir los controles de 3utr:{elegido}", key=f"ctrl_ir_{nombre}"
+            f"Construir los controles de {etiqueta_de[elegido]}",
+            key=f"ctrl_ir_{nombre}",
         ):
             st.caption(
                 "No se construye nada al abrir el panel: cada construcción pliega "
@@ -2583,6 +2951,25 @@ def _modal_empalme(seleccion, nombre: str, diana: str, casete, proyecto=None,
         help="Del casete, si está cargado. Cambia el resultado, así que viaja con la "
              "consulta. 0 = lo que dan las piezas del plásmido.",
     )
+    # EL CASETE, ANTES DE MONTAR NADA. Entre este botón y subir el resultado hay una
+    # corrida de SpliceAI: si el casete no es el del depósito, el resultado se rechaza al
+    # volver —correctamente— pero la corrida ya está gastada (errata nº 129). La app lo
+    # dice aquí, que es donde todavía sirve de algo. La decisión la toma `presentation`.
+    ficha_casete = cassette_deposit_check(casete)
+    if ficha_casete["estado"] == CASETE_NO_COINCIDE:
+        st.error(f"**PARA** — {ficha_casete['motivo']}")
+        return
+    if ficha_casete["estado"] == CASETE_SIN_COMPROBAR:
+        st.warning(ficha_casete["motivo"])
+    else:
+        st.caption(ficha_casete["motivo"])
+    # EL TERCER EJE: el casete del depósito contra el VERSIONADO. Aviso, nunca bloqueo —
+    # un depósito más nuevo es legítimo—, pero tiene que verse ANTES de gastar la
+    # corrida. Es el único de los tres que ve un depósito con el fichero equivocado: los
+    # otros dos comparan la misma lectura consigo misma (principio nº 52).
+    if ficha_casete["versionado"]["avisa"]:
+        st.warning(ficha_casete["versionado"]["motivo"])
+
     try:
         panel = splice_constructions(
             seleccion, intron_names=elegidos, scaffold=SGEP_SCAFFOLD,
@@ -2613,20 +3000,26 @@ def _modal_empalme(seleccion, nombre: str, diana: str, casete, proyecto=None,
     st.caption(splice_context_note(construcciones))
     st.dataframe(splice_construction_rows(construcciones), width="stretch")
 
+    # EL TEXTO Y EL NOMBRE SE CALCULAN UNA VEZ y los usan los DOS caminos —el botón y
+    # el bloque copiable—. Antes el botón los construía dentro de su propia llamada, así
+    # que la salida alternativa habría podido pintar un contenido distinto del que
+    # descarga el botón, que es la peor forma de tener dos vías.
+    #
+    # EL ESTADO Y LA CONVENCIÓN VAN DENTRO DEL FICHERO, no sólo en su nombre: un nombre
+    # se pierde en el primer `mv` y el FASTA viaja solo. Y el ESTADO VA TAMBIÉN EN EL
+    # NOMBRE, porque quien lo pasa por SpliceAI no tiene esta pantalla delante.
+    texto_fasta = splice_query_text(panel, introns=elegidos, candidates=len(starts))
+    nombre_fasta = splice_fasta_name(
+        panel, species=nombre, introns=elegidos, candidates=len(starts),
+    )
     st.download_button(
         "Descargar el FASTA de construcciones",
-        # EL ESTADO Y LA CONVENCIÓN VAN DENTRO DEL FICHERO, no sólo en su nombre: un
-        # nombre se pierde en el primer `mv` y el FASTA viaja solo.
-        splice_query_text(panel, introns=elegidos, candidates=len(starts)),
-        # EL ESTADO VA EN EL NOMBRE. El fichero es el que viaja: quien lo pasa por
-        # SpliceAI no tiene esta pantalla delante, y un FASTA con la mitad de las
-        # consultas y un nombre que no lo dice es media entrega que parece completa.
-        splice_fasta_name(
-            panel, species=nombre, introns=elegidos, candidates=len(starts),
-        ),
+        texto_fasta,
+        nombre_fasta,
         "text/plain",
         key=f"sp_fasta_{nombre}",
     )
+    _tambien_para_copiar(texto_fasta, nombre=nombre_fasta, clave=f"sp_{nombre}")
     st.caption(splice_executor_text())
     _panel_deposito("corrida_empalme", nombre, clave="sp")
 
@@ -2635,15 +3028,25 @@ def _modal_empalme(seleccion, nombre: str, diana: str, casete, proyecto=None,
         "Análisis APARTE: da un número propio, no prestado de un modelo entrenado para "
         "otra cosa. Corre entero aquí."
     )
-    st.dataframe(
-        splice_folding_rows(
-            construcciones,
-            module_of=lambda c: splice_module_of(
-                c, selection=seleccion, scaffold=SGEP_SCAFFOLD
-            ),
+    # LAS FILAS SE CALCULAN UNA VEZ y las leen los tres —destacados, contraste y tabla—.
+    # Plegar las construcciones es lo caro de este modal, y pedirlas tres veces seria
+    # triplicarlo; además, tres derivaciones del mismo plegado podrían discrepar.
+    filas_plegado = splice_folding_rows(
+        construcciones,
+        module_of=lambda c: splice_module_of(
+            c, selection=seleccion, scaffold=SGEP_SCAFFOLD
         ),
-        width="stretch",
     )
+    # LO DESTACADO VA ARRIBA, NO EN UNA COLUMNA. Cuál es el elemento menos accesible de
+    # los cuatro y en qué se separan las dos arquitecturas estaba CALCULADO y había que
+    # sacarlo comparando columnas a ojo en una tabla de 22 filas. La página no agrega:
+    # los textos los monta `presentation` (regla 6).
+    for bloque in folding_highlights(filas_plegado).values():
+        if bloque["activo"]:
+            st.info(bloque["texto"])
+    st.markdown("**Contraste entre arquitecturas** — más desapareado es más disponible")
+    st.dataframe(folding_contrast_rows(filas_plegado), width="stretch")
+    st.dataframe(filas_plegado, width="stretch")
 
     st.subheader("Subir el resultado de SpliceAI")
     veredicto = upload_allowed(proyecto)
@@ -2651,18 +3054,36 @@ def _modal_empalme(seleccion, nombre: str, diana: str, casete, proyecto=None,
         st.error(veredicto["motivo"])
         return
     subido = st.file_uploader(
-        "Resultado (TSV)", type=["tsv", "txt"], key=f"sp_res_{nombre}"
+        "Resultado (TSV)", type=["tsv", "txt"],
+        key=_clave_de_subida(f"sp_res_{nombre}"),
     )
+    _boton_de_quitar(f"sp_res_{nombre}", subido)
     if subido is None:
         return
+    crudo = _read_upload(subido)
     try:
-        scan = splice_scan_from_result(
-            _read_upload(subido), constructions=construcciones
-        )
+        scan = splice_scan_from_result(crudo, constructions=construcciones)
+        # LO QUE NO ENTRÓ, DICHO. SpliceAI puntúa también las posiciones del borde y al
+        # traerlas a nuestra convención caen fuera de la construcción. No son sitios de
+        # ella, así que no se pierde ninguna medida — pero saltárselas en silencio sería
+        # peor que rechazar el fichero (errata nº 131).
+        aviso_borde = splice_edge_note(crudo, constructions=construcciones)
     except (ShmirDesignError, ValueError) as exc:
         # rule2-ok: el resultado se RECHAZA entero y se dice por qué.
         st.error(f"**RECHAZADO** — {exc}")
         return
+    if aviso_borde:
+        st.warning(aviso_borde)
+
+    # ¿ESTÁ GUARDADA? ARRIBA, PEGADO AL RESULTADO. El análisis se pinta completo y
+    # convincente aquí, y el formulario que lo hace permanente está al final del modal,
+    # después de la última tabla: es fácil darlo por hecho, y la última vez costó una
+    # corrida de SpliceAI (errata nº 132). La decisión la toma `presentation`.
+    guardada = run_saved_state(
+        load_stores(proyecto) if proyecto is not None else None,
+        front="empalme_sitios", raw=crudo,
+    )
+    (st.success if guardada["estado"] == GUARDADA_SI else st.warning)(guardada["texto"])
 
     for bloque in splice_highlights(scan).values():
         if bloque["activo"]:
@@ -2690,7 +3111,7 @@ def _modal_empalme(seleccion, nombre: str, diana: str, casete, proyecto=None,
             scan, raw=_read_upload(subido), date=fecha, ran_by=quien,
             executor=splice_executor_text(),
         ),
-        guardar=save_splice_run, clave="sp",
+        guardar=save_splice_run, clave="sp", frente="empalme_sitios",
         tiling=tiling, seleccion=seleccion,
     )
 
@@ -2741,13 +3162,14 @@ def _modal_offtarget(seleccion, nombre: str, maduros, diana: str,
         fila = next(f for f in filas if f["ofrecer_subida"])
         subido = st.file_uploader(
             f"Soltar aquí `{fila['nombre']}`",
-            key=f"ot_up_{nombre}",
+            key=_clave_de_subida(f"ot_up_{nombre}"),
             help=(
                 "Se valida al recibirlo: que sea FASTA, cuántas secuencias, longitud "
                 "total, md5 y si hay varias isoformas por gen. Si algo no cuadra, se "
                 "rechaza y no se escribe nada."
             ),
         )
+        _boton_de_quitar(f"ot_up_{nombre}", subido)
         if subido is None:
             st.warning(offtarget_placeholder(None)["texto"])
             return
@@ -2850,23 +3272,27 @@ def _modal_offtarget(seleccion, nombre: str, maduros, diana: str,
         st.dataframe(offtarget_control_rows(scan), hide_index=True)
         st.caption(destacados["controles"]["texto"])
 
-        st.markdown("**Autoconteo sobre la propia diana** — esperado: 1")
+        st.markdown("**Autoconteo sobre la propia diana**")
+        st.caption(WHY_THE_EXPECTED_DIFFERS)
         st.dataframe(offtarget_self_count_rows(scan), hide_index=True)
         if destacados["autoconteo"]["activo"]:
             st.error(destacados["autoconteo"]["texto"])
 
+        bloque_ot = scan.export_block()
+        nombre_ot = f"{nombre}_carga_offtarget.txt"
         st.download_button(
             "Descargar el bloque para el documento",
-            data=scan.export_block(),
-            file_name=f"{nombre}_carga_offtarget.txt",
+            data=bloque_ot,
+            file_name=nombre_ot,
             key=f"ot_dl_{nombre}",
         )
+        _tambien_para_copiar(bloque_ot, nombre=nombre_ot, clave=f"ot_{nombre}")
         _guardar_corrida(
             proyecto, nombre,
             construir=lambda fecha, quien: offtarget_run_from_scan(
                 scan, date=fecha, ran_by=quien
             ),
-            guardar=save_offtarget_run, clave="ot",
+            guardar=save_offtarget_run, clave="ot", frente="offtarget_seed",
             tiling=tiling, seleccion=seleccion,
         )
 

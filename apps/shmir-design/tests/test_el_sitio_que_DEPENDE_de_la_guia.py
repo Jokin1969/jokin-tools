@@ -2,8 +2,15 @@
 
 **Medido (2026-09-05)**, y es literalmente lo que este frente existe para encontrar: un
 **aceptor** en `construccion:3261` —dentro del módulo de 149 nt, sobre un `AG` real—
-puntúa **0,075 en `3utr:959`**, **0,012 en `3utr:1684`** y por debajo de 0,01 en las otras
-ocho. El `GTGAGCG`, que es el críptico que motivó el modal, puntúa **cero en las diez**.
+puntúa **0,075 en `tx:959`**, **0,012 en `tx:1684`** y por debajo de 0,01 en las otras
+ocho.
+
+Este bloque decía `3utr:959` y `3utr:1684` hasta el 2026-09-06, y era **la etiqueta, no
+la medida**: la corrida se monta sobre el TRANSCRITO murino (`load_reference` + anatomía
+del CDS), así que 959 y 1684 son posiciones del transcrito. La fila las etiquetaba
+partiendo el nombre de la construcción y volviendo a pegarle `3utr:` a mano — la errata
+nº 121 en un octavo sitio. Los números y el hallazgo son los mismos; lo que cambia es
+que ahora dicen de qué espacio son. El `GTGAGCG`, que es el críptico que motivó el modal, puntúa **cero en las diez**.
 
 **El valor no es la alarma.** En el peor caso llega al 11 % del donante legítimo, muy por
 debajo del 50 % que dispara el aviso. Lo que vale es que **existe un eje por el que la guía
@@ -27,6 +34,7 @@ RAIZ = Path(__file__).resolve().parent.parent
 if str(RAIZ) not in sys.path:
     sys.path.insert(0, str(RAIZ))
 
+from tests.nombres_heredados import por_nombre_heredado, starts_del_medido
 from shmir_design import presentation, spliceai  # noqa: E402
 from shmir_design.anatomy import Anatomy, RegionSource  # noqa: E402
 from shmir_design.reference import (  # noqa: E402
@@ -50,11 +58,18 @@ def _scan():
         l.strip() for l in CASETE.read_text("utf-8").splitlines()
         if not l.startswith(">")
     )
+    # EL PANEL SE RECONSTRUYE DESDE EL FICHERO MEDIDO. La corrida es la del panel de
+    # ENTONCES, y el 2026-09-07 se retiro `3utr:10` y entro `3utr:359`: con el de hoy,
+    # las construcciones no cruzarian con las filas y el hallazgo saldria vacio.
     panel = spliceai.build_panel(
         corrida.selection, intron_names=("mvm_actual",), scaffold=SGEP_SCAFFOLD,
+        starts=starts_del_medido(MEDIDO),
         cassette=casete, context_nt=5000,
     )
-    por_nombre = {c.name: c for c in panel.constructions}
+    # EL FICHERO MEDIDO TRAE LOS NOMBRES DE ENTONCES y no se reescribe: es la
+    # evidencia de una corrida que este proyecto no ejecuta. Se lee con la forma
+    # que tiene, desde un solo sitio (errata nº 133).
+    por_nombre = por_nombre_heredado(panel.constructions)
     lineas = ["# convencion: spliceai"]
     with MEDIDO.open("r", encoding="utf-8") as f:
         lineas.append(next(f).rstrip("\n"))
@@ -87,7 +102,7 @@ class TestElSitioQueVARIA_con_la_guia(unittest.TestCase):
         self.assertEqual(len(sitio.scores), 10)
         self.assertAlmostEqual(sitio.maximum, 0.0751, places=3)
         self.assertAlmostEqual(
-            sitio.scores["mvm_actual__3utr959"], 0.0751, places=3,
+            sitio.scores["mvm_actual__tx:959"], 0.0751, places=3,
         )
 
     def test_cae_DENTRO_del_intron_no_en_el_contexto(self):
@@ -146,7 +161,10 @@ class TestSaleDESTACADO_y_no_al_pie(unittest.TestCase):
         fila = next(f for f in filas if f["posicion"] == 3261)
         self.assertEqual(fila["region"], "intron")
         self.assertEqual(len(fila["por_construccion"]), 10)
-        self.assertIn("3utr:959", str(fila["por_construccion"]))
+        # `tx:`, no `3utr:`: esta corrida se monta sobre el transcrito. Un test que
+        # afirmaba `3utr:959` fijaba la etiqueta equivocada del emisor.
+        self.assertIn("tx:959", str(fila["por_construccion"]))
+        self.assertNotIn("3utr:", str(fila["por_construccion"]))
 
 
 if __name__ == "__main__":

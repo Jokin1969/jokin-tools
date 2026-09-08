@@ -12,7 +12,7 @@ Python 3.11+, solo libreria estandar (regla 6).
 
 from __future__ import annotations
 
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 
 from .coords import Frame, label
 from .selection import DEFAULT_MIN_SPACING, respects_spacing
@@ -73,7 +73,7 @@ class SiteConflict:
     reference_guide: str
     distance: int
     reference_label: str
-    frame: Frame = Frame.UTR3
+    frame: Frame = field(kw_only=True)
 
     @property
     def message(self) -> str:

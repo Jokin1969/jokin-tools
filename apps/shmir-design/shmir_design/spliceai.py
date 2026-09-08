@@ -48,9 +48,10 @@ Python 3.11+, solo libreria estandar (regla 6).
 from __future__ import annotations
 
 import hashlib
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 
 from .blocks import PIECES, build_block
+from .coords import Frame, label, tiled_frame
 from .errors import ShmirDesignError
 from .filters import FilterState
 from .introns import get as get_intron
@@ -144,6 +145,18 @@ CONVENTIONS = (OUR_CONVENTION, SPLICEAI_CONVENTION)
 #: supuesto: ver el bloque de arriba.
 TO_SPLICEAI = {"donante": -1, "aceptor": +2}
 
+#: CUANTO puede salirse una posicion por el borde AL CONVERTIRLA, y ni un nucleotido mas.
+#:
+#: SpliceAI puntua TODAS las posiciones de la secuencia, tambien la 1 y la 2. Traerlas a
+#: nuestra convencion les resta el desplazamiento del tipo, asi que un aceptor en la
+#: posicion 1 cae en la -1: una fila legitima —ruido, 1,57e-07— que no apunta a ningun
+#: sitio de ESTA construccion. Abortar el fichero entero por ella no defiende nada.
+#:
+#: Se DERIVA de `TO_SPLICEAI` y no se teclea: si mañana cambia un desplazamiento, la
+#: tolerancia cambia con el. Un `2` escrito aqui seria la misma cifra en dos sitios
+#: (principio nº 13), y el dia que discreparan tolerariamos un fichero equivocado.
+EDGE_TOLERANCE = max(abs(v) for v in TO_SPLICEAI.values())
+
 #: La línea que un resultado puede traer para declarar en qué convención vienen sus
 #: posiciones. Va como comentario para que el fichero siga siendo un TSV de cinco
 #: columnas.
@@ -208,6 +221,16 @@ def warning_blocks() -> list[dict[str, object]]:
     ]
 
 
+#: Los tres estados de «¿el casete con el que se emite es el del deposito?».
+#:
+#: Tres y no un booleano, por lo de siempre: «no se ha podido comprobar» y «coincide» no
+#: son la misma cosa y un `False` los funde. Viven aqui —y no en `presentation`— porque
+#: `Construction` los lleva dentro y este modulo es el de abajo.
+CASETE_COINCIDE = "COINCIDE"
+CASETE_NO_COINCIDE = "NO_COINCIDE"
+CASETE_SIN_COMPROBAR = "SIN_COMPROBAR"
+
+
 # ─────────────────────────── la construccion: candidato x intron ───────────────────────
 
 
@@ -234,6 +257,15 @@ class Construction:
     cryptic_position: int
     #: `True` si el andamio de esta construccion NO es el miR-E verificado.
     scaffold_modified: bool = False
+    #: El marco de `candidate_start`, DERIVADO de la anatomia de la seleccion. Se llama
+    #: `candidate_frame` y no `frame` a proposito: en este modulo «marco» ya significa
+    #: otra cosa —`FrameCheck`, el desfase entre las posiciones del resultado y las de
+    #: la construccion— y dos cosas con el mismo nombre acaban comparandose.
+    candidate_frame: Frame = field(kw_only=True)
+    #: Si el casete con el que se monto es el del deposito. Por defecto SIN_COMPROBAR:
+    #: el silencio se leia como «coincide», y eso es exactamente lo que paso el
+    #: 2026-09-06 — un FASTA con `estado=COMPLETO` montado sobre otro casete.
+    cassette_check: str = CASETE_SIN_COMPROBAR
     #: DE DONDE salio el contexto exonico: el casete con su md5 y su longitud, o las
     #: piezas del plasmido. Va en la cabecera del FASTA porque es lo unico que ata un
     #: resultado a las ENTRADAS con las que se monto — el md5 de la construccion dice
@@ -254,7 +286,8 @@ class Construction:
     def describe(self) -> str:
         lineas = [
             f"{self.name}  ({len(self.sequence)} nt, md5 {self.md5})",
-            f"  candidato 3utr:{self.candidate_start} x intrón {self.intron}",
+            f"  candidato {label(self.candidate_start, self.candidate_frame)} x "
+            f"intrón {self.intron}",
             f"  contexto exonico declarado: {self.context_5} nt por el 5' y "
             f"{self.context_3} nt por el 3'",
             f"  donante legítimo en construcción:{self.donor_position}, "
@@ -356,6 +389,8 @@ class FailedConstruction:
     candidate_start: int
     intron: str
     reason: str
+    #: El marco de `candidate_start`. Ver `Construction.candidate_frame`.
+    candidate_frame: Frame = field(kw_only=True)
 
 
 @dataclass(frozen=True)
@@ -386,8 +421,11 @@ def guide_of(selection, elegido) -> str:
     ventana = selection.window_of(elegido)
     guia = "".join(str(ventana.evaluation.guide).split()).upper().replace("U", "T")
     if not guia:
+        etiqueta = label(
+            elegido.start, tiled_frame(getattr(selection, "anatomy", None))
+        )
         raise ShmirDesignError(
-            f"El candidato 3utr:{elegido.start} llega SIN GUÍA: su ventana de la "
+            f"El candidato {etiqueta} llega SIN GUÍA: su ventana de la "
             f"selección trae la guía vacía, así que no hay "
             f"nada con lo que montar la horquilla. No es una guía mal formada — es una "
             f"guía que no ha llegado, y el sitio donde mirar es la ventana de ese "
@@ -404,6 +442,7 @@ def build_panel(
     starts=None,
     cassette: str | None = None,
     context_nt: int = 0,
+    cassette_check: str = CASETE_SIN_COMPROBAR,
 ) -> ConstructionPanel:
     """Monta todos los pares y dice CUALES no pudo. No aborta por uno.
 
@@ -421,23 +460,29 @@ def build_panel(
         try:
             hechas.extend(build_constructions(
                 selection, intron_names=(nombre,), scaffold=scaffold, starts=starts,
-                cassette=cassette, context_nt=context_nt, _failures=fallidas,
+                cassette=cassette, context_nt=context_nt,
+                cassette_check=cassette_check, _failures=fallidas,
             ))
         except ShmirDesignError as exc:
             # rule2-ok: no se traga — el motivo entero viaja en `failed` y la pagina lo
             # pinta. Lo que se evita es que un intron que no se puede montar impida los
             # demas. Si al final no queda ninguna construccion, se aborta abajo.
+            marco_candidato = tiled_frame(getattr(selection, "anatomy", None))
             for elegido in selection.selection.chosen:
                 if starts is None or elegido.start in set(starts):
                     fallidas.append(FailedConstruction(
                         candidate_start=elegido.start, intron=nombre, reason=str(exc),
+                        candidate_frame=marco_candidato,
                     ))
     if not hechas:
+        motivos = "\n".join(
+            f"  · {label(f.candidate_start, f.candidate_frame)} × {f.intron}: "
+            f"{f.reason}"
+            for f in fallidas
+        )
         raise ShmirDesignError(
             "No se pudo montar NINGUNA construcción, así que no hay nada que consultar "
-            "y no se emite ningún FASTA:\n"
-            + "\n".join(f"  · 3utr:{f.candidate_start} × {f.intron}: {f.reason}"
-                         for f in fallidas)
+            "y no se emite ningún FASTA:\n" + motivos
         )
     return ConstructionPanel(
         constructions=tuple(hechas), failed=tuple(fallidas),
@@ -452,6 +497,7 @@ def build_constructions(
     starts=None,
     cassette: str | None = None,
     context_nt: int = 0,
+    cassette_check: str = CASETE_SIN_COMPROBAR,
     _failures: list | None = None,
 ) -> tuple[Construction, ...]:
     """Monta un cassette POR PAR candidato x intron. La unidad de este modal.
@@ -479,6 +525,7 @@ def build_constructions(
             "emitir un FASTA vacío que luego no se podría validar."
         )
 
+    marco_candidato = tiled_frame(getattr(selection, "anatomy", None))
     construcciones: list[Construction] = []
     for nombre in intron_names:
         intron = get_intron(nombre)
@@ -501,6 +548,7 @@ def build_constructions(
                 # evita es que un candidato tumbe a los otros diecinueve.
                 _failures.append(FailedConstruction(
                     candidate_start=elegido.start, intron=nombre, reason=str(exc),
+                    candidate_frame=marco_candidato,
                 ))
                 continue
             bloque = build_block(guia, scaffold=scaffold)
@@ -511,7 +559,14 @@ def build_constructions(
             criptico = montado.find(CRYPTIC_DONOR)
             construcciones.append(
                 Construction(
-                    name=f"{nombre}__3utr{elegido.start}",
+                    # EL MARCO SE RECIBE, NO SE TECLEA. Esto ponía `3utr` a pelo y
+                    # `elegido.start` va en el marco de LO TILADO, que en la página y en
+                    # el CLI es el TRANSCRITO: la construcción del candidato `3utr:10`
+                    # salía llamándose `..._3utr959`, y `3utr:959` existe y es OTRA
+                    # ventana. El invariante de rango no puede cazarlo —caza lo
+                    # imposible, no lo equivocado— y el 2026-09-07 costó una decisión de
+                    # panel tomada sobre el nombre equivocado.
+                    name=f"{nombre}__{label(elegido.start, marco_candidato)}",
                     candidate_start=elegido.start,
                     intron=nombre,
                     sequence=secuencia,
@@ -520,6 +575,8 @@ def build_constructions(
                     context_3=len(contexto3),
                     donor_position=desplazamiento + elementos.donor.start,
                     acceptor_position=desplazamiento + elementos.acceptor.start,
+                    candidate_frame=marco_candidato,
+                    cassette_check=cassette_check,
                     cryptic_position=(
                         desplazamiento + criptico + 1 if criptico >= 0 else 0
                     ),
@@ -657,6 +714,10 @@ def constructions_fasta(constructions, *, summary=None) -> str:
             f"spliceai_donante={c.donor_position + TO_SPLICEAI['donante']} "
             f"spliceai_aceptor={c.acceptor_position + TO_SPLICEAI['aceptor']}"
             f"{' contexto_origen=' + c.context_source if c.context_source else ''}"
+            # SIEMPRE, tambien cuando coincide y tambien cuando no se pudo mirar: es
+            # OTRO EJE que `estado=`, que habla del panel —cuantas construcciones de las
+            # anunciadas salieron— y se leia como «todo en orden».
+            f" casete_del_deposito={c.cassette_check}"
             f"{estado}"
         )
         for i in range(0, len(c.sequence), FASTA_WRAP):
@@ -801,7 +862,16 @@ def parse_result(text: str, *, constructions) -> tuple[SiteScore, ...]:
     """
     convencion = declared_convention(text)
     por_nombre = {c.name: c for c in constructions}
-    filas = [l for l in text.splitlines() if l.strip() and not l.startswith("#")]
+    # CADA FILA CON SU LINEA DEL FICHERO. Antes se numeraban las filas YA FILTRADAS, asi
+    # que con una linea `# convencion: …` delante los dos numeros se separaban y el
+    # mensaje mandaba a mirar la linea de al lado. Es la errata nº 121 en otro espacio:
+    # un numero impreso sin decir de que espacio es. Aqui el espacio que le sirve a quien
+    # abre el fichero es UNO: la linea del fichero.
+    numeradas = [
+        (n, l) for n, l in enumerate(text.splitlines(), start=1)
+        if l.strip() and not l.startswith("#")
+    ]
+    filas = [l for _, l in numeradas]
     if not filas:
         raise ShmirDesignError(
             "El resultado está vacío del todo: ni cabecera. Se aborta."
@@ -820,51 +890,173 @@ def parse_result(text: str, *, constructions) -> tuple[SiteScore, ...]:
         )
 
     sitios: list[SiteScore] = []
-    for numero, fila in enumerate(filas[1:], start=2):
+    saltadas: list[tuple[int, int, str]] = []
+    heredados: list[tuple[int, str, str]] = []
+    for numero, fila in numeradas[1:]:
         campos = fila.split("\t")
         if len(campos) != len(RESULT_COLUMNS):
             raise ShmirDesignError(
-                f"fila {numero}: tiene {len(campos)} campo(s) y la cabecera declara "
+                f"línea {numero}: tiene {len(campos)} campo(s) y la cabecera declara "
                 f"{len(RESULT_COLUMNS)}; se aborta en vez de saltarse la fila."
             )
         nombre, md5, posicion, tipo, puntuacion = (c.strip() for c in campos)
         construccion = por_nombre.get(nombre)
         if construccion is None:
+            # LO QUE IDENTIFICA UNA CONSTRUCCIÓN ES SU md5, NO SU NOMBRE. El nombre
+            # llevaba el prefijo del marco TECLEADO (`..._3utr959` para una coordenada de
+            # transcrito) y al arreglarlo cambia; un fichero que ya estaba fuera no puede
+            # quedarse inservible por una etiqueta NUESTRA — eso obligaría a repetir una
+            # corrida de SpliceAI que no depende de nosotros. Se admite el nombre viejo
+            # SÓLO si el md5 lo confirma, y `legacy_names` lo DICE: aceptarlo en silencio
+            # sería aceptar cualquier cosa que cuadre de md5 sin que nadie lo sepa.
+            por_md5 = [c for c in constructions if c.md5 == md5]
+            if len(por_md5) == 1:
+                construccion = por_md5[0]
+                heredados.append((numero, nombre, construccion.name))
+            elif len(por_md5) > 1:
+                raise ShmirDesignError(
+                    f"línea {numero}: el md5 {md5!r} lo tienen "
+                    f"{len(por_md5)} construcciones de esta corrida, así que un nombre "
+                    f"que no está entre las suyas no identifica ninguna. Se aborta en "
+                    f"vez de elegir una."
+                )
+        if construccion is None:
             raise ShmirDesignError(
-                f"fila {numero}: la construcción {nombre!r} no es ninguna de las que "
-                f"genero esta corrida ({', '.join(sorted(por_nombre))}). Se rechaza el "
+                f"línea {numero}: la construcción {nombre!r} no es ninguna de las que "
+                f"genero esta corrida ({', '.join(sorted(por_nombre))}), y su md5 "
+                f"tampoco es el de ninguna. Se rechaza el "
                 f"fichero entero: es el fallo del CSV de miRarchitect —un fichero de "
                 f"OTRA CORRIDA pegado por error, que entra, cuadra de forma y produce un "
                 f"análisis entero sobre el dato equivocado."
             )
         if md5 != construccion.md5:
             raise ShmirDesignError(
-                f"fila {numero}: {nombre} declara md5 {md5!r} y la construcción que se "
+                f"línea {numero}: {nombre} declara md5 {md5!r} y la construcción que se "
                 f"entrego tiene {construccion.md5!r}. Se rechaza: un resultado de OTRA "
                 f"CORRIDA no puede entrar, aunque encaje de forma."
             )
         if tipo not in SITE_KINDS:
             raise ShmirDesignError(
-                f"fila {numero}: tipo {tipo!r} desconocido; los que hay son "
+                f"línea {numero}: tipo {tipo!r} desconocido; los que hay son "
                 f"{SITE_KINDS}. Se aborta."
             )
+        # QUE TEXTO habia DONDE se esperaba un numero. El mensaje anterior pegaba el
+        # `invalid literal for int()` de Python y decia «posición o puntuación», sin
+        # decir CUAL de las dos ni que ponia. Con el texto delante se ve en un segundo.
         try:
-            entero = int(posicion)
+            declarada = int(posicion)
+        except ValueError as exc:
+            raise ShmirDesignError(
+                f"línea {numero}: en la columna de posición hay {posicion!r}, que no es "
+                f"un número entero. Se aborta en vez de suponer cual era."
+            ) from exc
+        try:
             valor = float(puntuacion)
         except ValueError as exc:
             raise ShmirDesignError(
-                f"fila {numero}: posición o puntuación no numericas ({exc}); se aborta."
+                f"línea {numero}: en la columna de puntuación hay {puntuacion!r}, que no "
+                f"es un número. Se aborta en vez de suponer cual era."
             ) from exc
-        entero = to_our_frame(entero, tipo, convention=convencion)
-        if not 1 <= entero <= len(construccion.sequence):
+
+        entero = to_our_frame(declarada, tipo, convention=convencion)
+        tope = len(construccion.sequence)
+        if not 1 <= entero <= tope:
+            # ¿Se sale porque el fichero es OTRO, o porque la conversion la empuja fuera
+            # por el borde? Son cosas distintas y hasta hoy daban el mismo aborto.
+            del_borde = (
+                convencion != OUR_CONVENTION
+                and 1 <= declarada <= tope
+                and min(abs(entero - 1), abs(entero - tope)) <= EDGE_TOLERANCE
+            )
+            if del_borde:
+                saltadas.append((numero, declarada, tipo))
+                continue
             raise ShmirDesignError(
-                f"fila {numero}: la posición {entero} se sale de la construcción "
-                f"{nombre} ({len(construccion.sequence)} nt); se aborta."
+                f"línea {numero}: la posición {declarada} declarada en la convención "
+                f"{convencion!r} para un {tipo} se convierte a {entero} en la nuestra "
+                f"({declarada} {TO_SPLICEAI.get(tipo, 0):+d} invertido), y la "
+                f"construcción {nombre} tiene {tope} nt. Se aborta: una posición que no "
+                f"existe en esta construcción es la señal de un resultado de OTRA "
+                f"corrida, que es lo que este fichero no puede traer."
             )
         sitios.append(
-            SiteScore(construction=nombre, position=entero, kind=tipo, score=valor)
+            # EL NOMBRE QUE ENTRA ES EL CANÓNICO, no el que traiga el fichero. El
+            # análisis agrupa por `construccion.name`, así que un sitio guardado con el
+            # nombre heredado no lo encontraría nadie — y sin dar ningún error: saldría
+            # una construcción sin sitios, que se lee como «limpia».
+            SiteScore(
+                construction=construccion.name, position=entero, kind=tipo, score=valor,
+            )
         )
+    if not sitios:
+        raise ShmirDesignError(
+            f"Ninguna de las {len(numeradas) - 1} fila(s) del resultado ha dejado un "
+            f"sitio: todas caian fuera de la construcción por el borde de la conversión. "
+            f"Eso no es un resultado vacío, es un fichero que no encaja con lo que se "
+            f"entregó. Se aborta."
+        )
+    _ULTIMAS_SALTADAS.clear()
+    _ULTIMAS_SALTADAS.extend(saltadas)
+    _ULTIMOS_HEREDADOS.clear()
+    _ULTIMOS_HEREDADOS.extend(heredados)
     return tuple(sitios)
+
+
+#: Las filas del ultimo `parse_result` que cayeron fuera POR EL BORDE de la conversion.
+#:
+#: Saltarse filas EN SILENCIO seria peor que abortar: quien sube el fichero tiene que
+#: saber que su resultado no entro entero. Van aparte y no dentro de `SiteScore` porque
+#: no son sitios — son filas que no apuntan a ningun sitio de esta construccion.
+_ULTIMAS_SALTADAS: list[tuple[int, int, str]] = []
+
+
+#: Las filas del ultimo `parse_result` que llegaron con el NOMBRE VIEJO y se aceptaron
+#: por su md5. Mismo patron que las saltadas y por el mismo motivo: aceptarlas en
+#: silencio dejaria sin ver que el fichero viene de antes del arreglo del marco.
+_ULTIMOS_HEREDADOS: list[tuple[int, str, str]] = []
+
+
+def legacy_name_note(text: str, *, constructions) -> str:
+    """Qué filas llegaron con el nombre de antes, y a qué construcción son. Vacío si ninguna.
+
+    Se pide con el MISMO texto y las MISMAS construcciones que `parse_result`, como
+    `edge_note`: así no hay forma de enseñar un aviso que no corresponda al fichero que
+    se leyó.
+    """
+    parse_result(text, constructions=constructions)
+    if not _ULTIMOS_HEREDADOS:
+        return ""
+    detalle = "; ".join(
+        f"línea {n}: {viejo} → {nuevo}" for n, viejo, nuevo in _ULTIMOS_HEREDADOS
+    )
+    return (
+        f"{len(_ULTIMOS_HEREDADOS)} fila(s) traen el NOMBRE VIEJO de la construcción y "
+        f"se han aceptado porque su md5 cuadra — que es lo que identifica una "
+        f"construcción, no su nombre. El nombre cambió al arreglar el marco: llevaba "
+        f"`3utr` tecleado sobre una coordenada del transcrito. {detalle}. El resultado "
+        f"es válido y no hace falta repetir la corrida."
+    )
+
+
+def edge_note(text: str, *, constructions) -> str | None:
+    """Qué filas se saltaron por el borde de la conversión, o `None` si ninguna.
+
+    Se pide con el MISMO texto y las MISMAS construcciones que `parse_result`: así no
+    hay forma de enseñar un aviso que no corresponda al fichero que se leyó.
+    """
+    parse_result(text, constructions=constructions)
+    if not _ULTIMAS_SALTADAS:
+        return None
+    detalle = ", ".join(
+        f"línea {n} (posición {p}, {t})" for n, p, t in _ULTIMAS_SALTADAS
+    )
+    return (
+        f"{len(_ULTIMAS_SALTADAS)} fila(s) del resultado NO han entrado: {detalle}. "
+        f"SpliceAI puntúa todas las posiciones, también las del borde, y al traerlas a "
+        f"nuestra convención caen fuera de la construcción. No apuntan a ningún sitio de "
+        f"ella, así que no se pierde ninguna medida — pero se dice, porque saltarse "
+        f"filas en silencio es peor que rechazar el fichero."
+    )
 
 
 # ─────────────────────────── el analisis ───────────────────────────
@@ -1022,6 +1214,9 @@ class PairResult:
     context_3: int
     #: Si el marco del resultado y el de la app coinciden. NUNCA es un booleano suelto.
     frame_check: FrameCheck = FrameCheck(state=FilterState.NOT_RUN, reason="sin comprobar")
+    #: El espacio de coordenadas de `candidate_start`, heredado de la construccion con
+    #: la que se consulto. Otra cosa que `frame_check`: ver `Construction`.
+    candidate_frame: Frame = field(kw_only=True)
 
     @property
     def best_cryptic(self) -> Cryptic | None:
@@ -1029,7 +1224,8 @@ class PairResult:
 
     def describe(self) -> list[str]:
         lineas = [
-            f"{self.construction}  (3utr:{self.candidate_start} x {self.intron})",
+            f"{self.construction}  "
+            f"({label(self.candidate_start, self.candidate_frame)} x {self.intron})",
             f"  REFERENTE INTERNO — donante legítimo {self.legit_donor:.3f}, "
             f"aceptor legítimo {self.legit_acceptor:.3f}",
             f"  contexto declarado: {self.context_5} nt / {self.context_3} nt",
@@ -1150,6 +1346,7 @@ def scan_from_result(text: str, *, constructions) -> SpliceScan:
                 context_5=construccion.context_5,
                 context_3=construccion.context_3,
                 frame_check=marco,
+                candidate_frame=construccion.candidate_frame,
             )
         )
     return SpliceScan(pairs=tuple(pares))

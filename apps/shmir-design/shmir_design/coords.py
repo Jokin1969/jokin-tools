@@ -200,6 +200,60 @@ def label(value: int | None, frame: Frame, *, limit: int | None = None) -> str:
     return str(posicion)
 
 
+def labels(values, frame: Frame, *, sep: str = ", ") -> str:
+    """Una LISTA de posiciones, etiquetadas y unidas. `3utr:60, 3utr:143`.
+
+    Existe porque los mensajes que nombran varios candidatos se armaban con
+    `", ".join(str(x) for x in …)`, y ahi `coords` no interviene: `Position` impide
+    imprimir un entero desnudo **cuando es una `Position`**, y un `int` que cruza una
+    frontera como `starts` no lo es. Asi salia `Faltan: 1308, 2020` sobre un tilado del
+    transcrito, que se lee como dos posiciones del 3'UTR y son otras dos ventanas.
+
+    Va aqui y no en cada emisor por lo de siempre: son cinco sitios, y una regla copiada
+    en cinco es la que llega al sexto sin copiarse.
+    """
+    return sep.join(str(Position(int(v), frame)) for v in values)
+
+
+def requested(value: int, frame: Frame) -> str:
+    """Una posicion PEDIDA DESDE FUERA, que todavia no se sabe si existe.
+
+    `label` es para las posiciones que el proyecto AFIRMA, y aborta si no caben: eso es
+    lo correcto, porque imprimir una posicion que no existe es justo el fallo que esta
+    contramedida cierra. Pero un mensaje que dice «lo que has pedido no esta ahi» tiene
+    que poder NOMBRAR lo pedido, y lo pedido puede ser cualquier cosa —un 99999 tecleado
+    en `--candidato`—.
+
+    Sin esto, el aborto que explica el error aborta a su vez con OTRO error, y quien lo
+    lee ya no sabe cual de los dos le importa. Es el principio nº 47 dentro de una sola
+    funcion: la salida tiene que estar donde esta el bloqueo.
+
+    Lo que NO hace es callarse: cuando el numero no puede ser una posicion, el motivo
+    entero va en la cadena. Un `99999` a secas se leeria como una coordenada mas.
+    """
+    try:
+        return str(Position(value, frame))
+    except (TypeError, ValueError) as exc:
+        # rule2-ok: no se pierde nada — el motivo entero de `exc` viaja en el texto que
+        # se devuelve, que es el unico sitio donde puede verlo quien lo pidio.
+        return f"{frame.value}{SEPARATOR}{value} — NO ES UNA POSICIÓN: {exc}"
+
+
+def requested_labels(values, frame: Frame, *, sep: str = ", ") -> str:
+    """La lista de posiciones PEDIDAS DESDE FUERA. Es `labels` para lo que puede no caber.
+
+    `labels` es para las que el proyecto AFIRMA —el panel, los que faltan por cubrir— y
+    aborta si alguna no cabe, que es lo correcto. Aqui las que se nombran son las que
+    ALGUIEN HA PEDIDO, y lo pedido puede ser un `99999` tecleado: sin esto, el aborto que
+    explica que ese inicio no existe aborta a su vez con OTRO error y quien lo lee no
+    sabe cual de los dos le importa (principio nº 47 dentro de una sola funcion).
+
+    Va aqui y no en cada emisor por lo mismo que `labels`: una regla copiada en dos
+    sitios es la que llega al tercero sin copiarse.
+    """
+    return sep.join(requested(int(v), frame) for v in values)
+
+
 def span(start: int, end: int, frame: Frame, *, limit: int | None = None) -> str:
     """Intervalo etiquetado UNA vez: `3utr:158-277`.
 
@@ -270,7 +324,58 @@ def frame_of(anatomy) -> Frame:
             f"La anatomía {anatomy!r} no declara 3'UTR, así que no hay desfase con el "
             f"que decidir el espacio de coordenadas; se aborta."
         )
-    return Frame.UTR3 if utr3[0] == 1 else Frame.TX
+    return frame_of_utr3_bounds(utr3)
+
+
+def frame_of_utr3_bounds(utr3) -> Frame:
+    """La misma cuenta, sobre la FRONTERA pelada: `(inicio, fin)`, 1-based.
+
+    Existe para quien tiene las coordenadas y no el objeto. El caso real es el registro
+    de un proyecto: `proyecto.json` guarda la anatomia como una lista, y de ahi tiene que
+    salir el marco de las corridas que se releen del log. Ponerlo alli seria una segunda
+    definicion de la misma regla, que es como se fabrica que dos sitios contesten cosas
+    distintas.
+
+    Sin frontera, `UTR3`: lo tilado ES el 3'UTR por construccion. Es la decision que ya
+    tomaba `tiled_frame`, escrita UNA vez y aqui.
+    """
+    if not utr3:
+        return Frame.UTR3
+    return Frame.UTR3 if int(utr3[0]) == 1 else Frame.TX
+
+
+def tiled_frame(anatomy) -> Frame:
+    """El marco de lo tilado, con `UTR3` cuando NO HAY anatomia.
+
+    `frame_of` aborta sin anatomia y eso sigue siendo lo correcto donde la anatomia es
+    obligatoria. Pero hay cuatro sitios —los cuatro modales— donde la corrida puede
+    venir de un tilado del 3'UTR pelado, sin anatomia ninguna, y ahi el marco no se
+    adivina: es `UTR3` por CONSTRUCCION, porque lo tilado ya es el 3'UTR.
+
+    Existe para que esa decision este escrita UNA vez. Estaba copiada en cuatro, y una
+    regla copiada en cuatro sitios es la que llega al quinto sin copiarse — que es
+    exactamente como la errata nº 121 sobrevivio a su propio arreglo.
+    """
+    return frame_of(anatomy) if anatomy is not None else frame_of_utr3_bounds(None)
+
+
+def frame_of_target(anatomy, length: int) -> Frame:
+    """El marco de una secuencia que se BARRE, decidido por su longitud.
+
+    Existe porque una corrida puede tener DOS espacios a la vez: en la carga de
+    off-targets, `LoadResult.start` va en el marco de lo tilado —que con el transcrito
+    delante es `tx`— y las posiciones del autoconteo van en el de `target`, que puede ser
+    el 3'UTR pelado. Escribir `UTR3` ahi «porque suele serlo» es exactamente la forma que
+    tiene este fallo de volver, asi que se MIDE: si lo barrido mide lo que el 3'UTR de
+    esta anatomia, sus posiciones van en el 3'UTR; si no, van en el marco de lo tilado.
+
+    Sin anatomia no hay 3'UTR con el que comparar y vale lo de `tiled_frame`: lo tilado
+    ES el 3'UTR por construccion.
+    """
+    tope = bound_of(anatomy)
+    if tope is not None and int(length) != tope:
+        return tiled_frame(anatomy)
+    return Frame.UTR3
 
 
 def offset_of(anatomy) -> int:

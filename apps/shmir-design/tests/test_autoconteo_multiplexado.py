@@ -12,6 +12,8 @@ parecido de seed.
 
 import unittest
 
+from shmir_design.coords import Frame
+
 from shmir_design import offtarget
 from shmir_design.reference import REFERENCES, fixture_available, load_3utr
 
@@ -50,6 +52,8 @@ class TestLaClaseDeCadaSegundoSitio(unittest.TestCase):
         return offtarget.self_sites(
             self.guias[inicio], target=self.utr3,
             window=(elegido.start, elegido.end),
+            # El fixture tila el 3'UTR PELADO: las posiciones van en su espacio.
+            frame=Frame.UTR3,
         )
 
     def test_449_su_sitio_es_7mer_m8_y_el_segundo_un_7mer_A1(self):
@@ -83,12 +87,15 @@ class TestLaClaseDeCadaSegundoSitio(unittest.TestCase):
         )
 
     def test_los_otros_seis_tienen_un_solo_sitio(self):
-        for inicio in (10, 60, 143, 359, 652, 735):
+        # `3utr:10` está retirado desde el 2026-09-07; entra `3utr:1071` en su lugar.
+        for inicio in (60, 143, 359, 652, 735, 1071):
             self.assertEqual(len(self._sitios(inicio)), 1, inicio)
 
     def test_sin_ventana_no_se_marca_NINGUNO_como_propio(self):
         """Deducir cual es el suyo por el orden seria un supuesto. No se hace."""
-        sitios = offtarget.self_sites(self.guias[819], target=self.utr3)
+        sitios = offtarget.self_sites(
+            self.guias[819], target=self.utr3, frame=Frame.UTR3
+        )
         self.assertFalse(any(s.own_window for s in sitios))
 
     def test_el_autoconteo_imprime_la_clase_junto_a_la_posicion(self):
@@ -97,7 +104,7 @@ class TestLaClaseDeCadaSegundoSitio(unittest.TestCase):
         )
         propio = offtarget.self_count(
             self.guias[819], target=self.utr3, target_label="Prnp",
-            window=(elegido.start, elegido.end),
+            window=(elegido.start, elegido.end), frame=Frame.UTR3,
         )
         texto = propio.describe()
         self.assertIn("7mer-m8", texto)
