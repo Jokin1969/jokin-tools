@@ -16,6 +16,12 @@ distintas**. Un `st.toggle` más no añade un camino; una corrida guardada en un
 - `modal:<corrida>` — CON_CORRIDA y SIN_CORRIDA, uno por cada `corrida_*` de
   `store.RECORD_KINDS`. Con corrida guardada el modal enseña un veredicto; sin ella,
   un NOT_RUN visible. **Ésos son los caminos donde vivía `_modal_blast`.**
+- `especie` — un valor por especie declarada en `species.SPECIES`, más `NO_DECLARADA`
+  —la opción explícita del desplegable— y `SIN_ELEGIR`, que es lo que ve quien abre la
+  app (`species_default()` devuelve `None` a propósito). **De la especie cuelgan los
+  NOMBRES de todos los ficheros del depósito**, así que cada valor pinta un gestor
+  distinto: el humano pide SIETE huecos de subida y el ratón CUATRO, y `apa_medido`
+  cambia de estado —`NO USADO` en ratón, `FALTA` en humano— sin que nada más cambie.
 
 **DOS NIVELES DE COBERTURA, y la distinción es el punto entero:**
 
@@ -75,6 +81,23 @@ SEGUNDO_RERUN = "segundo_rerun("
 #: eje, y de el cuelga si un modal puede guardar. Hoy no hay ayudante que lo monte.
 PROYECTO_ABIERTO = "proyecto_abierto("
 
+#: El eje de la ESPECIE, que no estaba: los 35 estados de antes describian TODOS una
+#: corrida de raton. Es la contrapartida del principio nº 15 que ya se aprendio con el
+#: eje de proyecto — un inventario que no puede expresar un estado no puede echarlo de
+#: menos— y aqui pesa mas, porque de la especie cuelgan los NOMBRES de todos los
+#: ficheros del deposito (errata nº 157).
+#:
+#: Y este eje NO esta bloqueado, que es lo que lo separa de los otros once: elegir la
+#: especie es `selectbox.set_value(...)`, no hace falta ningun `file_uploader`.
+ESPECIE_PINTADA = "pintada_como("
+ESPECIE_SIN_ELEGIR = "pintada_sin_especie("
+
+#: El valor del eje que NO es una especie sino la opcion explicita del desplegable. Se
+#: escribe como el ayudante lo recibe —por su CONSTANTE, no por su rotulo— para que el
+#: marcador no dependa del texto de la interfaz.
+SIN_DECLARAR = "NO_DECLARADA"
+SIN_ELEGIR = "SIN_ELEGIR"
+
 
 @dataclass(frozen=True)
 class Estado:
@@ -115,6 +138,32 @@ def espacio_de_estados() -> list[Estado]:
         Estado("proyecto", "SIN_ABRIR", (), presente=True),
         Estado("proyecto", "ABIERTO", (PROYECTO_ABIERTO,), presente=False),
     ]
+    # UN VALOR POR ESPECIE DECLARADA, mas los dos que no son una especie. Se DERIVA de
+    # `species.SPECIES`, asi que una especie nueva entra sola — que es lo que hace que
+    # este eje no envejezca como cualquier lista transcrita.
+    #
+    # El marcador lleva el SLUG dentro de la llamada al ayudante, no suelto: un nombre
+    # de especie a secas aparece IGUAL en un test que la elige y en uno que comprueba
+    # que se rechaza, que es la equivocacion que ya costo el eje de fichero.
+    from shmir_design.species import SPECIES  # noqa: PLC0415
+
+    #
+    # NINGUNO es un HECHO —`presente` se queda en `None`— y eso es una diferencia con el
+    # eje de fichero: alli el estado de cada rol lo fija lo que haya en el repositorio,
+    # asi que una corrida que no diga nada ya lo pinta. Aqui no hay valor por defecto
+    # que valga: `species_default()` devuelve `None` a proposito, asi que TODA corrida
+    # de la pagina tiene que decir con que especie pinta —incluso «con ninguna»—. Por
+    # eso los cuatro se reconocen SOLO por marcador, y por eso pueden salir CONSTRUIDO:
+    # un test que monte el estado en el nucleo y no pinte no cuenta como pintado.
+    for slug in sorted(SPECIES):
+        estados.append(Estado("especie", slug, (f'{ESPECIE_PINTADA}"{slug}"',)))
+    estados.append(
+        Estado("especie", SIN_DECLARAR, (f"{ESPECIE_PINTADA}ESPECIE_NO_DECLARADA",))
+    )
+    # `SIN_ELEGIR` es lo que ve quien abre la app. Tiene su propio ayudante porque «no
+    # elegir» es una ACCION del test —no tocar el desplegable— y sin marcador no se
+    # distingue de un test que no pinta.
+    estados.append(Estado("especie", SIN_ELEGIR, (ESPECIE_SIN_ELEGIR,)))
     # UN ROL, DOS ESTADOS. Y NO se reconocen por el nombre del fichero en el fuente: ese
     # nombre aparece IGUAL en un test que lo pone y en uno que comprueba que falta
     # («Subir transcriptoma_3utr.fa»). La primera version lo hacia asi y daba PINTADO a
@@ -161,9 +210,15 @@ def _pinta(fuente: str) -> bool:
     return "AppTest" in fuente
 
 
-def cobertura() -> dict[str, str]:
-    """El nivel de cada estado: PINTADO, CONSTRUIDO o NADA."""
-    fuentes = _fuentes()
+def cobertura(fuentes: dict[str, str] | None = None) -> dict[str, str]:
+    """El nivel de cada estado: PINTADO, CONSTRUIDO o NADA.
+
+    `fuentes` se puede pasar para poder escribir el CONTROL ADVERSARIO sin tocar el
+    disco: un guardia cuyo control obligue a borrar un fichero de la suite no se
+    escribe, y sin control «reconoce el marcador» y «no mira nada» dan el mismo verde
+    (errata nº 29). Por defecto son los tests de verdad.
+    """
+    fuentes = _fuentes() if fuentes is None else fuentes
     salida: dict[str, str] = {}
     hay_apptest = any(_pinta(f) for f in fuentes.values())
     for estado in espacio_de_estados():

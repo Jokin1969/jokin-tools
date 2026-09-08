@@ -6602,6 +6602,70 @@ abiertos sean los del humano.
   —el bloque siguiente, errata nº 157—, que es lo que hace que el diff de este golden
   las enseñe en vez de fundirlas con el cambio que las destapó.
 
+## EL INVENTARIO DE ESTADOS GANA EL EJE DE LA ESPECIE (2026-09-08)
+
+D2 de `docs/revision-preparacion-humano.md`, y el último de los nueve. `data/estados.toml`
+modelaba `corrida`, `fichero:<rol>`, `modal:<corrida>`, `proyecto` y `rerun`. **No
+modelaba la especie**, así que los 35 estados describían todos una corrida de ratón.
+
+Es la contrapartida del principio nº 15 que ya se aprendió con el eje de proyecto —**un
+inventario que no puede expresar un estado no puede echarlo de menos**— y aquí pesa más,
+porque **de la especie cuelgan los NOMBRES de todos los ficheros del depósito**, que es
+justo lo que se acababa de arreglar en la errata nº 157.
+
+### Y este eje NO estaba bloqueado, que es lo que lo separa de los otros once
+
+Elegir la especie es `selectbox.set_value(...)`: no hace falta ningún `file_uploader`.
+Los cuatro valores se pintan **hoy**, así que el trinquete **no sube** — 28 de 39
+pintados, y los 11 sin pintar siguen siendo los mismos de antes.
+
+**MEDIDO** al pintarlos, no supuesto:
+
+| especie | bloques | huecos de subida |
+|---|---|---|
+| sin elegir | 5 | ninguno — la página no llega al gestor |
+| `mouse` | 16 | 4 |
+| `human` | 19 | **7** |
+| no declarada | 5 | ninguno, y dice cómo se declara |
+
+**Los tres huecos de más del humano** son `aav_casete_human.fa`, `polya_db_human.tsv` y
+`apa_medido_human.tsv`: tres roles cuyo lado FALTA no lo había pintado nadie en la especie
+que va a correr. Y **`apa_medido` cambia de estado con la especie** —`NO USADO` en ratón,
+porque su frente ya lo cierra `polya_db_mouse.tsv`, y `FALTA` en humano—, o sea que uno de
+los cinco estados del panel de refinamiento sólo se pintaba en un lado de un eje que no
+existía.
+
+### Los cuatro valores, y los dos que no son una especie
+
+Uno por especie declarada, **derivado de `species.SPECIES`** —una especie nueva entra
+sola—, más `NO_DECLARADA` (la opción explícita del desplegable) y `SIN_ELEGIR`, que es lo
+que ve quien abre la app porque `species_default()` devuelve `None` a propósito.
+
+**Ninguno es un HECHO**, y eso lo distingue del eje de fichero: allí el estado de cada rol
+lo fija lo que haya en el repositorio, así que una corrida que no diga nada ya lo pinta.
+Aquí no hay valor por defecto que valga, así que **toda corrida de la página declara con
+qué especie pinta** — incluso «con ninguna».
+
+### El marcador lleva el slug DENTRO de la llamada
+
+`pintada_como("human")`, no el nombre suelto: un nombre de especie aparece **igual** en un
+test que la elige y en uno que comprueba que se rechaza —`test_el_CASETE_declara_su_especie.py`
+nombra las dos—. Es la equivocación que ya costó el eje de fichero, un eje más allá.
+
+**Con prueba de vida** (principio nº 51), y para poder escribirla `cobertura()` acepta las
+fuentes: **un guardia cuyo control adversario obligue a borrar un fichero de la suite no
+se escribe**. Se comprueba que sin marcador los cuatro caen a `NADA`, que con uno suben a
+`PINTADO`, que el marcador de uno **no** da por pintado a otro, y que en un test que no
+pinta se queda en `CONSTRUIDO`.
+
+### Y el detector volvió a acusar a la app de lo que le faltaba a él
+
+La primera versión del ayudante `_texto` no recogía los `st.caption`, así que el test dijo
+que la página **no explica cómo se declara una especie** — y sí lo hace, en un
+`st.caption`. Principio nº 18 sobre el propio comprobador: **un detector que mira menos
+que la pantalla acusa a la app de su propio hueco.**
+
+
 ## NINGÚN MENSAJE NOMBRA EL FICHERO DE OTRA ESPECIE (2026-09-08)
 
 Errata nº 157, y la reportó el **diff del golden humano** que se acababa de escribir. Es

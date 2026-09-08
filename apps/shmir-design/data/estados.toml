@@ -242,3 +242,40 @@ estado = "proyecto:ABIERTO"
 destino = "CUBRIR"
 que_pinta = "El cartel del proyecto en la barra lateral, el historial, y en cada modal el formulario de «Guardar en el proyecto» con fecha y quien la corrio. De este estado cuelga si una corrida se puede guardar, que es para lo que existe la persistencia."
 bloqueado_por = "El panel de proyecto se pinta DESPUES de diseñar, y `AppTest` no rellena un `file_uploader`. Lo cerraría la misma vía que los otros diez: inyectar la secuencia sin pasar por el widget. Es el mismo bloqueo, no uno nuevo."
+# ─── El eje de la ESPECIE. AÑADIDO (2026-09-08), D2 de la revisión previa al humano ──
+#
+# Los 35 estados de antes modelaban `corrida`, `fichero:<rol>`, `modal:<corrida>`,
+# `proyecto` y `rerun`, y ninguno la ESPECIE: los describían TODOS sobre una corrida de
+# ratón. Es la contrapartida del principio nº 15 que ya se aprendió con el eje de
+# proyecto —un inventario que no puede expresar un estado no puede echarlo de menos— y
+# aquí pesa más, porque de la especie cuelgan los NOMBRES de todos los ficheros del
+# depósito, que es exactamente lo que se acababa de arreglar en la errata nº 157.
+#
+# Y ESTE EJE NO ESTÁ BLOQUEADO, que es lo que lo separa de los otros once: elegir la
+# especie es `selectbox.set_value(...)` y no hace falta ningún `file_uploader`. Los
+# cuatro valores se pintan hoy, así que el trinquete NO sube.
+#
+# MEDIDO al pintarlos (`tests/test_estados_de_especie.py`): sin elegir 5 bloques y cero
+# huecos de subida; `mouse` 16 y CUATRO; `human` 19 y SIETE; no declarada 5, cero y el
+# aviso de cómo se declara. Los tres huecos de más del humano son `aav_casete_human.fa`,
+# `polya_db_human.tsv` y `apa_medido_human.tsv`.
+
+[[estado]]
+estado = "especie:mouse"
+destino = "CUBRIR"
+que_pinta = "El gestor con los nombres MURINOS: cuatro huecos de subida, `rmsk_mouse.out`, `mature.fa`, `aav_casete.fa` y `polya_db_mouse.tsv` en verde, y `apa_medido.tsv` como NO USADO —su frente ya lo cierra PolyA_DB—. Es la especie de todas las corridas de `AppTest` anteriores a este eje."
+
+[[estado]]
+estado = "especie:human"
+destino = "CUBRIR"
+que_pinta = "El mismo gestor con los nombres HUMANOS: SIETE huecos, tres de ellos que el ratón no tiene —`aav_casete_human.fa`, `polya_db_human.tsv` y `apa_medido_human.tsv`—. Y `apa_medido` cambia de estado con la especie: NO USADO en ratón, FALTA en humano, sin que nada más cambie."
+
+[[estado]]
+estado = "especie:NO_DECLARADA"
+destino = "CUBRIR"
+que_pinta = "La opción explícita del desplegable: el aviso de que esa especie se queda sin prefijo de miRBase, sin taxid y sin ensamblaje, los frentes que quedan cerrados uno a uno, y CÓMO se declara (`species.SPECIES`). No ofrece ningún hueco de subida — los nombres dependen de la especie y aquí no hay ninguna."
+
+[[estado]]
+estado = "especie:SIN_ELEGIR"
+destino = "CUBRIR"
+que_pinta = "Lo que ve quien abre la app: el desplegable SIN valor —`species_default()` devuelve `None` a propósito— y la página sin llegar al gestor, diciendo por qué. Un valor inicial parecía configurado y dejaba la colisión de seed y la especificidad rotas sin decir nada."

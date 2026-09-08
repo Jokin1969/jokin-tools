@@ -47,6 +47,27 @@ class TestElEspacioSeDERIVA(unittest.TestCase):
         }
         self.assertEqual(valores, set(auditoria.CORRIDA))
 
+    def test_hay_un_valor_por_ESPECIE_declarada(self):
+        """De la especie cuelgan los NOMBRES de todos los ficheros del depósito, así que
+        cada una pinta un gestor distinto. Una especie nueva tiene que entrar sola: si
+        hubiera que acordarse, este eje envejecería como cualquier lista transcrita."""
+        from shmir_design.species import SPECIES
+
+        valores = {
+            e.valor for e in auditoria.espacio_de_estados() if e.eje == "especie"
+        }
+        for slug in SPECIES:
+            self.assertIn(slug, valores, slug)
+
+    def test_y_los_DOS_que_no_son_una_especie(self):
+        """`NO_DECLARADA` es la opción explícita del desplegable y `SIN_ELEGIR` lo que
+        ve quien abre la app. Ninguno es una especie y los dos pintan algo propio."""
+        valores = {
+            e.valor for e in auditoria.espacio_de_estados() if e.eje == "especie"
+        }
+        self.assertIn(auditoria.SIN_DECLARAR, valores)
+        self.assertIn(auditoria.SIN_ELEGIR, valores)
+
 
 class TestLaTablaCubreLoQueHAY(unittest.TestCase):
 
@@ -154,6 +175,78 @@ class TestLoQueELdetectorNOpuedeHacer(unittest.TestCase):
         )
         self.assertIn("AppTest", fuente)
         for marcador in (auditoria.DEPOSITO_VACIO, auditoria.DEPOSITO_COMPLETO):
+            with self.subTest(marcador):
+                self.assertIn(f"def {marcador.rstrip('(')}(", fuente)
+                self.assertIn(marcador, fuente)
+
+    def test_el_estado_de_una_ESPECIE_nunca_se_reconoce_por_su_NOMBRE_suelto(self):
+        """La misma equivocación del eje de fichero, un eje más allá: un nombre de
+        especie aparece IGUAL en un test que la elige y en uno que comprueba que se
+        rechaza (`test_el_CASETE_declara_su_especie.py` nombra las dos).
+
+        El marcador lleva el slug DENTRO de la llamada al ayudante, así que no puede
+        confundirse con una mención.
+        """
+        from shmir_design.species import SPECIES
+
+        nombres = {s for s in SPECIES} | {e.scientific for e in SPECIES.values()}
+        de_especie = [
+            e for e in auditoria.espacio_de_estados() if e.eje == "especie"
+        ]
+        self.assertTrue(de_especie)
+        for estado in de_especie:
+            self.assertTrue(estado.marcadores, estado.clave)
+            for marcador in estado.marcadores:
+                self.assertNotIn(marcador, nombres, estado.clave)
+                self.assertIn("pintada_", marcador, estado.clave)
+
+    def test_y_el_marcador_de_la_ESPECIE_DISCRIMINA(self):
+        """La prueba de vida (principio nº 51): sin ella, «reconoce el marcador» y «no
+        mira nada» dan el mismo verde.
+
+        Se le dan unas fuentes SIN el marcador y los cuatro tienen que caer a NADA; con
+        una que lo lleve Y pinte, tienen que subir a PINTADO. Sin el segundo lado, un
+        detector que devolviera NADA siempre pasaría la primera mitad.
+        """
+        from shmir_design.species import SPECIES
+
+        claves = [
+            e.clave for e in auditoria.espacio_de_estados() if e.eje == "especie"
+        ]
+        self.assertTrue(claves)
+
+        sordo = auditoria.cobertura({"nada.py": "# ni un marcador\n"})
+        for clave in claves:
+            self.assertEqual(sordo[clave], "NADA", clave)
+
+        slug = sorted(SPECIES)[0]
+        con = auditoria.cobertura(
+            {"pinta.py": f'AppTest\npintada_como("{slug}")\n'}
+        )
+        self.assertEqual(con[f"especie:{slug}"], "PINTADO")
+        # Y sólo ESE: el marcador de uno no puede dar por pintado a otro.
+        for clave in claves:
+            if clave != f"especie:{slug}":
+                self.assertEqual(con[clave], "NADA", clave)
+
+    def test_y_un_marcador_en_un_test_que_NO_pinta_no_llega_a_PINTADO(self):
+        """CONSTRUIDO no basta: monta el estado y no ejecuta la página, que es la
+        juntura donde vive lo que el usuario toca."""
+        from shmir_design.species import SPECIES
+
+        slug = sorted(SPECIES)[0]
+        sin_pintar = auditoria.cobertura(
+            {"solo_nucleo.py": f'pintada_como("{slug}")\n'}
+        )
+        self.assertEqual(sin_pintar[f"especie:{slug}"], "CONSTRUIDO")
+
+    def test_y_los_ayudantes_de_la_ESPECIE_existen_y_pintan_la_pagina(self):
+        """Un marcador que nombra algo que no existe es un PINTADO regalado."""
+        fuente = (RAIZ / "tests" / "test_estados_de_especie.py").read_text(
+            encoding="utf-8"
+        )
+        self.assertIn("AppTest", fuente)
+        for marcador in (auditoria.ESPECIE_PINTADA, auditoria.ESPECIE_SIN_ELEGIR):
             with self.subTest(marcador):
                 self.assertIn(f"def {marcador.rstrip('(')}(", fuente)
                 self.assertIn(marcador, fuente)
