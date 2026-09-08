@@ -76,6 +76,54 @@ test('el proceso arranca y contesta a su ruta de salud', SALTAR, async () => {
   assert.equal(r.cuerpo.trim(), 'ok');
 });
 
+test('la SEGUNDA VÍA de las descargas se sirve de verdad, y como TEXTO', SALTAR, async () => {
+  // Errata nº 130. Lo que este test mide no es que el fichero exista: es que sale
+  // **sin `Content-Disposition`** y con `text/plain`, que es lo único que hace que el
+  // navegador lo PINTE en vez de entregárselo a su gestor de descargas — el mecanismo
+  // en el que se quedan colgados el botón y el icono de la tabla.
+  //
+  // Se pide POR EL PROXY, como la página: comprobarlo contra el proceso hijo no
+  // probaría que la ruta llega hasta aquí. Un cliente que no se parece al real no
+  // prueba nada.
+  const fs = require('node:fs');
+  const path = require('node:path');
+  const dir = path.resolve(__dirname, '../apps/shmir-design/ui/static');
+  const nombre = `humo_${crypto.randomUUID()}.tsv.txt`;
+  fs.mkdirSync(dir, { recursive: true });
+  fs.writeFileSync(path.join(dir, nombre), 'a\tb\n1\t2\n');
+  try {
+    const r = await pedir(`/shmir/app/static/${nombre}`);
+    assert.equal(r.status, 200, `la ruta estática no contestó: ${r.status}`);
+    assert.equal(r.cuerpo, 'a\tb\n1\t2\n');
+    assert.match(r.headers['content-type'] || '', /text\/plain/);
+    assert.equal(r.headers['content-disposition'], undefined,
+      'con Content-Disposition el navegador vuelve a la descarga, que es lo que falla');
+  } finally {
+    fs.unlinkSync(path.join(dir, nombre));
+  }
+});
+
+test('y sin el sufijo .txt volvería a la maquinaria de descarga (control)', SALTAR, async () => {
+  // El control adversario del sufijo, medido sobre el servidor de verdad: un `.tsv`
+  // sale como `text/tab-separated-values`, que el navegador NO pinta. Sin esto, «se
+  // sirve como texto» y «el servidor manda cualquier cosa como texto» dan el mismo
+  // verde.
+  const fs = require('node:fs');
+  const path = require('node:path');
+  const dir = path.resolve(__dirname, '../apps/shmir-design/ui/static');
+  const nombre = `humo_${crypto.randomUUID()}.tsv`;
+  fs.mkdirSync(dir, { recursive: true });
+  fs.writeFileSync(path.join(dir, nombre), 'a\tb\n');
+  try {
+    const r = await pedir(`/shmir/app/static/${nombre}`);
+    assert.equal(r.status, 200);
+    assert.ok(!/text\/plain/.test(r.headers['content-type'] || ''),
+      `sin sufijo salió como ${r.headers['content-type']}`);
+  } finally {
+    fs.unlinkSync(path.join(dir, nombre));
+  }
+});
+
 test('y el que contesta es SU proceso, comprobado por el pid del socket', SALTAR, () => {
   // LA CALIBRACIÓN DEL GUARDIA, y sin ella no se puede poner. `portOwner` mira si el
   // inodo del socket en escucha está entre los descriptores del hijo: si Streamlit

@@ -66,6 +66,13 @@ function buildArgs({ port = PORT, basePath = BASE_PATH } = {}) {
     // En local Streamlit vive en site-packages, así que esto pasaba en desarrollo y
     // reventaba en producción.
     '--global.developmentMode=false',
+    // LA SEGUNDA VIA DE LAS DESCARGAS (errata nº 130). Sirve `ui/static/` en
+    // `/shmir/app/static/…` con `FileResponse` y SIN `Content-Disposition`, así que un
+    // `.txt` se PINTA en la pestaña en vez de irse al gestor de descargas del
+    // navegador — que es el mecanismo en el que se quedan colgados el botón y el icono
+    // de la tabla. No abre ninguna puerta: es una ruta más bajo `/shmir`, o sea detrás
+    // de `requireApp`, igual que la página.
+    '--server.enableStaticServing=true',
     // Subidas: el transcriptoma de 3'UTR y un RefSeq son grandes. El límite de Streamlit
     // por defecto (200 MB) se deja como está; lo que se quita es el recolector de
     // estadísticas y el vigilante de ficheros, que en un servidor no pintan nada.

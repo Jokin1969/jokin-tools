@@ -3417,3 +3417,38 @@ contradicción del código.
 Es la misma forma que `polyA_estricto` / `polyA_escalonado` y que los dos contadores de
 carga de seed: **cuando dos criterios miden cosas distintas, el arreglo son dos columnas,
 no una decisión sobre cuál gana.**
+
+## 62 — Una observación que sale igual en los dos escenarios no es evidencia
+
+Hermano del nº 60, y con el fallo un paso antes: allí se contaba como síntoma algo que
+también aparecería si todo fuera bien; aquí se **pide** una observación sin comprobar
+antes que distinga los dos casos.
+
+El caso (errata nº 149). Con el botón de descarga muerto, la pregunta que se iba a
+contestar con F12 era: *¿aparece una petición a `/shmir/media/…` al pulsar?*. Suena
+decisiva y no lo es:
+
+- `DownloadButton` hace `fetch` de esa URL **al pintarse el botón**
+  (`checkSourceUrlResponse` dentro de un `useEffect`), así que la petición aparece **sin
+  que nadie pulse**;
+- y un `<a download>.click()` **no genera un `fetch`**, genera una descarga: no verla al
+  pulsar tampoco dice nada.
+
+O sea que **los dos resultados posibles eran compatibles con las dos hipótesis**. Una
+ronda entera de investigación —y en este caso, un día— gastada en una medida que no podía
+salir de dos formas distintas.
+
+### La regla
+
+Antes de pedir una observación, **enunciar qué se vería en cada escenario**. Si la
+respuesta es la misma en los dos, la observación no discrimina y hay que buscar otra. Es
+la calibración del principio nº 34 aplicada a una medida puntual en vez de a un guardia:
+igual que un criterio se elige contando hallazgos **y** fallos, una observación se elige
+comprobando que sus dos salidas se reparten entre las hipótesis.
+
+### Y dónde mirar cuando la observación falla
+
+La que sí discriminaba estaba a un clic: `chrome://downloads` —una entrada cancelada dice
+que la maquinaria recibió la orden y la rechazó; ninguna entrada dice que no llegó a
+recibirla— y el icono de bloqueo de la barra de direcciones. **La observación buena no era
+más cara: era otra.**

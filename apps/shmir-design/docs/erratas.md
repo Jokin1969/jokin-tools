@@ -7436,3 +7436,72 @@ configuraciones que dan listas distintas, no una sola— tiene que estar declara
 declarado puede ser huérfano, y todos tienen ficha de obtención. El guardia sigue
 mordiendo: un frente inventado aborta igual, y el mensaje **nombra los que hay** para que
 un error de tecleo se vea de una vez.
+
+## 149 — Los dos botones muertos acaban en el MISMO sitio, y no es el transporte
+
+**Reportado (2026-09-08)** con las tres observaciones juntas, que es lo que lo desbloqueó:
+*«el botón rojo sigue sin descargar. El icono de la tabla de Streamlit tampoco hace nada
+—y ese es cliente puro, sin pasar por el servidor—. Lo que sí funciona: el bloque
+copiable. Así que el contenido llega a la página pero no sale del navegador.»*
+
+La lectura es correcta sobre el ORIGEN de los bytes y **no separa los dos casos muertos**.
+Medido en el `bundle` de Streamlit 1.62.0 que instala el hub, que es lo que faltaba por
+mirar:
+
+| camino | cómo dispara la entrega |
+|---|---|
+| `st.download_button` | `createDownloadLinkElement({url, filename}).click()` — un `<a download>` **sintético** |
+| icono de `st.dataframe` | `showSaveFilePicker` y, si falla, `Blob` + `<a download>` |
+| bloque copiable | nada: es texto en el DOM |
+
+**Los dos muertos terminan en una pulsación sintética sobre un `<a download>`; el que
+funciona, no.** O sea que lo que comparten no es el transporte —uno pasa por el servidor
+y el otro no— sino la **maquinaria de descarga del navegador**. Eso es lo medido. Por qué
+esa maquinaria no responde en esa máquina **sigue sin causa asignada** (errata nº 130) y
+aquí no se afirma.
+
+### La observación que se iba a hacer no discriminaba
+
+Se había quedado en mirar con F12 si aparece una petición a `/shmir/media/…` al pulsar.
+`DownloadButton` llama a `endpoints.checkSourceUrlResponse(url, 'Download Button')` dentro
+de un `useEffect`, o sea que **hace `fetch` de esa URL al PINTARSE el botón**, sin que
+nadie pulse nada. Así que ver una petición ahí no prueba que la pulsación haya hecho algo,
+y no verla al pulsar tampoco es raro: un `<a download>.click()` no genera una petición
+`fetch`, genera una descarga. **Una observación que sale igual en los dos escenarios no es
+evidencia** — la misma clase de error que contar como síntoma la ausencia de `# BUILD:`
+recién fusionada (principio nº 60).
+
+Lo que sí distingue, y es lo que hay que mirar: **`chrome://downloads`** (si aparece una
+entrada cancelada o fallida, la maquinaria recibió la orden y la rechazó; si no aparece
+nada, no llegó a recibirla) y el **icono de bloqueo en la barra de direcciones**, que es
+como Chrome anuncia que ha bloqueado descargas de un sitio.
+
+### La salida: una vía que no comparte el mecanismo
+
+Es el corolario ya escrito de la errata nº 124 llevado hasta el final —*una vía y su
+alternativa no pueden compartir el mecanismo que falla*—. El bloque copiable lo cumplía y
+entrega un **pegado**, que con 1,2 MB de FASTA no es una salida real.
+`shmir_design/segunda_via.py` entrega un **fichero** y tampoco lo comparte: escribe el
+contenido en el directorio `static/` de la página, que Streamlit sirve en
+`/shmir/app/static/…` con `FileResponse` y **sin `Content-Disposition`**, y le pone el
+sufijo `.txt` para que salga como `text/plain`. Se abre con un enlace normal que pulsa una
+persona.
+
+**El sufijo es el mecanismo entero, y está MEDIDO con Chromium por el proxy real del
+hub**:
+
+| fichero | `Content-Type` | qué hace el navegador |
+|---|---|---|
+| `…_seleccionados.tsv.txt` | `text/plain; charset=utf-8` | **lo PINTA** — 0 descargas, contenido idéntico |
+| `…_seleccionados.tsv` | `text/tab-separated-values` | `net::ERR_ABORTED`: la navegación se aborta y se la queda el gestor de descargas |
+
+Ese segundo es el control adversario y no es decorativo: sin él, «se sirve como texto» y
+«el servidor manda cualquier cosa como texto» darían el mismo verde. Los dos están fijados
+en `test/shmir.smoke.test.js`, que los pide **por el proxy** y no contra el proceso hijo:
+un cliente que no se parece al real no prueba nada.
+
+### Lo que esta vía NO es
+
+**No arregla la errata nº 130: la esquiva**, y va escrito así en el propio módulo. El
+botón se queda —el día que la maquinaria del navegador vuelva a responder es la vía más
+corta— y lo que cambia es que dejar de responder ya no deja a nadie sin el fichero.
