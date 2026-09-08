@@ -6462,6 +6462,65 @@ equivocada de la errata nº 133.
 
 ---
 
+## LOS DOS BOTONES MUERTOS ACABAN EN EL MISMO SITIO, Y NO ES EL TRANSPORTE (2026-09-08)
+
+Errata nº 149, y sale de las tres observaciones dadas juntas: el botón rojo del export no
+descarga, **el icono de descarga de la tabla de Streamlit tampoco** —«y ese es cliente
+puro, sin pasar por el servidor»— y el **bloque copiable sí**.
+
+Esa lectura es correcta sobre el ORIGEN de los bytes y **no separa los dos casos
+muertos**. Medido en el `bundle` de Streamlit 1.62.0 que instala el hub:
+`st.download_button` termina en `createDownloadLinkElement({url, filename}).click()`, o
+sea un `<a download>` **sintético**; el icono de la tabla intenta `showSaveFilePicker` y,
+si falla, cae a `Blob` + `<a download>`. **Los dos acaban en la maquinaria de descarga del
+navegador; el bloque copiable no.** Eso es lo que comparten — no el transporte. La causa
+de la errata nº 130 **sigue sin asignar** y aquí no se afirma.
+
+**Y la observación que se iba a hacer no discriminaba**: `DownloadButton` llama a
+`checkSourceUrlResponse` dentro de un `useEffect`, así que hace `fetch` de
+`/shmir/media/…` **al pintarse**, sin que nadie pulse. Ver esa petición no prueba que la
+pulsación haya hecho nada, y no verla al pulsar tampoco dice nada — un `<a download>`
+sintético no genera un `fetch`. Lo que sí distingue es `chrome://downloads` y el icono de
+bloqueo de la barra de direcciones.
+
+### `shmir_design/segunda_via.py` — el mismo fichero, PINTADO en una pestaña
+
+Es el corolario de la errata nº 124 llevado hasta el final: *una vía y su alternativa no
+pueden compartir el mecanismo que falla*. El bloque copiable lo cumplía y entrega un
+**pegado**, que con 1,2 MB de FASTA no es una salida real; ésta entrega un **fichero**.
+
+- Escribe el contenido en `ui/static/`, que Streamlit sirve en `/shmir/app/static/…` con
+  `FileResponse` y **sin `Content-Disposition`**. Se enciende con
+  `--server.enableStaticServing=true` en `apps/shmir/process.js`. **No abre ninguna
+  puerta**: es una ruta más bajo `/shmir`, o sea detrás de `requireApp`, igual que la
+  página.
+- **El sufijo `.txt` es el mecanismo entero**, y está MEDIDO con Chromium por el proxy
+  real: `…tsv.txt` sale `text/plain` y el navegador **lo pinta** (0 descargas, contenido
+  idéntico); `…tsv` sale `text/tab-separated-values` y da **`net::ERR_ABORTED`** — la
+  navegación se aborta y se la queda el gestor de descargas. El segundo es el control
+  adversario: sin él, «se sirve como texto» y «el servidor manda cualquier cosa como
+  texto» darían el mismo verde. Los dos, en `test/shmir.smoke.test.js`, **por el proxy**.
+- **El enlace lo pulsa una persona**, no un `click()` de un script, y el fichero se
+  guarda con «Guardar como». El nombre servido lleva `.txt` y la página dice **con qué
+  nombre hay que guardarlo**: callarlo dejaría un `.txt` alimentando a SpliceAI.
+- **El prefijo del montaje entra por parámetro y sin defecto** (principio nº 58): con
+  `/shmir` supuesto, la app en local daría un enlace roto; con vacío supuesto, la del hub
+  daría un 404. Los dos, en silencio. `mount_prefix` lo normaliza —`server.baseUrlPath` se
+  guarda **tal cual se pasa**, así que `shmir`, `/shmir` y `/shmir/` son el mismo montaje
+  escrito de tres formas y sólo una concatena bien— y eso vive en el núcleo con test, no
+  en la vista.
+- **Si publicar falla, se dice y no se tumba nada**: esta vía es la ALTERNATIVA, y una
+  alternativa que aborta se lleva por delante la vía que venía a cubrir (errata nº 137).
+  Queda el bloque copiable.
+- **NO arregla la errata nº 130: la esquiva**, y va escrito en el módulo. El botón se
+  queda — el día que la maquinaria del navegador vuelva a responder es la vía más corta.
+
+`_tambien_para_copiar` pasa a llamarse **`_segunda_via`** y hace las dos cosas, así que
+los siete sitios que la llamaban ganan el enlace sin tocarlos. El nombre viaja con cada
+uso: «también para copiar» describía una de las dos.
+
+---
+
 ## EL BOTÓN QUE SE VEÍA NO ERA EL NUESTRO (2026-09-07)
 
 Se reportó como «el export sigue teniendo 46 columnas sin `empalme_sitios` ni

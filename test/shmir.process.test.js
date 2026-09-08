@@ -54,6 +54,16 @@ test('el modo desarrollo se apaga EXPLÍCITAMENTE, o el proceso no arranca', () 
   assert.match(texto, /--global\.developmentMode[= ]false/);
 });
 
+test('la ruta estática va ENCENDIDA: es la segunda vía de las descargas', () => {
+  // Errata nº 130. El botón de descarga y el icono de la tabla de Streamlit acaban los
+  // dos en una pulsación sintética sobre un `<a download>`; la segunda vía sirve el
+  // mismo fichero como `text/plain` por `/shmir/app/static/…`, que el navegador PINTA.
+  // Sin esta bandera esa ruta devuelve 404 y la vía alternativa no existe — con la
+  // página pintando un enlace que no lleva a ninguna parte.
+  const texto = proceso.buildArgs({ port: 8501, basePath: '/shmir' }).join(' ');
+  assert.match(texto, /--server\.enableStaticServing[= ]true/);
+});
+
 test('la telemetría de Streamlit se apaga explícitamente', () => {
   const texto = proceso.buildArgs({ port: 8501, basePath: '/shmir' }).join(' ');
   assert.match(texto, /gatherUsageStats[= ]false/);

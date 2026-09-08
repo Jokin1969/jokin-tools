@@ -34,7 +34,7 @@ FUENTE = PAGINA.read_text(encoding="utf-8")
 ARBOL = ast.parse(FUENTE)
 
 #: El ayudante que pinta la vía alternativa.
-ALTERNATIVA = "_tambien_para_copiar"
+ALTERNATIVA = "_segunda_via"
 
 #: LOS MECANISMOS que pueden ser una segunda vía, y `DESCARGA` NO está entre ellos.
 #:
@@ -68,7 +68,7 @@ SIN_ALTERNATIVA = {
     ),
     # OJO: esta función tiene DOS descargas de naturaleza distinta —los informes y el
     # export de candidatos— y la tabla se indexa por FUNCIÓN, así que esta entrada exime
-    # SÓLO a los informes. El export tiene su propio `_tambien_para_copiar`, y por eso
+    # SÓLO a los informes. El export tiene su propio `_segunda_via`, y por eso
     # `bloque_especie` sale a la vez aquí y en `_alternativas()`. No es una exención
     # caducada: es que la granularidad de esta tabla no llega a distinguir dos botones
     # dentro de una función, y decirlo aquí es más honesto que fingir que sí.

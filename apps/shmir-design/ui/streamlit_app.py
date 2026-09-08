@@ -20,8 +20,10 @@ from pathlib import Path
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 
 import streamlit as st  # noqa: E402
+from streamlit import config  # noqa: E402
 
 from shmir_design.errors import ShmirDesignError  # noqa: E402
+from shmir_design import segunda_via  # noqa: E402
 from shmir_design.external_score import EXTERNAL_TOOLS  # noqa: E402
 from shmir_design.fetch import parse_fasta_payload  # noqa: E402
 from shmir_design.hard_filters import DEFAULT_THRESHOLDS, Thresholds  # noqa: E402
@@ -643,7 +645,7 @@ def bloque_especie(nombre, transcrito, secuencia, anat, umbrales, config, seeds,
         # `download_button`, o sea exactamente el mecanismo que se cuelga (errata nº 130,
         # sin causa asignada todavia). Una via y su alternativa no pueden compartir el
         # mecanismo que falla: es el corolario que costo tres dias en la errata nº 124.
-        _tambien_para_copiar(
+        _segunda_via(
             entrega["datos"], nombre=entrega["nombre"], clave=f"exp_sel_{nombre}",
         )
 
@@ -1213,7 +1215,7 @@ def _gestionar_proyectos(especie: str, raiz, catalogo, fecha: str) -> None:
                     # SEGUNDA VIA. Era la unica, y su exencion alegaba el ZIP de la copia
                     # de seguridad — que es otro `download_button`, o sea el mecanismo que
                     # se cuelga (errata nº 140, el mismo defecto que en `bloque_especie`).
-                    _tambien_para_copiar(
+                    _segunda_via(
                         registro, nombre=f"{slug}.txt", clave=f"pr_{especie}_{slug}",
                     )
                 except (ShmirDesignError, OSError) as exc:
@@ -1244,8 +1246,8 @@ def _gestionar_proyectos(especie: str, raiz, catalogo, fecha: str) -> None:
 
 
 
-def _tambien_para_copiar(texto: str, *, nombre: str, clave: str) -> None:
-    """El MISMO contenido, copiable, al lado del botón de descarga.
+def _segunda_via(texto: str, *, nombre: str, clave: str) -> None:
+    """El MISMO contenido por una vía que NO usa la descarga del navegador.
 
     **Por qué existe y por qué no es un parche.** El 2026-09-06 la descarga del FASTA de
     construcciones se quedó colgada en producción y el frente de empalme quedó bloqueado:
@@ -1257,10 +1259,46 @@ def _tambien_para_copiar(texto: str, *, nombre: str, clave: str) -> None:
 
     Es el principio nº 47: la salida tiene que estar donde está el bloqueo. Y su
     corolario, que costó tres días: una vía y su alternativa no pueden compartir el
-    mecanismo que falla. Ésta no comparte nada con `st.download_button` — es texto en la
-    página, y el botón de copiar lo pone el navegador.
+    mecanismo que falla. Ninguna de las dos de aquí comparte nada con
+    `st.download_button`.
+
+    **Son DOS y ninguna sustituye a la otra.** El bloque copiable entrega un PEGADO —y
+    con 1,2 MB de FASTA eso no es una salida real—; el enlace entrega un FICHERO, que
+    es lo que hace falta para SpliceAI o para el proveedor.
+
+    **Por qué el enlace no es «otro botón de descarga»** (2026-09-08, errata nº 130):
+    medido en el `bundle` de Streamlit 1.62.0, el botón de descarga y el icono de la
+    tabla acaban los dos en una pulsación SINTÉTICA sobre un `<a download>`; esto es un
+    enlace normal a un `text/plain` que el navegador PINTA, pulsado por una persona. Ver
+    `segunda_via.WHY_A_SECOND_ROUTE`.
+
+    Si publicar falla, **se dice y no se tumba nada**: esta función es la alternativa, y
+    una alternativa que aborta se lleva por delante la vía que venía a cubrir (errata
+    nº 137).
     """
-    with st.expander(f"¿No baja el fichero? Copia el contenido de `{nombre}`"):
+    try:
+        entrega = segunda_via.publish(
+            nombre, texto,
+            directory=segunda_via.static_dir(__file__),
+            base_path=segunda_via.mount_prefix(
+                config.get_option("server.baseUrlPath")
+            ),
+        )
+    except (ShmirDesignError, OSError) as exc:
+        # rule2-ok: frontera de la interfaz. El motivo entero, sin degradar, y queda el
+        # bloque copiable de abajo.
+        entrega = None
+        st.caption(f"No se pudo preparar la pestaña: {exc}")
+    if entrega is not None:
+        st.link_button(
+            f"Abrir «{entrega['guardar_como']}» en una pestaña",
+            entrega["url"],
+        )
+        st.caption(
+            f"Se abre como texto, {entrega['bytes']:,} bytes: guárdalo desde ahí con el "
+            f"nombre `{entrega['guardar_como']}`. No pasa por la descarga del navegador."
+        )
+    with st.expander(f"O copia el contenido de `{nombre}`"):
         st.caption(
             f"El mismo contenido que el botón, {len(texto.encode('utf-8')):,} bytes. "
             f"Pégalo en un fichero llamado `{nombre}`. El botón de copiar está arriba a "
@@ -2271,7 +2309,7 @@ def main() -> None:
             # Y SU BLOQUE COPIABLE. Sin el, la alternativa del ZIP era este boton suelto
             # —otra descarga— y la de este boton, ninguna. Ahora la alternativa de los dos
             # es el texto de abajo, que no comparte mecanismo con ninguno.
-            _tambien_para_copiar(contenido, nombre=nombre, clave=f"res_{nombre}")
+            _segunda_via(contenido, nombre=nombre, clave=f"res_{nombre}")
     else:
         st.info(paquete["texto"])
 
@@ -2625,7 +2663,7 @@ def _modal_blast(seleccion, nombre: str, proyecto=None, tiling=None) -> None:
             file_name=ruta,
             key=f"blast_dl_{nombre}",
         )
-        _tambien_para_copiar(consulta.text, nombre=ruta, clave=f"blast_{nombre}")
+        _segunda_via(consulta.text, nombre=ruta, clave=f"blast_{nombre}")
         # SIN PROYECTO NO SE ACEPTA EL FICHERO. Antes se aceptaba y se avisaba en gris de
         # que no se guardaba nada — detras de este fichero hay una descarga de decenas de
         # GB y una corrida de horas, asi que dejarlo soltar era una trampa (errata nº 42).
@@ -2771,7 +2809,7 @@ def _modal_seed(seleccion, nombre: str, maduros, proyecto=None,
             file_name=nombre_seed,
             key=f"seed_dl_{nombre}",
         )
-        _tambien_para_copiar(bloque_seed, nombre=nombre_seed, clave=f"seed_{nombre}")
+        _segunda_via(bloque_seed, nombre=nombre_seed, clave=f"seed_{nombre}")
         _guardar_corrida(
             proyecto, nombre,
             construir=lambda fecha, quien: seed_run_from_scan(
@@ -3019,7 +3057,7 @@ def _modal_empalme(seleccion, nombre: str, diana: str, casete, proyecto=None,
         "text/plain",
         key=f"sp_fasta_{nombre}",
     )
-    _tambien_para_copiar(texto_fasta, nombre=nombre_fasta, clave=f"sp_{nombre}")
+    _segunda_via(texto_fasta, nombre=nombre_fasta, clave=f"sp_{nombre}")
     st.caption(splice_executor_text())
     _panel_deposito("corrida_empalme", nombre, clave="sp")
 
@@ -3286,7 +3324,7 @@ def _modal_offtarget(seleccion, nombre: str, maduros, diana: str,
             file_name=nombre_ot,
             key=f"ot_dl_{nombre}",
         )
-        _tambien_para_copiar(bloque_ot, nombre=nombre_ot, clave=f"ot_{nombre}")
+        _segunda_via(bloque_ot, nombre=nombre_ot, clave=f"ot_{nombre}")
         _guardar_corrida(
             proyecto, nombre,
             construir=lambda fecha, quien: offtarget_run_from_scan(

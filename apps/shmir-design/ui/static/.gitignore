@@ -1,0 +1,5 @@
+# Lo que se publica aquí es la SEGUNDA VÍA (`shmir_design/segunda_via.py`): el mismo
+# fichero que el botón, servido como texto para poder abrirlo en una pestaña. Se
+# regenera en cada corrida y NO va al repositorio — es una salida, no un dato.
+*
+!.gitignore
