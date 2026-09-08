@@ -1185,6 +1185,14 @@ def _gestionar_proyectos(especie: str, raiz, catalogo, fecha: str) -> None:
             return
         for fila in catalogo["filas"]:
             slug = str(fila["slug"])
+            if fila.get("ilegible"):
+                # Un roto no tiene etiqueta —ni corridas, ni fecha— y pedirsela al
+                # diccionario era un `KeyError` que tumbaba la barra entera. Sale con su
+                # motivo y sin controles: no se puede renombrar ni exportar lo que no se
+                # ha podido leer, y ofrecerlo seria ofrecer lo que no se puede hacer.
+                st.error(f"**{slug}** no se ha podido leer — {fila['motivo']}")
+                st.divider()
+                continue
             st.markdown(f"**{catalogo['etiquetas'][slug]}**")
             nuevo = st.text_input(
                 "Nombre", value=str(fila["nombre"]), key=f"pr_nom_{especie}_{slug}",
@@ -1687,13 +1695,40 @@ def _paso_cero_proyecto():
     reabrir solo y, si no, por que.
     """
     raiz = projects_root()
-    catalogo = project_options(raiz)
-    if not catalogo["slugs"]:
+    try:
+        catalogo = project_options(raiz)
+    except (ShmirDesignError, ValueError, TypeError, KeyError, OSError) as exc:
+        # rule2-ok: frontera de la interfaz, y LA UNICA PANTALLA QUE NO SE PUEDE SALTAR.
+        # El motivo entero, sin degradar, y la pagina sigue por el camino normal — que
+        # es el que puede pedir la secuencia. Un aborto aqui la mataba antes de pintar
+        # nada, incluida la explicacion (errata nº 150). La lista de tipos es amplia a
+        # proposito: lo que llega de un fichero del volumen puede fallar de mas formas
+        # que las nuestras, y ninguna justifica dejar la app sin arrancar.
+        st.error(
+            f"**PARA** — no se ha podido leer la lista de proyectos: {exc}. La entrada "
+            f"se pide por los pasos 1 y 2, como el primer día."
+        )
+        return None
+    ilegibles = catalogo["ilegibles"]
+    # SIN NINGUNO —ni bueno ni roto— esto no pinta nada, que es lo de siempre. Pero con
+    # uno roto NO se puede volver mudo: era el caso en que la pagina moria entera y no
+    # habia ni lista ni motivo (errata nº 150).
+    if not catalogo["slugs"] and not ilegibles:
         return None
 
     with st.container(border=True):
         st.markdown("**¿Retomas un proyecto guardado?**")
         st.caption(PROJECT_RESUME_HELP)
+        # LO QUE NO SE HA PODIDO LEER, NOMBRADO. Esconderlo seria peor que el aborto:
+        # quien busca su proyecto no lo encuentra y no sabe por que.
+        for roto in ilegibles:
+            st.error(f"**{roto['slug']}** no se ha podido leer — {roto['motivo']}")
+        if not catalogo["slugs"]:
+            st.caption(
+                "No queda ningún proyecto legible, así que la entrada se pide por los "
+                "pasos 1 y 2 como el primer día. Lo de arriba dice por qué."
+            )
+            return None
         columnas = st.columns([4, 1])
         with columnas[0]:
             elegido = st.selectbox(
@@ -2754,6 +2789,11 @@ def _modal_seed(seleccion, nombre: str, maduros, proyecto=None,
         valores[ajuste["ajuste"]] = st.selectbox(
             ajuste["ajuste"],
             options=ajuste["opciones"],
+            # POR QUÉ OPCIÓN SE ABRE, y lo decide `presentation` (regla 6). Sin esto
+            # `st.selectbox` abre por la PRIMERA, y el orden alfabético dejaba la
+            # ventana en `2-7` y el nivel en `nucleo` — ninguno de los dos declarado
+            # (errata nº 151).
+            index=ajuste["indice"],
             key=f"seed_s_{nombre}_{ajuste['ajuste']}",
             help=f"por defecto: {ajuste['por_defecto']}",
         )

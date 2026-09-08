@@ -7505,3 +7505,101 @@ un cliente que no se parece al real no prueba nada.
 **No arregla la errata nº 130: la esquiva**, y va escrito así en el propio módulo. El
 botón se queda —el día que la maquinaria del navegador vuelva a responder es la vía más
 corta— y lo que cambia es que dejar de responder ya no deja a nadie sin el fichero.
+
+## 150 — Un proyecto ilegible se llevaba por delante la LISTA ENTERA, y con ella la página
+
+**Reportado (2026-09-08)**: *«algo gordo ha pasado porque ahora no me deja abrir un
+proyecto previamente guardado»*.
+
+**El fallo no está en ABRIR: está en LISTAR.** `presentation.project_list` recorre el
+directorio de proyectos y llama a `ProjectStore.open` **sin ninguna protección**, así que
+basta con que UNO no se pueda leer para que caiga todo lo demás. La cadena, reproducida:
+
+1. `project_list` aborta en el primer proyecto ilegible;
+2. `project_options` aborta con ella;
+3. `_paso_cero_proyecto` la llama **fuera de todo `try`**;
+4. y —esto es lo que lo convierte en «algo gordo»— `Project(**crudo)` lanza un
+   **`TypeError`**, que el `except (ShmirDesignError, ValueError, OSError)` de `main()`
+   **NO captura**. La página muere con la traza de Streamlit **antes de pintar el paso
+   0**: no hay lista, no hay motivo, y **los proyectos BUENOS quedan inalcanzables**.
+
+Un `proyecto.json` con un campo de más o de menos basta, y eso pasa en cuanto un proyecto
+se escribe con una versión y se lee con otra — o sea, en el volumen, después de cualquier
+despliegue. Es la familia de la errata nº 89 (una descarga que falla no puede tumbar el
+resto) y de la nº 137 (un aborto que borra la salida del propio problema), sobre la única
+pantalla que no se puede saltar.
+
+**Y era invisible para la suite** porque todos los tests de esta zona construyen sus
+proyectos con la versión de hoy: un directorio donde todos se pueden leer no puede
+delatar a quien no aísla al que no.
+
+### Lo que cambia
+
+- **`ProjectStore.open` traduce el `TypeError` y NOMBRA los campos.** «No se puede leer»
+  no se puede investigar. La lista se **DERIVA** de la clase (`fields(Project)`,
+  distinguiendo los que tienen defecto), así que un campo nuevo queda cubierto sin que
+  nadie se acuerde, y dice las dos direcciones: los que faltan y los que esta versión no
+  conoce.
+- **`project_list` AÍSLA cada proyecto.** El roto sale en su fila con `ilegible` y
+  `motivo`; lo que no se ha podido contar va a `None` — no a cero, porque no haber
+  contado no es contar cero. `project_options` lo deja fuera de `slugs` —ofrecer en el
+  desplegable algo que al abrirse vuelve a abortar es la trampa de ofrecer lo que no se
+  puede hacer— y lo devuelve en `ilegibles` con su motivo.
+- **La página lo NOMBRA y no se queda muda.** El paso 0 pinta los rotos en rojo, y **con
+  todos rotos sigue pintando** — que es el caso que un `if not slugs: return` se come, y
+  el único en que la explicación es lo único que queda. El gestor de la barra lateral
+  tampoco les pide etiqueta: era un `KeyError` que tumbaba la barra entera.
+- **Y listar está protegido**, con una lista de tipos amplia y el motivo escrito: lo que
+  llega de un fichero del volumen puede fallar de más formas que las nuestras, y ninguna
+  justifica dejar la app sin arrancar.
+
+**Lo que NO se afirma**: que ésta sea la causa de lo reportado. Es un fallo con el mismo
+síntoma, reproducido, y desde este entorno no se ve el volumen. Lo que sí hace el arreglo
+es que, si lo es, la app **diga cuál es el proyecto y qué le pasa** en vez de morirse.
+
+## 151 — El orden alfabético estaba eligiendo un parámetro científico
+
+**Reportado (2026-09-08)**: *«la corrida de seed_colision que guardé salió con ventana
+2-7, NO ESTÁNDAR… ¿hay algún ajuste que restablecer para que salga 2-8?»*.
+
+**Lo hay, y lo eligió la app.** `seed_setting_rows` daba las opciones y la página llamaba
+a `st.selectbox` **sin `index=`**: Streamlit preselecciona la PRIMERA, y la primera no era
+la declarada.
+
+| ajuste | lo que preseleccionaba | lo que declara `SeedParams` |
+|---|---|---|
+| `window` | **`2-7`** (orden alfabético de `SEED_WINDOWS`) | **`2-8`** |
+| `level` | **`nucleo`** (orden de `LEVELS`) | **`ambos`** |
+| `species_prefix` | **`mmu-`** (escrito a mano en `opciones`) | `None` = lo resuelve la corrida |
+
+**Lo que cuesta**, medido: con `2-7` el espacio de seeds pasa de 16.384 a 4.096 y la tasa
+base de **9,7 % a 31,1 %** — un tercio de las guías colisiona por azar, así que un
+`LIMPIO` significa mucho menos. Con `level=nucleo` la capa ampliada no llega a correr.
+
+Es el **principio nº 32 en la interfaz**: una opción que nadie eligió pasa a ser la
+configuración, y se lee como si alguien la hubiera decidido. Este proyecto ya lo tenía
+escrito para el desplegable de especies —«`modelo` como valor inicial era PEOR que vacío:
+parecía configurado»— y no se había aplicado a este eje. **Saber la regla no basta si no
+se aplica al eje que toca**, por segunda vez en la misma semana.
+
+Y el `mmu-` escrito en `opciones` es la puerta de atrás que `--mirbase-especies` cerró en
+el CLI: *«un prefijo tecleado, que es justo lo que da CERO colisiones y parece una buena
+noticia»*. La página deja de ofrecerlo; quedan las dos preguntas reales —**«(la de la
+corrida)»** y **«TODAS»**—, que son `None` y `""`, y siguen sin colapsarse.
+
+### El arreglo es DERIVAR, no escribir el índice
+
+`seed_setting_rows` emite `indice`, sacado del valor declarado en `SeedParams` a través de
+`_seed_setting_label` — que ahora es el **único** sitio que convierte un valor en su
+etiqueta. Estaba escrito dos veces (el valor y el por defecto) y con el índice serían
+tres: tres copias de la misma conversión se desincronizan y el desplegable abriría por una
+opción que no existe.
+
+### Y el frente SÍ cierra con 2-7. MEDIDO
+
+Con una corrida que cubre el panel entero, `seed_colision` sale **`PASS` y CERRADO** con
+las dos ventanas: la ventana viaja en el veredicto (errata nº 119) y **no** cambia el
+cierre. Así que no hay nada roto que reparar — lo que cambia es **cuánto vale ese PASS**,
+y con una tasa base del 31,1 % vale bastante menos. Repetir es barato: es búsqueda de
+subcadena contra un `mature.fa` ya cargado, y la corrida vieja se queda en el log, que es
+append-only.
