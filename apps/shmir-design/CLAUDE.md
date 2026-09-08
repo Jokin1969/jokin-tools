@@ -6462,6 +6462,44 @@ equivocada de la errata nº 133.
 
 ---
 
+## EL ANCLA DE LA PERSISTENCIA ES EL VOLUMEN, NO `NODE_ENV` (2026-09-08)
+
+Errata nº 153, y es la causa de que los proyectos dejaran de aparecer. Los dos
+directorios de shmir se derivaban con
+`process.env.NODE_ENV === 'production' ? … : ''`. **Medido** sobre esa derivación:
+
+| entorno | `PROJECT_DIR` |
+|---|---|
+| `production` + `DB_PATH` | `/data/shmir/proyectos` |
+| `production` **SIN** `DB_PATH` | `/data/shmir/proyectos` ← el defecto ya lo cubría |
+| **SIN `NODE_ENV`**, con `DB_PATH` | **`''`** |
+| `NODE_ENV` mal escrito | **`''`** |
+
+O sea que **que falte `DB_PATH` no vacía nada**: el único interruptor capaz de dejarlo
+vacío era `NODE_ENV` — **una bandera que este repositorio no declara, no prueba y no
+ve**. De ella colgaba el registro de lo que se decidió, y su fallo es silencioso: la app
+arranca, funciona, y escribe donde no sobrevive.
+
+**Arqueología, para no acusar al commit equivocado**: la derivación no la ha tocado nadie
+desde `17b25ac` (2026-08-27), `railway.toml` no cambia desde el commit inicial y el
+`[variables]` de `nixpacks.toml` lleva ahí desde el 2026-05-02. **Ningún commit lo rompió**
+— lo que estaba mal era colgarlo de ahí.
+
+**El ancla pasa a ser el directorio de la base de datos del hub**, que es la MISMA cuenta
+que hace `server.js` para crear `/data`: si ese directorio **existe**, existe el volumen;
+si no, es local y el vacío es la verdad. Una medida del mundo, no una bandera.
+
+- Arregla el caso **sin tocar Railway**: el volumen está montado —la base del hub lleva
+  treinta despliegues sobreviviendo— así que los dos directorios vuelven a salir de él.
+- **Los DOS**: `SHMIR_REFERENCE_DIR` tenía la misma forma, o sea que la referencia también
+  estaba cayendo dentro de la imagen.
+- Una variable declarada a mano **sigue mandando**.
+- **Y se dice en el arranque** (`routes.describeDirs`, en el log junto a `DB_PATH` y
+  `NODE_ENV`): esa pregunta sólo se podía contestar abriendo la app, y hay que poder
+  contestarla en el log del despliegue.
+
+---
+
 ## CERO PROYECTOS NO ES «NO HAY»: ES «NO HAY AHÍ» (2026-09-08)
 
 Errata nº 152, y es la que explica la pantalla reportada: con `6faa283` desplegado el

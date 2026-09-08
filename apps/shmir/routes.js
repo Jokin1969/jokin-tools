@@ -6,6 +6,7 @@
 // Lo que sí hace, y es lo que justifica que exista: **arrancar el proceso la primera
 // vez** y, si no arranca, contestar con el motivo en vez de con un 502 mudo.
 const express = require('express');
+const fs = require('node:fs');
 const path = require('node:path');
 
 const proceso = require('./process');
@@ -13,21 +14,55 @@ const { proxyRequest } = require('./proxy');
 
 const router = express.Router();
 
+// EL ANCLA ES EL VOLUMEN, NO `NODE_ENV` (errata nº 153).
+//
+// Esto colgaba de `process.env.NODE_ENV === 'production'`, y el 2026-09-08 los proyectos
+// dejaron de aparecer después de más de treinta despliegues buenos. Medido sobre la
+// derivación anterior:
+//
+//   production + DB_PATH        -> /data/shmir/proyectos
+//   production SIN DB_PATH      -> /data/shmir/proyectos   (el defecto ya lo cubría)
+//   SIN NODE_ENV, con DB_PATH   -> ''                      <- el hijo se queda sin nada
+//   NODE_ENV mal escrito        -> ''
+//
+// O sea que **que falte `DB_PATH` no vacía nada**, y el ÚNICO interruptor capaz de dejar
+// esto vacío era `NODE_ENV` — una bandera que este repositorio **no declara, no prueba y
+// no ve**: la pone el constructor de la plataforma. De ella colgaba el registro de lo que
+// se decidió, y su fallo es silencioso: la app arranca, funciona, y escribe donde no
+// sobrevive.
+//
+// El ancla pasa a ser **el directorio de la base de datos del hub**, que es lo que de
+// verdad significa «aquí está el volumen» — y es la MISMA cuenta que hace `server.js`
+// para crear `/data`. Si ese directorio EXISTE, existe el volumen; si no, estamos en
+// local y el vacío es la verdad. Es una medida del mundo, no una bandera.
+const DB_PATH = process.env.DB_PATH || '/data/jokin_tools.db';
+const DATA_DIR = path.dirname(DB_PATH);
+
+function enElVolumen(nombre) {
+  // `existsSync` y no `NODE_ENV`: la pregunta es si hay dónde escribir. Y se pregunta al
+  // cargar el módulo, igual que antes, para que el valor sea uno solo en todo el proceso.
+  return fs.existsSync(DATA_DIR) ? path.join(DATA_DIR, 'shmir', nombre) : '';
+}
+
 // El directorio de referencia de TRABAJO. En un despliegue tiene que estar en el volumen
-// (/data) o lo que se suba desaparece en el siguiente redespliegue, y el único síntoma
-// sería un frente que vuelve a salir NOT_RUN. En local, vacío = el del paquete.
-const REFERENCE_DIR = process.env.SHMIR_REFERENCE_DIR
-  || (process.env.NODE_ENV === 'production'
-    ? path.join(path.dirname(process.env.DB_PATH || '/data/jokin_tools.db'), 'shmir', 'reference')
-    : '');
+// o lo que se suba desaparece en el siguiente redespliegue, y el único síntoma sería un
+// frente que vuelve a salir NOT_RUN. En local, vacío = el del paquete.
+const REFERENCE_DIR = process.env.SHMIR_REFERENCE_DIR || enElVolumen('reference');
 
 // Los PROYECTOS. Mismo motivo que la referencia y más fuerte: ahí va el registro de lo
 // que se decidió, y un veredicto tiene que sobrevivir a la app que lo escribió. Va a un
 // directorio distinto del de referencia porque la referencia se siembra y esto no.
-const PROJECT_DIR = process.env.SHMIR_PROJECT_DIR
-  || (process.env.NODE_ENV === 'production'
-    ? path.join(path.dirname(process.env.DB_PATH || '/data/jokin_tools.db'), 'shmir', 'proyectos')
-    : '');
+const PROJECT_DIR = process.env.SHMIR_PROJECT_DIR || enElVolumen('proyectos');
+
+// Y SE DICE EN EL ARRANQUE. La pregunta «¿en qué directorio está guardando?» sólo se
+// podía contestar abriendo la app; tiene que estar en el log del despliegue, que es donde
+// se mira cuando algo dejó de funcionar hace tres días.
+function describeDirs() {
+  const donde = (v, cual) => (
+    v ? `${cual}=${v}` : `${cual}=(el del paquete: no hay volumen en ${DATA_DIR})`
+  );
+  return `[shmir] ${donde(REFERENCE_DIR, 'reference')} ${donde(PROJECT_DIR, 'proyectos')}`;
+}
 
 function referenceDir() {
   return REFERENCE_DIR;
@@ -122,3 +157,4 @@ router.use(async (req, res) => {
 module.exports = router;
 module.exports.referenceDir = referenceDir;
 module.exports.projectDir = projectDir;
+module.exports.describeDirs = describeDirs;

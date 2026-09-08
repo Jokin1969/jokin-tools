@@ -49,9 +49,21 @@ test('en produccion el directorio de referencia cae en el VOLUMEN', () => {
 test('y sale del MISMO sitio que la base de datos, no de una ruta escrita a mano', () => {
   // Si el volumen se montara en otro sitio, los ficheros lo siguen. Esto es lo que
   // convierte «/data» en una consecuencia de DB_PATH y no en una coincidencia.
-  const routes = cargarRoutes({ nodeEnv: 'production', dbPath: '/vol/otro/hub.db' });
-  assert.equal(routes.referenceDir(), path.join('/vol/otro', 'shmir', 'reference'));
-  assert.equal(routes.projectDir(), path.join('/vol/otro', 'shmir', 'proyectos'));
+  //
+  // EL VOLUMEN SE CREA DE VERDAD (errata nº 153). Antes bastaba con nombrar una ruta
+  // porque lo que decidia era `NODE_ENV`; ahora lo que decide es que el directorio
+  // EXISTA, que es una medida del mundo y no una bandera. El invariante que este test
+  // fija no ha cambiado — lo que cambio es el ancla, y el test se mueve con ella.
+  const fs = require('node:fs');
+  const os = require('node:os');
+  const volumen = fs.mkdtempSync(path.join(os.tmpdir(), 'vol-otro-'));
+  try {
+    const routes = cargarRoutes({ nodeEnv: 'production', dbPath: path.join(volumen, 'hub.db') });
+    assert.equal(routes.referenceDir(), path.join(volumen, 'shmir', 'reference'));
+    assert.equal(routes.projectDir(), path.join(volumen, 'shmir', 'proyectos'));
+  } finally {
+    fs.rmSync(volumen, { recursive: true, force: true });
+  }
 });
 
 test('sin DB_PATH sigue cayendo en el volumen por defecto', () => {
@@ -69,7 +81,14 @@ test('la variable explicita MANDA sobre la derivacion', () => {
 });
 
 test('en local, vacio: el directorio del paquete', () => {
-  const routes = cargarRoutes({ nodeEnv: 'test', dbPath: undefined });
+  // «Local» ya no es «NODE_ENV no es production» —esa bandera es la que fallo— sino
+  // «no hay volumen donde escribir». Se apunta a un sitio que NO existe, que es lo que
+  // pasa en una maquina de desarrollo sin `/data` montado. Vacio aqui es la VERDAD.
+  const os = require('node:os');
+  const routes = cargarRoutes({
+    nodeEnv: 'test',
+    dbPath: path.join(os.tmpdir(), `sin-volumen-${Date.now()}`, 'hub.db'),
+  });
   assert.equal(routes.referenceDir(), '');
   assert.equal(routes.projectDir(), '');
 });
