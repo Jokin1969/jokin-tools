@@ -39,7 +39,7 @@ resultado posible».
 | **D1** | Ningún golden tiene al humano como especie de diseño | estructural | `tests/golden/` |
 | **D2** | El inventario de estados no tiene eje de **especie** | estructural | `data/estados.toml` |
 
-### ESTADO (2026-09-08) — ocho de nueve CERRADOS
+### ESTADO (2026-09-08) — los NUEVE cerrados
 
 Va aquí y el hallazgo se queda entero abajo, con la misma disciplina que un frente
 CERRADO que no desaparece del informe: borrar lo que se encontró dejaría al siguiente
@@ -55,7 +55,7 @@ lector sin saber si se resolvió o si nadie lo miró (principio nº 15).
 | **B3** | **CERRADO** | errata nº 157 · las fichas nombran el ROL |
 | **C1** | **CERRADO** | errata nº 157 · `mirna.core_list_note` |
 | **D1** | **CERRADO** | `humano_informe__con_usar_manifiesto__una_especie.txt` |
-| **D2** | **ABIERTO** | eje de especie en `data/estados.toml` |
+| **D2** | **CERRADO** | eje `especie` en `data/estados.toml`, con sus cuatro valores PINTADOS |
 
 **Y el guardia que queda de los tres de la letra B no es el arreglo: es
 `tests/test_NINGUN_MENSAJE_nombra_el_fichero_de_OTRA_ESPECIE.py`**, que mide lo que la app
