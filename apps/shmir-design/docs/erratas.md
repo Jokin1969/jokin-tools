@@ -7785,3 +7785,87 @@ mandaba a otra pantalla, otro devolvía cadena vacía y el tercero rellenaba un 
 palabra honesta para el caso equivocado. **Un bloque que no falla no es un bloque
 comprobado** — lo que faltaba aquí era que alguien tirara del hilo de la salida, que es
 justo lo que hizo el reporte.
+
+---
+
+## 155 — El CLI conectaba los ficheros MURINOS a un diseño humano, y el aborto que se veía tapaba el que no
+
+**Encontrada** el 2026-09-08, revisando el código antes de empezar la campaña humana. No
+la reportó nadie: **salió de correr el camino humano de verdad**, que es lo que la suite
+no hace. Con 5201 tests en verde, `check:shmir` y `check:tildes` limpios.
+
+### Lo que hacía
+
+`tools/design.py --usar-manifiesto` —«la forma normal de correr»— emparejaba por el
+NOMBRE del fichero contra `manifest.ROLES`, que trae los nombres **murinos** escritos. La
+**página** no: pasa `species=` a `resources.load_from_manifest`. **Quinta divergencia
+entre los dos frontales**, la clase que obligó a escribir `resolve.py`.
+
+Medido, con el humano y **una sola especie**:
+
+```
+  --usar-manifiesto conecta:
+    mature.fa                → colisión de seed        (correcto: no lleva especie)
+    aav_casete.fa            → filtro del transgén     ← MURINO
+    rmsk_mouse.out           → elementos repetitivos   ← MURINO
+
+PARA — rmsk_mouse.out se corrió sobre 2191 nt y se le está dando una de 2435…
+```
+
+Y la otra mitad, que es la que lo hace total: de los **diez** ficheros que
+`species.required_files` pide para humano, `manifest.role_of` reconocía **dos**. Los ocho
+con sufijo de especie eran invisibles para el CLI.
+
+### Por qué es peor de lo que parecía el aborto
+
+**El guardia de la máscara hizo su trabajo, y por eso se veía.** Lo que ese aborto TAPABA
+es que en la misma corrida **el casete murino ya se había conectado como filtro del
+transgén** — y ahí no hay ningún guardia equivalente a `RepeatMask.query_length`.
+
+Medido sobre el humano con ese casete conectado y sin la máscara para que no abortara
+antes:
+
+| corrida | `transgen` por ventana |
+|---|---|
+| humano, **sin** casete (correcto) | `sin: 2414` |
+| humano, con el casete **murino** | **`PASS: 415`**, **`FAIL: 4`**, `NOT_RUN: 1995` |
+
+**415 ventanas humanas con un `PASS` contra una construcción que no es la suya, y 4 con
+un `FAIL`.** Un `PASS` cuenta como frente contestado; un `FAIL` retira un candidato. Los
+cuatro no cayeron en el panel de esta secuencia — pero eso es suerte de esta secuencia,
+no una propiedad del mecanismo. Es el «resultado con la forma correcta y el significado
+equivocado» que este proyecto llama el peor resultado posible.
+
+### Lo que enseña, y es lo que generaliza
+
+**Un guardia que aborta no demuestra que todo lo anterior estuviera bien: demuestra que
+LO SUYO estaba mal.** El aborto de la máscara se leía como «el CLI no admite esta
+combinación» y lo que había debajo era una conexión entera hecha con la tabla
+equivocada. Cuando un guardia muerde, la pregunta no es sólo qué lo disparó — es **qué
+más venía en la misma remesa y no tiene guardia**.
+
+Es el corolario del principio nº 14 por el otro lado: allí, haber comprobado una vez no
+es seguir comprobando; aquí, **que UNA cosa se compruebe no dice nada de las que viajan
+con ella**.
+
+### Y el predicado de «especie declarada» no era el obvio
+
+Al arreglarlo, la primera versión preguntaba si `species.resolve` reventaba. **No revienta
+nunca**: con un nombre no declarado FABRICA una `Species` con el slug puesto y los tres
+identificadores vacíos —para que se pueda trabajar sin declarar nada— y quien aborta es
+el que PIDE un identificador. Con ese predicado, `required_files` devolvía nombres como
+`transcriptoma_3utr_3utr.fa`, que no pueden coincidir con nada: **desconexión
+silenciosa**, el mismo fallo un piso más arriba y sin ningún error. El predicado es
+`Species.known`.
+
+### Cerrada
+
+`conectar_desde_manifiesto(args, estado, *, species)`, con `species` **obligatorio y sin
+defecto** (principio nº 58), resolviendo por `species.required_files`. Sin especie
+declarada **aborta** diciendo dónde se declaran. `tests/test_el_manifiesto_conecta_POR_ESPECIE.py`
+corre contra el manifiesto **REAL** —un manifiesto fabricado no puede delatar esto,
+porque el fallo consiste justo en que los nombres del de verdad son murinos (principio
+nº 18)— y lleva el control adversario: el ratón tiene que seguir recibiendo los suyos,
+porque desconectarlo todo también pasaría la primera mitad.
+
+**Y el ratón no se movió**: los ocho goldens salen idénticos.

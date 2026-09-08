@@ -83,6 +83,26 @@ VARIANTES = {
         "--genbank", "data/reference/NM_011170.3.gb",
         "--usar-manifiesto",
     ],
+    # EL HUMANO COMO ESPECIE DE DISEÑO, y hasta hoy no lo leia ningun golden: entraba
+    # SOLO como `--fasta-b`, o sea como la segunda especie de la comparacion de
+    # conservacion. El camino humano-primario no tenia ningun artefacto que alguien
+    # leyera, que es el principio nº 17 sobre una ESPECIE entera.
+    #
+    # No es una configuracion fantasma como `--inmunes 4`: es la corrida que va a hacer
+    # la campaña humana. Y lo que fija no es el panel —eso cambiara— sino que la salida
+    # entera sea coherente en la especie: que ningun fichero murino se cuele, que las
+    # senales de APA salgan como «canonico, asumido» y no como medidas, que el vector no
+    # se emita, y que los frentes abiertos sean los del humano.
+    #
+    # VA CON UNA SOLA ESPECIE, igual que el de arriba: `--usar-manifiesto` conecta los
+    # ficheros DE LA ESPECIE QUE SE DISEÑA, asi que con `--fasta-b` la mascara de la una
+    # se aplicaria al transcrito de la otra y `RepeatMask.query_length` aborta.
+    "humano_informe__con_usar_manifiesto__una_especie.txt": [
+        "--fasta", "data/reference/NM_000311.5.fa",
+        "--name", "humano",
+        "--genbank", "data/reference/NM_000311.5.gb",
+        "--usar-manifiesto",
+    ],
 }
 
 
@@ -112,6 +132,10 @@ CONFIGURACION = {
     "raton_informe__con_usar_manifiesto__una_especie.txt": (
         "el CLI sobre el TRANSCRITO ENTERO del raton con --usar-manifiesto, que es LA "
         "FORMA NORMAL DE CORRER; con una sola especie a propósito"
+    ),
+    "humano_informe__con_usar_manifiesto__una_especie.txt": (
+        "el CLI sobre el TRANSCRITO ENTERO del HUMANO con --usar-manifiesto, con el "
+        "humano como especie de DISEÑO y no como segunda especie; una sola especie"
     ),
     "pagina_raton.txt": (
         "el camino de la PAGINA entero sobre el TRANSCRITO ENTERO del raton, con la "
@@ -170,8 +194,20 @@ def generar(destino: Path, argv: list[str] | None = None) -> str:
                 f"El diseño fallo con código {proceso.returncode}; no se regenera el "
                 f"golden con una salida incompleta.\n{proceso.stdout}\n{proceso.stderr}"
             )
+        # EL NOMBRE DEL INFORME SE DERIVA DEL `--name` DE ESTA CORRIDA. Estaba escrito
+        # `raton_informe.txt`, asi que una variante con otra especie leia un fichero que
+        # el CLI no habia escrito — y el generador moria con un FileNotFoundError en vez
+        # de con el diff. El nombre lo pone `outputs.output_stem`, que es quien lo
+        # escribe (principio nº 13).
+        import sys as _sys
+
+        _sys.path.insert(0, str(RAIZ))
+        from shmir_design.outputs import output_stem
+
+        usados = argv or ARGV
+        nombre = usados[usados.index("--name") + 1] if "--name" in usados else "3utr"
         return cabecera(destino.name) + (
-            Path(tmp) / "raton_informe.txt"
+            Path(tmp) / f"{output_stem(nombre)}_informe.txt"
         ).read_text(encoding="utf-8")
 
 

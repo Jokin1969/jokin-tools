@@ -6462,6 +6462,82 @@ equivocada de la errata nº 133.
 
 ---
 
+## `--usar-manifiesto` CONECTA LOS FICHEROS DE LA ESPECIE QUE SE DISEÑA (2026-09-08)
+
+Errata nº 155, y es la **quinta divergencia entre los dos frontales** — la misma clase
+que obligó a escribir `resolve.py`. La **página** conecta con
+`load_from_manifest(dir, species=…)`; el **CLI** emparejaba por el NOMBRE del fichero
+contra `manifest.ROLES`, que trae los nombres **murinos** escritos.
+
+**MEDIDO**, con el humano y **una sola especie**:
+
+```
+  --usar-manifiesto conecta:
+    aav_casete.fa            → filtro del transgén     ← MURINO
+    rmsk_mouse.out           → elementos repetitivos   ← MURINO
+PARA — rmsk_mouse.out se corrió sobre 2191 nt y se le está dando una de 2435…
+```
+
+Y la otra mitad: de los **diez** ficheros que `species.required_files` pide para humano,
+`manifest.role_of` reconocía **dos** — los dos que no llevan especie. Los ocho con
+sufijo eran invisibles, y en su lugar entraban los ocho murinos.
+
+- **EL ABORTO DE LA MÁSCARA TAPABA EL CASO SIN GUARDIA.** `RepeatMask.query_length` hace
+  su trabajo y por eso se veía; lo que no se veía es que en la misma corrida **el casete
+  murino ya se había conectado como filtro del transgén**, y ahí no hay nada
+  equivalente. Medido sobre el humano con ese casete puesto: **415 `PASS` y 4 `FAIL`**
+  sobre ventanas humanas contra una construcción que no es la suya. Un `PASS` cuenta
+  como frente contestado y un `FAIL` retira un candidato.
+- **Los nombres los pone `species.required_files`**, que es la única fuente de los
+  nombres del depósito. `manifest.ROLES` se queda como lo que su propia documentación
+  dice que es: el caso base del manifiesto que ya existe, no el único posible.
+- **`species` es OBLIGATORIO y sin defecto** (principio nº 58): un valor por defecto ahí
+  sería «conecta lo que haya», que es el fallo con otro nombre. Sin especie declarada,
+  `--usar-manifiesto` **ABORTA** diciendo dónde se declaran las especies — no conecta a
+  medias.
+- **Y el predicado de «especie declarada» NO es que `resolve` reviente**: `resolve` no
+  revienta nunca con un nombre — **FABRICA** una `Species` con el slug puesto y los tres
+  identificadores vacíos, para que se pueda trabajar sin declarar nada; quien aborta es
+  el que PIDE un identificador. Con el predicado equivocado esto no daba ningún error:
+  `required_files` devolvía nombres como `transcriptoma_3utr_3utr.fa`, que no pueden
+  coincidir con nada, y el resultado era una **desconexión silenciosa** — el mismo fallo
+  un piso más arriba. El predicado es `Species.known`.
+- El `.tbl` hermano sale de `RequiredFile.companion`, que la propia fila **declara**, y
+  no de cambiarle la extensión al `.out`: eso era una segunda definición de la misma
+  pareja.
+
+**Comprobado que el ratón no se mueve**: los ocho goldens salen **idénticos**. Un golden
+que no cambia confirma tanto como uno que cambia — aquí dice que la conexión murina es
+exactamente la de antes.
+
+## EL HUMANO ENTRA EN LOS GOLDEN COMO ESPECIE DE DISEÑO (2026-09-08)
+
+Hasta hoy los ocho goldens eran de ratón y el humano entraba **sólo** como `--fasta-b`,
+o sea como la segunda especie de la comparación de conservación. **El camino
+humano-primario no lo leía ningún artefacto**, que es el principio nº 17 sobre una
+ESPECIE entera — y el golden es lo que cazó, en la campaña del ratón, las 127 líneas
+borradas en silencio, el `3utr:1149` de la cabecera de una ficha y los dos textos
+inventados de `informe_doc`.
+
+`humano_informe__con_usar_manifiesto__una_especie.txt` (532 líneas). **Va con una sola
+especie** por lo mismo que el del ratón, y **no es una configuración fantasma** como
+`--inmunes 4`: es la corrida que va a hacer la campaña humana.
+
+**Lo que fija no es el panel** —eso cambiará— sino que la salida entera sea coherente en
+la especie: que no se cuele ningún fichero murino, que las señales de APA salgan como
+«canónico, asumido» y no como medidas, que el vector no se emita, y que los frentes
+abiertos sean los del humano.
+
+- **El nombre del informe se DERIVA del `--name` de esa corrida** (`outputs.output_stem`).
+  Estaba escrito `raton_informe.txt`, así que una variante con otra especie leía un
+  fichero que el CLI no había escrito.
+- **Y a la primera generación ya enseñó dos cosas** que la suite no ve: el informe humano
+  dice «el casete que hay (`aav_casete.fa`)» —un hecho murino afirmado en un informe
+  humano— y nombra `transcriptoma_3utr.fa`, que es el fichero **murino**, cuando el
+  gestor pide `transcriptoma_3utr_human.fa`. Las dos están en la revisión
+  (`docs/revision-preparacion-humano.md`, B1 y B3) y **quedan abiertas**: se cierran en
+  su propia tanda, para que el diff de este golden las enseñe.
+
 ## EL FRAGMENTO SE SACA DONDE SE EMITE (2026-09-08)
 
 Errata nº 154. El FASTA de fragmentos y su hoja de pedido sólo se podían sacar del ZIP de
