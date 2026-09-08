@@ -940,6 +940,20 @@ test('distinctCnCount cuenta medicamentos (CN) distintos y activos', () => {
   })();
 });
 
+test('totalPlanUnits suma las cajas/mes de cada medicamento de cada persona (activos)', async () => {
+  const asigDb = require('../apps/asignacion/db');
+  const before = asigDb.totalPlanUnits();
+  const pid = qrDb.createPerson({ pharmacy_no: '80997', nombre: 'Uni', apellidos: 'Dades', tis: '00080997' }, 1).id;
+  const pid2 = qrDb.createPerson({ pharmacy_no: '80996', nombre: 'Uni2', apellidos: 'Dades2', tis: '00080996' }, 1).id;
+  const m1 = (await call('POST', `/person/${pid}/plan`, { cn: '900201', nombre: 'Uno', qty: 2 })).data.plan.find(m => m.cn === '900201');
+  await call('POST', `/person/${pid}/plan`, { cn: '900202', nombre: 'Dos', qty: 3 });
+  await call('POST', `/person/${pid2}/plan`, { cn: '900203', nombre: 'Tres', qty: 5 });
+  assert.equal(asigDb.totalPlanUnits(), before + 10, 'suma 2+3+5 = 10 unidades nuevas (dos medicamentos de la misma persona)');
+  // Una línea desactivada deja de contar, aunque siga en la tabla.
+  await call('PATCH', `/plan/${m1.id}`, { active: false });
+  assert.equal(asigDb.totalPlanUnits(), before + 8, 'una línea inactiva no cuenta');
+});
+
 test('preassign por escaneo pasa por CIMA y completa el nombre de la caja', async () => {
   process.env.CIMA_ENABLED = 'false';                 // offline → usa la caché sembrada
   const asigDb = require('../apps/asignacion/db');

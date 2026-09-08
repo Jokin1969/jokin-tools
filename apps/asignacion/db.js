@@ -286,6 +286,12 @@ function listPlan(personId) {
 function distinctCnCount() {
   return db.prepare("SELECT COUNT(DISTINCT cn) n FROM asig_plan WHERE active = 1 AND cn IS NOT NULL AND cn <> ''").get().n;
 }
+// Unidades totales (cajas/mes) sumando TODOS los medicamentos de TODAS las
+// personas con plan activo — a diferencia de distinctCnCount, aquí cada
+// medicamento de cada persona suma sus propias cajas, no cuenta como 1.
+function totalPlanUnits() {
+  return db.prepare('SELECT COALESCE(SUM(qty), 0) n FROM asig_plan WHERE active = 1').get().n;
+}
 // Todos los Código Nacional que han pasado alguna vez por el plan de alguien (activos
 // o no) — usado por el catch-up de arranque de Galénica (apps/galenica/ingest.js).
 function allCns() {
@@ -878,7 +884,7 @@ function saveSettings(data, userId) {
 
 module.exports = {
   db, DEFAULT_SETTINGS,
-  listPlan, plansByCnOrGtin, distinctCnCount, allCns, personMedSummary, getPlanLine, planByGtin, planByCn, addPlanMed, upsertPlan, updatePlanById, editPlanMed, reconcilePlanGtin, clearPlanGtin, deletePlanLine, planPersonIds,
+  listPlan, plansByCnOrGtin, distinctCnCount, totalPlanUnits, allCns, personMedSummary, getPlanLine, planByGtin, planByCn, addPlanMed, upsertPlan, updatePlanById, editPlanMed, reconcilePlanGtin, clearPlanGtin, deletePlanLine, planPersonIds,
   SLOTS, setDoseSchedule, getDoseScheduleForDate, getDoseHistory,
   createEmptyPlan, personsWithPlanSet,
   setPlanRelease, setPlanAdvance, setPlanExpiry, plansForRelease, planForItem, findPendingLineForMed,
