@@ -7723,3 +7723,52 @@ de esta decisión.
 —«los ficheros siguen al volumen esté donde esté»— no ha cambiado; lo que cambió es el
 ancla, y ahora crean el directorio de verdad en vez de nombrar una ruta. Un test que fija
 una decisión se mueve cuando la decisión se mueve (principio nº 56 por su lado bueno).
+
+## 154 — El fragmento se emitía donde nadie lo busca, y su comprobación nunca tuvo el fichero
+
+**Reportado (2026-09-08)**: *«el FASTA de fragmentos debería tener botón propio o bloque
+copiable, como los demás»*.
+
+Y tenía botón — **tres secciones más abajo**, dentro del ZIP de «Descargas», sólo después
+de pulsar «Seguir» y mezclado con los otros seis ficheros. Es el **principio nº 47**: la
+salida va donde está el bloqueo, y aquí el bloqueo está delante de la tabla del fragmento,
+que es donde se decide qué se manda a sintetizar. Los cuatro modales ya lo hacían así
+—FASTA de BLAST, bloque de seed, FASTA de construcciones, bloque de off-targets—; éste era
+**el único emisor que mandaba a buscar su fichero a otra parte**.
+
+Ahora los **dos** ficheros —el FASTA que se sintetiza y la hoja de pedido que se lee— salen
+ahí mismo, cada uno con su botón y con su segunda vía.
+
+### Y al cablearlo salieron DOS defectos peores debajo
+
+**1. La comprobación del plásmido montado NUNCA tuvo el fichero emitido.** La página hacía
+
+```python
+emitido = paquete.get(f"{nombre}_fragmentos.fasta", "")
+```
+
+con `nombre` = el nombre **científico** de la especie, y las claves del paquete las monta
+`output_stem`, que le quita los espacios. `Mus musculus_fragmentos.fasta` contra
+`Mus_musculus_fragmentos.fasta`: **no coinciden nunca**, así que `emitido` era siempre
+`""` y la sección decía siempre «faltan las dos cosas». **El último eslabón entre lo que
+la app emite y lo que acaba en el vector no ha comprobado nada desde que se escribió.**
+
+Es la errata nº 47 en código de producción: **se pregunta por una clave que uno mismo
+escribe, en vez de pedírsela a quien la produce** (principio nº 25). Y el guardia que
+existe para esto —`auditar_claves`— mira los **tests**, no la página. La clave se pide
+ahora al paquete, y el FASTA se busca **por extensión**.
+
+**2. La hoja de pedido decía `sin_preguntar` en TODOS los candidatos.** La página llamaba
+a `fragment_bundle` **sin `tiling` ni `stores`**, así que `candidate_fronts` no se
+calculaba nunca. Enésima vez del patrón de `page_run` — la capacidad escrita, probada, y
+el llamador de verdad sin pasarla — y aquí pesa más que en otros sitios: **esa hoja es lo
+que va al banco**, y existe justo para que un candidato sin BLAST no se cuele en una tanda
+de once verificados. Diciendo `sin_preguntar` de los once, dice lo mismo de todos.
+
+### Lo que enseña, y es lo que generaliza
+
+Los tres defectos vivían en el **mismo bloque de veinte líneas** y ninguno daba error: uno
+mandaba a otra pantalla, otro devolvía cadena vacía y el tercero rellenaba un campo con la
+palabra honesta para el caso equivocado. **Un bloque que no falla no es un bloque
+comprobado** — lo que faltaba aquí era que alguien tirara del hilo de la salida, que es
+justo lo que hizo el reporte.

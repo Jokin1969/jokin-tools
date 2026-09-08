@@ -6462,6 +6462,36 @@ equivocada de la errata nº 133.
 
 ---
 
+## EL FRAGMENTO SE SACA DONDE SE EMITE (2026-09-08)
+
+Errata nº 154. El FASTA de fragmentos y su hoja de pedido sólo se podían sacar del ZIP de
+«Descargas», tres secciones más abajo y después de pulsar «Seguir». Principio nº 47: la
+salida va donde está el bloqueo, y aquí el bloqueo está delante de la tabla del fragmento
+— que es donde se decide qué se manda a sintetizar. Los cuatro modales ya lo hacían así;
+éste era el único emisor que mandaba a buscar su fichero a otra parte. Ahora los **dos**
+salen ahí, con botón y con segunda vía.
+
+**Y debajo había dos defectos peores, los tres en el mismo bloque de veinte líneas:**
+
+- **La comprobación del plásmido montado NUNCA tuvo el fichero.** La página pedía
+  `paquete.get(f"{nombre}_fragmentos.fasta")` con el nombre **científico**, y las claves
+  las monta `output_stem`, que le quita los espacios: `Mus musculus_…` contra
+  `Mus_musculus_…`. `emitido` era siempre `""` y la sección decía siempre «faltan las dos
+  cosas» — o sea que **el último eslabón entre lo que la app emite y lo que acaba en el
+  vector no ha comprobado nada desde que se escribió**. Es la errata nº 47 en código de
+  producción, y el guardia que existe para ella (`auditar_claves`) mira los TESTS. La
+  clave se pide ahora al paquete y el FASTA se busca **por extensión**.
+- **La hoja de pedido decía `sin_preguntar` en los once**: `fragment_bundle` se llamaba
+  sin `tiling` ni `stores`, así que `candidate_fronts` no se calculaba. Esa hoja es lo que
+  va al banco y existe para que un candidato sin BLAST no se cuele en una tanda de once
+  verificados.
+
+**Ninguno de los tres daba error**: uno mandaba a otra pantalla, otro devolvía cadena
+vacía y el tercero rellenaba un campo con la palabra honesta para el caso equivocado. Un
+bloque que no falla no es un bloque comprobado.
+
+---
+
 ## EL ANCLA DE LA PERSISTENCIA ES EL VOLUMEN, NO `NODE_ENV` (2026-09-08)
 
 Errata nº 153, y es la causa de que los proyectos dejaran de aparecer. Los dos

@@ -234,6 +234,8 @@ from shmir_design.presentation import (  # noqa: E402
     FRAGMENT_NEEDS_CASSETTE,
     assembly_report,
     fragment_bundle,
+    fragment_fasta_text,
+    fragment_files,
     fragment_rows,
     conservation_for,
     output_bundle,
@@ -858,9 +860,29 @@ def bloque_especie(nombre, transcrito, secuencia, anat, umbrales, config, seeds,
                     "sintetizado entero no cortan nada."
                 )
             paquete = fragment_bundle(
-                seleccion, scaffold, species=nombre, cassette=casete
+                seleccion, scaffold, species=nombre, cassette=casete,
+                # EL TILADO Y LOS ALMACENES. Sin ellos `candidate_fronts` no se calcula y
+                # la hoja de pedido dice «sin_preguntar» para TODOS los candidatos —con
+                # las corridas guardadas en el proyecto—. Y esta hoja es lo que va al
+                # banco: existe para que un candidato sin BLAST no se cuele en una tanda
+                # de once verificados, y sin esto dice lo mismo de los once.
+                tiling=tiling, stores=almacenes,
             )
             extras.update(paquete)
+
+            # LA SALIDA VA DONDE ESTA EL BLOQUEO (principio nº 47). Estos dos ficheros
+            # solo se podian sacar del ZIP de «Descargas», tres secciones mas abajo y
+            # despues de pulsar «Seguir». Aqui es donde se decide que se sintetiza.
+            for entrega in fragment_files(paquete):
+                st.download_button(
+                    entrega["etiqueta"], data=entrega["datos"],
+                    file_name=entrega["nombre"], mime="text/plain",
+                    key=f"frag_dl_{nombre}_{entrega['nombre']}",
+                )
+                _segunda_via(
+                    entrega["datos"], nombre=entrega["nombre"],
+                    clave=f"frag_{nombre}_{entrega['nombre']}",
+                )
 
             # EL ULTIMO ESLABON: entre lo que la app emite y lo que acaba en el vector
             # no habia ninguna comprobacion. Aqui no se GENERA el plasmido —un vector de
@@ -897,7 +919,13 @@ def bloque_especie(nombre, transcrito, secuencia, anat, umbrales, config, seeds,
                         "se guarda: se lee, se compara y se descarta."
                     ),
                 )
-                emitido = paquete.get(f"{nombre}_fragmentos.fasta", "")
+                # LA CLAVE SE PIDE AL PAQUETE, NO SE ESCRIBE (errata nº 154). Aqui
+                # habia `paquete.get(f"{nombre}_fragmentos.fasta")` con el nombre
+                # CIENTIFICO, y las claves las monta `output_stem`, que le quita los
+                # espacios: `Mus musculus_…` contra `Mus_musculus_…`. Nunca coincidian,
+                # asi que esta comprobacion NUNCA tuvo el fichero emitido y decia siempre
+                # que faltaban las dos cosas.
+                emitido = fragment_fasta_text(paquete)
                 if subido is None or not emitido:
                     st.info(ASSEMBLY_NEEDS_BOTH)
                 else:

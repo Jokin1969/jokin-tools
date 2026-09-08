@@ -1187,6 +1187,53 @@ def fragment_bundle(
     }
 
 
+#: Como se llama cada fichero del fragmento en su boton. NO se llama como el fichero:
+#: tres botones etiquetados con su nombre de fichero se leyeron como una lista de
+#: ficheros y el informe «no aparecia» con los tres delante (errata nº 69).
+FRAGMENT_LABELS = {
+    ".fasta": "Descargar el FASTA de fragmentos (lo que se sintetiza)",
+    ".txt": "Descargar la hoja de pedido",
+}
+
+
+def fragment_files(bundle: dict[str, str]) -> list[dict[str, str]]:
+    """Los ficheros del fragmento COMO ENTREGABLES, en el sitio donde se emiten.
+
+    **Por que existe (errata nº 154)**: estos dos ficheros solo se podian sacar del ZIP
+    de «Descargas», tres secciones mas abajo y despues de pulsar «Seguir», mezclados con
+    los otros seis. Es el principio nº 47 —la salida va donde esta el bloqueo—: aqui el
+    bloqueo esta delante de la tabla del fragmento, que es donde se decide que se manda a
+    sintetizar. Los cuatro modales ya lo hacen asi; este era el unico emisor que mandaba a
+    buscar su fichero a otra parte.
+
+    **La clave se PIDE al paquete, no se escribe** (principio nº 25). La pagina hacia
+    `paquete.get(f"{nombre}_fragmentos.fasta")` con el nombre CIENTIFICO de la especie, y
+    las claves las monta `output_stem`, que le quita los espacios: `Mus musculus_…` contra
+    `Mus_musculus_…`. Nunca coincidian, asi que la comprobacion del plasmido montado
+    **jamas tuvo el fichero emitido** y decia siempre que faltaban las dos cosas.
+    """
+    return [
+        {
+            "nombre": nombre,
+            "datos": contenido,
+            "etiqueta": FRAGMENT_LABELS.get(Path(nombre).suffix, f"Descargar {nombre}"),
+        }
+        for nombre, contenido in sorted(bundle.items())
+    ]
+
+
+def fragment_fasta_text(bundle: dict[str, str]) -> str:
+    """El FASTA emitido, DERIVADO del paquete. Vacio si no hay (sin casete no se emite).
+
+    Se busca por extension y no por nombre por lo mismo de arriba: el nombre lo monta
+    `output_stem` y escribirlo aqui es la segunda definicion de la misma clave.
+    """
+    for nombre, contenido in bundle.items():
+        if Path(nombre).suffix == ".fasta":
+            return contenido
+    return ""
+
+
 def fragment_rows(
     selection: ReportSelection,
     scaffold: ScaffoldSpec,
