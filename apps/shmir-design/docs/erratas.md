@@ -7301,3 +7301,64 @@ banco y esta limitación viven hoy en el informe de texto del CLI y en el regist
 en el artefacto que viaja** — que es el principio nº 55 exactamente. No se corrige aquí
 porque meter el plan en el documento obliga a imprimir **unas** coordenadas, y cuáles van
 al banco es la decisión que está abierta a propósito.
+
+---
+
+## 147 — «No se midió por coste» y «no hay guía que medir» daban el mismo NOT_RUN, con el mismo motivo
+
+Reportado el 2026-09-08 leyendo la columna `filtros_sin_correr` del export: decía
+`homopolimero_molecula (1780 ventana(s))` **en todas las filas**, al lado de una columna
+`homopolimero_molecula` que para ese candidato dice `PASS`. *«"No se midió por coste" no
+es un recurso que falte»*.
+
+Es la **errata nº 91 aplicada a un filtro que se añadió dos días antes sin ella**: la
+distinción `NOT_RUN` / `NO_PEDIDO` estaba escrita, decidida y en uso —la accesibilidad
+sin marcar, la carga de seed acotada al panel— y el centinela nuevo no la aplicó.
+
+### Y al ir a arreglarlo salió que eran DOS causas con UN estado
+
+`escaneable` es `asymmetry is not None` **AND** `biophysical_ok(...)`, y ese booleano
+funde dos cosas que se arreglan con cosas distintas:
+
+| ventana | qué pasa | estado | cómo se arregla |
+|---|---|---|---|
+| tiene una `N` | no hay guía que medir | **`NOT_RUN`** | con otra secuencia, o quitando la máscara |
+| ya cayó por los biofísicos | no se gasta en ella | **`NO_PEDIDO`** | con nada — es una decisión |
+
+**Y el motivo tapaba las dos con la misma frase, «por coste».** Sobre una ventana con `N`
+eso es un **diagnóstico equivocado**: manda a mirar un presupuesto cuando lo que hay es
+una base desconocida. Es el principio nº 3, y lo cometí yo dos días antes en el
+centinela que acababa de escribir. Con la máscara murina puesta son **66 ventanas** las
+que recibían esa frase.
+
+### Lo medido
+
+Sobre el transcrito murino, sin máscara: **1780** ventanas no escaneables, **0** con `N`
+— así que todas eran una decisión y ninguna una laguna. Con la máscara: **1724** por
+decisión y **66** por `N`, o sea que los dos casos conviven en la misma corrida y se
+pueden exigir a la vez.
+
+En el informe se ve de un vistazo: `homopolimero_molecula: NOT_RUN en 1790 de 2170
+ventanas` pasa a **`en 66 de 2170`**, y en las corridas sin máscara la línea **desaparece
+entera** — que es lo que se reportó.
+
+### La regla, y por qué no se arregla con un `if` más
+
+El estado no se elige con el booleano que funde las causas: **se elige con la causa
+DERIVADA**. `escaneable` sigue existiendo para decidir *si* se mira; lo que no puede
+hacer es decidir *qué se dice cuando no se mira*, porque para eso hace falta saber por
+qué.
+
+### Lo que queda ABIERTO, y es una familia
+
+`escaneable` gobierna **cuatro** centinelas más y ninguno distingue las dos causas:
+`seed_colision`, `transgen`, `especificidad` —los tres con «por coste» sobre ventanas con
+`N`— y, por el otro lado, la **accesibilidad** y la **carga de seed**, que dan
+`NO_PEDIDO` también a las que tienen `N`, donde lo honesto sería `NOT_RUN`. Es el mismo
+defecto con los dos signos.
+
+**No se tocan aquí**: cada uno es una decisión escrita con su propia historia y su propio
+golden, y arreglarlos de paso los metería en un diff que se lee por otro motivo. Queda
+declarado para que el siguiente no tenga que volver a encontrarlo — principio nº 31: un
+comentario protege su clase, un mecanismo protege la siguiente, y aquí lo que hay de
+momento es esta lista.

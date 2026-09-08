@@ -6622,6 +6622,36 @@ es ya un homopolímero de longitud `MAX_HOMOPOLYMER` y la base indecisa lo alarg
   `spacers.py` tenían el `3` escrito, y ahora los tres lo importan de `hard_filters`.
   Hay test de que son el mismo objeto.
 
+### «No se midió por coste» NO es «falta un recurso» (2026-09-08, errata nº 147)
+
+Cuando la ventana **no se mira**, el estado depende de POR QUÉ, y son **dos causas**:
+
+- **tiene una `N`** → no hay guía sobre la que medir. Es una LAGUNA: **`NOT_RUN`**, y se
+  arregla con otra secuencia o quitando la máscara;
+- **ya cayó por los biofísicos** → no se gasta en ella. Es una DECISIÓN: **`NO_PEDIDO`**,
+  y no hay **nada** que conseguir.
+
+`escaneable` es `asymmetry is not None` **AND** `biophysical_ok(...)`, o sea que **funde
+las dos**, y la primera versión les daba `NOT_RUN` a las dos con el motivo «por coste» —
+que sobre una ventana con `N` es un **diagnóstico equivocado** (principio nº 3): manda a
+mirar un presupuesto cuando lo que hay es una base desconocida. Con la máscara murina son
+66 ventanas.
+
+**La regla: el estado no se elige con el booleano que funde las causas, se elige con la
+causa DERIVADA.** `escaneable` decide *si* se mira; no puede decidir *qué se dice cuando
+no se mira*.
+
+Medido: sin máscara, 1780 por decisión y **0** con `N`; con máscara, 1724 y **66**. En el
+informe, `homopolimero_molecula: NOT_RUN en 1790 de 2170 ventanas` pasa a **66 de 2170**,
+y sin máscara la línea **desaparece** — que es lo que hacía que el export dijera que un
+filtro no corrió al lado de su propio `PASS`.
+
+**Y es una FAMILIA que queda abierta**: `escaneable` gobierna otros cuatro centinelas y
+ninguno distingue las dos causas — `seed_colision`, `transgen` y `especificidad` dicen
+«por coste» sobre ventanas con `N`, y la accesibilidad y la carga de seed dan `NO_PEDIDO`
+a las que tienen `N`, donde lo honesto sería `NOT_RUN`. El mismo defecto con los dos
+signos. No se tocan de paso: cada uno es una decisión escrita con su golden.
+
 ### NO es un frente, y eso hay que declararlo
 
 Un **frente** es un filtro que se cierra **consiguiendo algo** —un fichero, una lectura
