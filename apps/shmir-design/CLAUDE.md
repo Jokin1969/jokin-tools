@@ -6462,6 +6462,59 @@ equivocada de la errata nº 133.
 
 ---
 
+## UN PROYECTO ILEGIBLE NO ESCONDE A LOS DEMÁS (2026-09-08)
+
+Errata nº 150. `project_list` abría cada proyecto **sin ninguna protección**, así que uno
+solo que no se pudiera leer abortaba la lista entera → `project_options` → el paso 0, que
+la llama fuera de todo `try`. Y `Project(**crudo)` lanza un **`TypeError`**, que el
+`except` de `main()` **no captura**: la página moría con la traza de Streamlit **antes de
+pintar nada**, así que no había ni lista, ni motivo, ni forma de llegar a los proyectos
+BUENOS. Basta un `proyecto.json` con un campo de más o de menos — o sea, un proyecto
+escrito con una versión y leído con otra, que es lo que pasa en el volumen tras cada
+despliegue.
+
+- **`ProjectStore.open` traduce el `TypeError` y NOMBRA los campos**, derivados de
+  `fields(Project)` y en las dos direcciones: los que faltan y los que esta versión no
+  conoce. «No se puede leer» no se puede investigar.
+- **`project_list` aísla cada proyecto**: el roto sale con `ilegible` y `motivo`, y lo que
+  no se ha podido contar va a `None`, nunca a cero.
+- **`project_options` lo deja fuera de `slugs`** —ofrecerlo sería ofrecer lo que al
+  abrirse vuelve a abortar— y lo devuelve en `ilegibles`.
+- **La página lo nombra y NO se queda muda con todos rotos**, que es el único caso en que
+  la explicación es lo único que queda.
+- **Y listar está protegido**: es la única pantalla que no se puede saltar.
+
+**Era invisible para la suite** porque todos sus proyectos los construye la versión de
+hoy: un directorio donde todos se pueden leer no puede delatar a quien no aísla al que no.
+
+## UN DESPLEGABLE SE ABRE POR EL VALOR DECLARADO (2026-09-08)
+
+Errata nº 151. `st.selectbox` sin `index=` abre por la PRIMERA opción, y en el modal de
+seed la primera la decidía el orden de la lista:
+
+| ajuste | preseleccionaba | declara `SeedParams` |
+|---|---|---|
+| `window` | **2-7** (alfabético) | **2-8** |
+| `level` | **nucleo** (orden de `LEVELS`) | **ambos** |
+| `species_prefix` | **`mmu-`** (escrito a mano) | `None` = lo resuelve la corrida |
+
+O sea que **el orden alfabético estaba eligiendo un parámetro científico**: con 2-7 el
+espacio de seeds pasa de 16.384 a 4.096 y la tasa base de **9,7 % a 31,1 %**. Es el
+principio nº 32 en la interfaz, ya escrito para el desplegable de especies y no aplicado
+a este eje.
+
+- **El índice se DERIVA** del valor declarado, vía `_seed_setting_label`, que pasa a ser
+  el único sitio que convierte un valor en su etiqueta: estaba escrito dos veces y con el
+  índice serían tres.
+- **El prefijo deja de ofrecerse tecleado**: quedan «(la de la corrida)» = `None` y
+  «TODAS» = `""`, que siguen siendo dos cosas distintas. `mmu-` en la lista era la puerta
+  de atrás que `--mirbase-especies` cerró en el CLI.
+- **El frente cierra igual con 2-7, MEDIDO**: `seed_colision` sale `PASS` y CERRADO con
+  las dos ventanas — la ventana viaja en el veredicto y no cambia el cierre. Lo que cambia
+  es cuánto vale ese `PASS`.
+
+---
+
 ## LOS DOS BOTONES MUERTOS ACABAN EN EL MISMO SITIO, Y NO ES EL TRANSPORTE (2026-09-08)
 
 Errata nº 149, y sale de las tres observaciones dadas juntas: el botón rojo del export no

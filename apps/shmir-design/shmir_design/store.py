@@ -29,7 +29,7 @@ from __future__ import annotations
 
 import hashlib
 import json
-from dataclasses import dataclass, field, replace
+from dataclasses import MISSING, dataclass, field, fields, replace
 from pathlib import Path
 
 from .coords import Frame, frame_of_utr3_bounds
@@ -258,7 +258,35 @@ class ProjectStore:
                 f"{fichero} no es JSON válido ({exc}); se aborta la apertura del "
                 f"proyecto en vez de seguir con los campos que se hayan podido leer."
             ) from exc
-        proyecto = Project(**crudo)
+        try:
+            proyecto = Project(**crudo)
+        except TypeError as exc:
+            # rule2-ok: se AÑADE contexto y se relanza como error del proyecto. El
+            # `TypeError` pelado no lo captura `main()` —no es un error nuestro— y la
+            # página moría con la traza de Streamlit, sin lista de proyectos y sin
+            # motivo (errata nº 150). Y no basta con cambiar el tipo: «no se pudo leer»
+            # no se puede investigar, así que el motivo NOMBRA los campos.
+            declarados = {c.name for c in fields(Project)}
+            hay = set(crudo)
+            faltan = sorted(
+                c.name for c in fields(Project)
+                if c.name not in hay and c.default is MISSING
+                and c.default_factory is MISSING  # type: ignore[misc]
+            )
+            sobran = sorted(hay - declarados)
+            partes = []
+            if faltan:
+                partes.append(f"le faltan campos ({', '.join(faltan)})")
+            if sobran:
+                partes.append(
+                    f"trae campos que esta versión no conoce ({', '.join(sobran)})"
+                )
+            detalle = " y ".join(partes) or str(exc)
+            raise ShmirDesignError(
+                f"{fichero} no se puede leer: {detalle}. Un proyecto escrito con otra "
+                f"versión de la app se lee así; se aborta SU apertura en vez de "
+                f"inventarse los campos que falten."
+            ) from exc
         # LA ENTRADA GUARDADA TIENE QUE SER LA QUE EL PROYECTO DECLARA. `proyecto.json`
         # es un fichero y se puede editar; con la secuencia cambiada, el panel saldria
         # con la forma correcta sobre OTRA entrada y nada lo delataria. Es la misma

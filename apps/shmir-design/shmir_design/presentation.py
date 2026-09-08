@@ -1774,28 +1774,61 @@ def seed_setting_rows(params):
     opciones = {
         "window": tuple(sorted(SEED_WINDOWS)),
         "level": LEVELS,
-        "species_prefix": ("mmu-", ""),
+        # EL PREFIJO NO SE TECLEA. Aqui habia `("mmu-", "")`, o sea un dato de UNA
+        # especie escrito en el codigo y ademas PRESELECCIONADO: es la puerta de atras
+        # que `--mirbase-especies` cerro en el CLI, y sobre otra especie da CERO
+        # colisiones, que parece una buena noticia. Las dos opciones que quedan son las
+        # dos preguntas reales, y `run_scan` resuelve la primera con la especie de la
+        # corrida — o aborta si esa especie no lo declara.
+        "species_prefix": (SEED_PREFIX_BY_RUN, SEED_PREFIX_ALL),
         "normalize_u_t": ("SI",),
     }
     return [
         {
             "ajuste": campo,
-            "valor": (
-                "SI" if getattr(params, campo) is True
-                else str(getattr(params, campo) or "TODAS")
-            ),
-            "por_defecto": (
-                "SI" if getattr(base, campo) is True
-                else str(getattr(base, campo) or "TODAS")
-            ),
+            "valor": _seed_setting_label(params, campo),
+            "por_defecto": _seed_setting_label(base, campo),
             "modificado": campo in tocados,
             # La normalizacion no es editable: apagarla daria cero colisiones y
             # parecerian buenas noticias. Se enseña, no se ofrece.
             "fijo": campo == "normalize_u_t",
             "opciones": opciones[campo],
+            # POR QUE OPCION SE ABRE. `st.selectbox` sin `index=` abre por la PRIMERA, y
+            # la primera la decidia el orden alfabetico: `2-7` en vez de `2-8` y `nucleo`
+            # en vez de `ambos`. O sea que el orden de una lista estaba eligiendo un
+            # parametro cientifico —con `2-7` la tasa base pasa de 9,7 % a 31,1 %— y
+            # nadie lo habia decidido (errata nº 151, principio nº 32).
+            #
+            # Se DERIVA del valor declarado en `SeedParams`, no se escribe: un ajuste
+            # nuevo, u otro orden de la lista, quedan cubiertos sin que nadie se acuerde.
+            "indice": opciones[campo].index(_seed_setting_label(base, campo)),
         }
         for campo in _SEED_SETTINGS
     ]
+
+
+#: Las dos preguntas del prefijo, con nombre propio. «Vacio» y «no declarado» son dos
+#: cosas —«todas las especies del fichero, a proposito» y «que lo resuelva la corrida»—
+#: y por eso son dos opciones y no una casilla.
+SEED_PREFIX_BY_RUN = "(la de la corrida)"
+SEED_PREFIX_ALL = "TODAS"
+
+
+def _seed_setting_label(params, campo: str) -> str:
+    """Como se LLAMA el valor de un ajuste en el desplegable. Un solo sitio.
+
+    Estaba escrito dos veces —una para el valor y otra para el por defecto— y ahora hay
+    una tercera lectura, el indice: tres copias de la misma conversion se desincronizan
+    y el desplegable abriria por una opcion que no existe (principio nº 13).
+    """
+    valor = getattr(params, campo)
+    if valor is True:
+        return "SI"
+    if campo == "species_prefix":
+        # `None` no es `""`: el primero es «nadie lo ha dicho» y el segundo «todas, a
+        # proposito». Colapsarlos aqui volveria a esconder la distincion.
+        return SEED_PREFIX_BY_RUN if valor is None else (valor or SEED_PREFIX_ALL)
+    return str(valor or "TODAS")
 
 
 def seed_source_text(mature) -> str:
@@ -2210,13 +2243,21 @@ def seed_params_from_form(valores: dict):
     """Lo elegido en el modal → `SeedParams`. Fuera de la pagina, como en BLAST."""
     from .seed_scan import SeedParams
 
+    base = SeedParams()
+    elegido = valores.get("species_prefix", SEED_PREFIX_BY_RUN)
+    if elegido == SEED_PREFIX_ALL:
+        prefijo = ""
+    elif elegido == SEED_PREFIX_BY_RUN:
+        # `None` = NO DECLARADO, que es lo que hace que `run_scan` lo resuelva con la
+        # especie de la corrida. Poner `"mmu-"` por defecto era el patron que este
+        # proyecto ya tiene retirado del CLI.
+        prefijo = None
+    else:
+        prefijo = str(elegido)
     return SeedParams(
-        window=str(valores.get("window", "2-8")),
-        species_prefix=(
-            "" if str(valores.get("species_prefix", "mmu-")) == "TODAS"
-            else str(valores.get("species_prefix", "mmu-"))
-        ),
-        level=str(valores.get("level", "ambos")),
+        window=str(valores.get("window", base.window)),
+        species_prefix=prefijo,
+        level=str(valores.get("level", base.level)),
     )
 
 
@@ -6568,6 +6609,17 @@ def project_list(base) -> list[dict[str, object]]:
 
     Sin ninguno devuelve la lista vacia y NO aborta: no haber creado todavia ninguno es
     lo normal el primer dia, no un fallo.
+
+    **UN PROYECTO ILEGIBLE NO SE LLEVA A LOS DEMAS (errata nº 150).** Esto abria cada
+    proyecto sin ninguna proteccion, asi que bastaba con que UNO no se pudiera leer
+    —un `proyecto.json` escrito con otra version de la app— para que la lista entera
+    abortara, el paso 0 no llegara a pintarse y los proyectos BUENOS quedaran
+    inalcanzables. Es la familia de la errata nº 89: lo que falla se dice, y no tumba lo
+    que funciona.
+
+    El roto sale en su fila con `ilegible` y `motivo`, y **no se esconde**: quien lo
+    busca tiene que poder saber por que no esta, y lo que no cuenta lo devuelve `None`
+    —no cero—, porque no haberlo podido contar no es haber contado cero.
     """
     from pathlib import Path
 
@@ -6580,8 +6632,22 @@ def project_list(base) -> list[dict[str, object]]:
     for directorio in sorted(p for p in raiz.iterdir() if p.is_dir()):
         if not (directorio / PROJECT_FILE).is_file():
             continue
-        almacen = ProjectStore.open(raiz, directorio.name)
+        try:
+            almacen = ProjectStore.open(raiz, directorio.name)
+        except (ShmirDesignError, OSError) as exc:
+            # rule2-ok: NO se traga nada — el motivo entero viaja en la fila y la pagina
+            # lo pinta. Lo que se evita es que un proyecto roto esconda a los demas.
+            filas.append({
+                "slug": directorio.name, "nombre": directorio.name,
+                "ilegible": True, "motivo": str(exc),
+                "creado": None, "md5": None, "longitud": None, "especie": None,
+                "fiable": None, "por_que_no_fiable": None, "corridas": None,
+                "log": str(directorio / LOG_FILE), "ultima": None, "vacio": None,
+            })
+            continue
         filas.append({
+            "ilegible": False,
+            "motivo": "",
             "slug": almacen.project.slug,
             "creado": almacen.project.created,
             "md5": almacen.project.sequence_md5,
@@ -6658,6 +6724,10 @@ def project_options(base) -> dict[str, object]:
     filas = project_list(base)
     etiquetas = {}
     for fila in filas:
+        if fila.get("ilegible"):
+            # NO entra en `slugs`: ofrecer en el desplegable algo que al abrirse vuelve
+            # a abortar es la trampa de ofrecer lo que no se puede hacer. Sale aparte.
+            continue
         trozos = [str(fila["nombre"])]
         if fila["nombre"] != fila["slug"]:
             trozos.append(f"({fila['slug']})")
@@ -6667,9 +6737,15 @@ def project_options(base) -> dict[str, object]:
         )
         etiquetas[fila["slug"]] = " ".join(trozos)
     return {
-        "slugs": [str(f["slug"]) for f in filas],
+        "slugs": [str(f["slug"]) for f in filas if not f.get("ilegible")],
         "etiquetas": etiquetas,
         "filas": filas,
+        # LOS QUE NO SE HAN PODIDO LEER, aparte y CON SU MOTIVO. Son dos preguntas
+        # —«cual abro» y «que le pasa a ese»— y una lista sola no contesta las dos.
+        "ilegibles": [
+            {"slug": str(f["slug"]), "motivo": str(f["motivo"])}
+            for f in filas if f.get("ilegible")
+        ],
     }
 
 
