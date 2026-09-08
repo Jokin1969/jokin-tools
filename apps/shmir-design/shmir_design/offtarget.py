@@ -45,7 +45,12 @@ from dataclasses import dataclass, field, replace
 
 from .coords import Frame, label
 from .errors import ShmirDesignError
-from .seed_load import FRONT_NAME, WHY_NOT_BLAST  # noqa: F401  (el frente es el mismo)
+from .seed_load import (  # noqa: F401  (el frente es el mismo)
+    FRONT_NAME,
+    MISSING_ROLE,
+    MISSING_ROLE_TEXT,
+    WHY_NOT_BLAST,
+)
 
 SEED_START = 2
 SEED_END = 8
@@ -81,7 +86,47 @@ WHY_NOT_SUMMED = (
     "alguien acabaria imprimiendolo."
 )
 
-MISSING_FILE = "transcriptoma_3utr.fa"
+
+def missing_file(species: str) -> str:
+    """El NOMBRE del catalogo que falta para ESA especie. Sin especie, ABORTA.
+
+    No devuelve nada por defecto a proposito (principio nº 58): un nombre por defecto
+    aqui seria el murino con otro disfraz, que es justo el fallo que esto cierra. Quien
+    escribe un MENSAJE usa `missing_file_text`, que sabe decir «no lo se» sin inventar.
+    """
+    from .species import required_files, resolve  # noqa: PLC0415
+
+    if not species:
+        raise ShmirDesignError(
+            f"Se ha pedido el nombre del fichero del rol {MISSING_ROLE!r} sin declarar "
+            f"especie, y ese nombre DEPENDE de ella. Se aborta en vez de devolver uno: "
+            f"un nombre de otra especie no da error, manda a conseguir un fichero que "
+            f"el gestor no pide (errata nº 157). Para un mensaje, `missing_file_text`."
+        )
+    for pedido in required_files(resolve(species)):
+        if pedido.role == MISSING_ROLE:
+            return pedido.filename
+    raise ShmirDesignError(
+        f"`species.required_files` no pide el rol {MISSING_ROLE!r} para "
+        f"{resolve(species).scientific}, así que no hay nombre que dar. Se aborta en vez "
+        f"de inventar uno: un nombre inventado no da error, manda a buscar un fichero "
+        f"que no existe."
+    )
+
+
+def missing_file_text(species: str = "") -> str:
+    """La FRASE para un mensaje, ya con sus comillas: el nombre, o el rol.
+
+    Son dos funciones y no una porque son dos cantidades (principio nº 27): una da un
+    NOMBRE DE FICHERO —que sin especie no existe— y la otra da un TROZO DE MENSAJE, que
+    siempre se puede escribir. Devolverlas fundidas obligaba a los llamadores a poner
+    sus propias comillas, y con el rol dentro salia una comilla anidada dentro de otra
+    en el informe descargable.
+    """
+    if not species:
+        return MISSING_ROLE_TEXT
+    return f"`{missing_file(species)}`"
+
 
 #: La ruta de descarga, para que la interfaz la enseñe en vez de que haya que
 #: preguntarla. La aporto el responsable del proyecto.
@@ -1388,7 +1433,8 @@ def run_scan(selection, *, catalog: Catalog | None, mature,
     if catalog is None:
         raise ShmirDesignError(
             f"No hay catalogo de 3'UTR cargado, así que la carga de off-targets por seed "
-            f"no se puede contar. Falta `{MISSING_FILE}`. El frente queda NOT_RUN — que "
+            f"no se puede contar. Falta {missing_file_text(species)}. El frente "
+            f"queda NOT_RUN — que "
             f"no es PASS y sobre todo NO ES CERO: no saber cuántos sitios hay no es lo "
             f"mismo que no haber ninguno."
         )

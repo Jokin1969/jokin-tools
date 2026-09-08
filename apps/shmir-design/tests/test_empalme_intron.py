@@ -265,11 +265,25 @@ class TestLasTresLecturas(unittest.TestCase):
         self.assertIn("misma tanda", motivo.lower())
 
     def test_y_AVISA_de_que_el_casete_que_hay_NO_es_ese(self):
-        # `aav_casete.fa` es el parental SIN MODULO, pero CON el intron vacio de 82 nt.
-        # Cogerlo por el parental sin intron daria un techo que no es un techo.
+        # El casete versionado es el parental SIN MODULO, pero CON el intron vacio de
+        # 82 nt. Cogerlo por el parental sin intron daria un techo que no es un techo.
+        #
+        # EL NOMBRE SE PIDE, no se transcribe: escrito era el MURINO, asi que el informe
+        # humano nombraba un fichero que su gestor no pide (errata nº 157).
+        from shmir_design.species import filename_for_role
+
+        for especie in ("raton", "humano"):
+            lecturas = {
+                l.name: l for l in splicing.splicing_readouts(species=especie)
+            }
+            motivo = lecturas["parental_sin_intron"].requirement
+            self.assertIn("82", motivo)
+            self.assertIn(filename_for_role(especie, "transgen"), motivo)
+
+    def test_y_SIN_especie_nombra_el_ROL_en_vez_de_inventar_un_fichero(self):
         motivo = self.lecturas["parental_sin_intron"].requirement
-        self.assertIn("82", motivo)
-        self.assertIn("aav_casete.fa", motivo)
+        self.assertIn("transgen", motivo)
+        self.assertNotIn("aav_casete.fa", motivo)
 
 
 class TestElQuintoFrente(unittest.TestCase):

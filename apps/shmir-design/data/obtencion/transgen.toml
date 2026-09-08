@@ -26,7 +26,7 @@ pasos = [
 ]
 
 avisos = [
-  "El casete que hay hoy en el proyecto (`aav_casete.fa`) es el PARENTAL, sin el módulo del shmiR, y está comprobado por secuencia. Por eso su veredicto se puede leer tal cual. Cuando se sustituya por el terapeutico hay que dar el TRANSCRITO MADURO.",
+  "El casete de este frente es `{fichero_transgen}`, y el veredicto sale de ÉL. El que hay versionado en el repositorio es el del RATÓN: es el PARENTAL, sin el módulo del shmiR, y eso está comprobado POR SECUENCIA, así que su veredicto se puede leer tal cual. Para otra especie el vector NO se parametriza — se SUSTITUYE, y de ese otro casete no se ha comprobado nada aquí. Cuando se sustituya por el terapeutico hay que dar el TRANSCRITO MADURO.",
   "XhoI y EcoRI viajan dentro del módulo, heredadas de los contextos de SGEP, y en el plásmido final NO son únicas. El clonaje va por NheI/SacI o por síntesis.",
 ]
 

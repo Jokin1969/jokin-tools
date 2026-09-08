@@ -76,13 +76,31 @@ def _revcomp(sequence: str) -> str:
 #: El frente propio. NO es `especificidad` y no se funde con el.
 FRONT_NAME = "offtarget_seed"
 
+#: EL ROL del fichero que cierra este frente, que es lo estable. El NOMBRE depende de la
+#: especie y lo pone `species.required_files`; escrito en un mensaje seria el MURINO, y
+#: en otra especie manda a conseguir un fichero que el gestor no pide (errata nº 157).
+#:
+#: Vive aqui —donde vive el frente— y no en `offtarget`, que es quien lo importa: al
+#: reves habria un ciclo, y con una copia en cada modulo el dia que el rol se renombre
+#: una de las dos se queda vieja sin dar ningun error (principio nº 13).
+MISSING_ROLE = "transcriptoma"
+
+#: Como se nombra ese fichero cuando NO hay especie declarada: no es un nombre —no lo
+#: hay— sino el ROL, que es lo que el gestor entiende y lo que la ficha de obtencion
+#: explica. Ya lleva sus comillas, para que quien lo pegue en un mensaje no las anide.
+MISSING_ROLE_TEXT = f"el catálogo de 3'UTR del transcriptoma (rol `{MISSING_ROLE}`)"
+
 #: Por que este frente va APARTE del BLAST, escrito donde se decide.
+#:
+#: NO nombra ningun fichero, y no es un descuido: es una explicacion de MODULO, sin
+#: especie, asi que el unico nombre que podria llevar es el del caso base. El nombre lo
+#: pone quien SI tiene la especie —el motivo del frente— y esta frase va pegada detras.
 WHY_NOT_BLAST = (
     "EL OFF-TARGET MEDIADO POR SEED NO SE BUSCA CON BLAST, y no es una preferencia: "
     "7 nt contiguos NO DAN UN ALINEAMIENTO PUNTUABLE, así que un blastn no los "
     "devuelve por mucho que se le baje el word_size. Esto es coincidencia EXACTA del "
-    "heptamero 2-8 sobre los 3'UTR del transcriptoma murino — busqueda de SUBCADENA, no "
-    "alineamiento— y necesita `transcriptoma_3utr.fa`. "
+    "heptamero 2-8 sobre los 3'UTR del transcriptoma de la especie que se diseña "
+    f"—busqueda de SUBCADENA, no alineamiento— y necesita {MISSING_ROLE_TEXT}. "
     "Fundirlo con la especificidad en un solo «PASS» daria por cubierto EL MODO DE "
     "OFF-TARGET MÁS FRECUENTE DE RNAi con una herramienta que no lo detecta. Por eso "
     "son DOS frentes y se cuentan aparte."

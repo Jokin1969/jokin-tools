@@ -241,7 +241,17 @@ class TestNingunGeneradorPONEunParametro(unittest.TestCase):
     #: 3'UTR — que es justo lo que `resolve.py` prohibe adivinar. La variante sobre el
     #: transcrito no puede existir sin pasarla, y esa variante es la que caza los fallos
     #: de marco (errata nº 122).
-    TILADO_PERMITIDO = {"anatomy"}
+    #:
+    #: `species` entra por LA MISMA razon y con el mismo criterio, no ampliando el
+    #: permiso: es la IDENTIDAD de la entrada —como `--name`—, la pasan la pagina y el
+    #: CLI, no decide ningun umbral, no conecta ningun fichero y no mueve ningun
+    #: veredicto. Lo que decide es COMO SE NOMBRAN las cosas en la salida, y ahi
+    #: omitirla producia exactamente el fallo que este golden existe para cazar: el
+    #: generador declaraba `build_document(species="mouse")` sobre un `tile_utr(utr3)`
+    #: SIN especie, asi que el documento decia «falta el catalogo (rol `transcriptoma`)»
+    #: donde el CLI dice `transcriptoma_3utr.fa` — el artefacto de verificacion fijando
+    #: una salida que el marco de uso no produce (errata nº 157).
+    TILADO_PERMITIDO = {"anatomy", "species"}
 
     def test_tile_utr_no_recibe_CONFIGURACION_ni_RECURSOS(self):
         """La lista de lo prohibido se DERIVA de la firma de `tile_utr` menos lo
@@ -266,8 +276,14 @@ class TestNingunGeneradorPONEunParametro(unittest.TestCase):
 
     def test_y_lo_permitido_es_CORTO_y_esta_justificado(self):
         """Un permiso que crece deja de ser un permiso. Si esta lista se alarga, lo que
-        hay que revisar es por que, no ampliarla."""
-        self.assertEqual(self.TILADO_PERMITIDO, {"anatomy"})
+        hay que revisar es por que, no ampliarla.
+
+        Los DOS que hay comparten criterio y no es «lo que hizo falta»: son propiedades
+        de LA ENTRADA que la pagina y el CLI pasan siempre. Nada que sea CONFIGURACION
+        —un umbral, una cuota— ni un RECURSO —una mascara, los maduros, una tabla— entra
+        aqui, y de eso se encarga el test de arriba, que deriva lo prohibido de la firma.
+        """
+        self.assertEqual(self.TILADO_PERMITIDO, {"anatomy", "species"})
 
     def test_ningun_campo_de_la_CONFIGURACION_aparece_como_argumento(self):
         """El trinquete derivado (principio nº 13): la lista de lo prohibido sale de los

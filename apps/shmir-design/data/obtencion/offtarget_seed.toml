@@ -32,7 +32,7 @@ pasos = [
 avisos = [
   "NO FILTRES LAS ISOFORMAS A MANO. Que lo haga la app: ella cuenta cuanto infla el conteo y lo dice al lado del resultado. Un filtrado manual no deja rastro y el número acaba siendo incomparable entre corridas.",
   "La salida de «3' UTR Exons» da un registro POR EXON, así que un 3'UTR troceado aparece varias veces. No es un error del fichero: es como es, y por eso la app lo audita en vez de rechazarlo.",
-  "El fichero NO va a git — son decenas de MB. En el manifiesto quedan solo nombre, tamaño y md5, igual que con `refseq_rna.fa`.",
+  "El fichero NO va a git — son decenas de MB. En el manifiesto quedan solo nombre, tamaño y md5, igual que con `{fichero_refseq}`.",
 ]
 
 [[ficheros]]

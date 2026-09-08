@@ -2456,6 +2456,17 @@ class BlockingFront:
     blocking: bool = True
 
 
+def _missing_file(report) -> str:
+    """El catalogo de 3'UTR que falta, nombrado para la especie de ESTE informe.
+
+    Ya viene con sus comillas: sin especie declarada NO hay nombre de fichero, y lo que
+    se dice es el ROL. Ponerselas aqui dejaba una comilla dentro de otra.
+    """
+    from .offtarget import missing_file_text  # noqa: PLC0415
+
+    return missing_file_text(getattr(report, "species", ""))
+
+
 def blocking_fronts(
     report: TilingReport, selection: ReportSelection, *, closed_by_panel=None,
 ) -> list[BlockingFront]:
@@ -2541,9 +2552,12 @@ def blocking_fronts(
         frentes.append(
             BlockingFront(
                 name=_SEED_FRONT,
+                # EL NOMBRE SE DERIVA DE LA ESPECIE DEL INFORME. Estaba escrito, y era
+                # el murino: en humano mandaba a conseguir un fichero que el gestor no
+                # pide (errata nº 157).
                 reason=(
-                    f"NOT_RUN: falta `transcriptoma_3utr.fa`, así que los sitios de seed "
-                    f"no se han contado. NOT_RUN no es PASS. {WHY_NOT_BLAST}"
+                    f"NOT_RUN: falta {_missing_file(report)}, así que los sitios de "
+                    f"seed no se han contado. NOT_RUN no es PASS. {WHY_NOT_BLAST}"
                 ),
             )
         )

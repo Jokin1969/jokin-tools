@@ -231,7 +231,13 @@ def generar_ficha() -> str:
     # pasa nada. Pasarla a mano era lo que hacia que el golden se generara con la
     # constante mientras la app leia el fichero — dos caminos, y el golden dejaba
     # de comprobar el de verdad.
-    informe = tile_utr(utr3)
+    # LA ESPECIE SE DECLARA, aqui igual que en `build_dossier`/`build_document` de dos
+    # lineas mas abajo. No es un parametro de configuracion (principio nº 18): es la
+    # IDENTIDAD de la entrada, como `--name`, y de ella salen los nombres de los ficheros
+    # del deposito que el informe nombra. Declarada en un sitio y no en el otro, el
+    # documento decia «falta el catalogo (rol transcriptoma)» donde el CLI dice
+    # `transcriptoma_3utr.fa` — dos salidas del mismo generador diciendo cosas distintas.
+    informe = tile_utr(utr3, species="raton")
     # `default_config()`, NO un `SelectionConfig` a mano: el panel de 10 y la cuota de 4
     # son las constantes del proyecto, y tecleadas aqui el golden dejaba de enterarse si
     # alguien las cambiaba. Es `--inmunes 4` con otra forma (principio nº 18).
@@ -263,7 +269,13 @@ def generar_documento() -> str:
     # pasa nada. Pasarla a mano era lo que hacia que el golden se generara con la
     # constante mientras la app leia el fichero — dos caminos, y el golden dejaba
     # de comprobar el de verdad.
-    informe = tile_utr(utr3)
+    # LA ESPECIE SE DECLARA, aqui igual que en `build_dossier`/`build_document` de dos
+    # lineas mas abajo. No es un parametro de configuracion (principio nº 18): es la
+    # IDENTIDAD de la entrada, como `--name`, y de ella salen los nombres de los ficheros
+    # del deposito que el informe nombra. Declarada en un sitio y no en el otro, el
+    # documento decia «falta el catalogo (rol transcriptoma)» donde el CLI dice
+    # `transcriptoma_3utr.fa` — dos salidas del mismo generador diciendo cosas distintas.
+    informe = tile_utr(utr3, species="raton")
     # `default_config()`, NO un `SelectionConfig` a mano: el panel de 10 y la cuota de 4
     # son las constantes del proyecto, y tecleadas aqui el golden dejaba de enterarse si
     # alguien las cambiaba. Es `--inmunes 4` con otra forma (principio nº 18).
@@ -297,7 +309,13 @@ def _tilado_del_transcrito():
         length=len(secuencia),
         source=RegionSource.FIXTURE_VERIFICADO,
     )
-    informe = tile_utr(secuencia, anatomy=anatomia)
+    # LA ESPECIE SE DECLARA, aqui igual que en `build_dossier`/`build_document` de dos
+    # lineas mas abajo. No es un parametro de configuracion (principio nº 18): es la
+    # IDENTIDAD de la entrada, como `--name`, y de ella salen los nombres de los ficheros
+    # del deposito que el informe nombra. Declarada en un sitio y no en el otro, el
+    # documento decia «falta el catalogo (rol transcriptoma)» donde el CLI dice
+    # `transcriptoma_3utr.fa` — dos salidas del mismo generador diciendo cosas distintas.
+    informe = tile_utr(secuencia, anatomy=anatomia, species="raton")
     return secuencia, anatomia, informe, select_from_report(informe, default_config())
 
 

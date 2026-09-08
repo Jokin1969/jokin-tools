@@ -378,7 +378,7 @@ COMO CERRAR EL FRENTE «transgen»
   COMO SE VALIDA AL SUBIRLO: La app comprueba POR SECUENCIA si el casete lleva el módulo del shmiR dentro —busca el loop de los andamios conocidos— y avisa. Si le pasas el GENOMA CON EL INTRÓN DENTRO en vez del transcrito maduro, toda guía da impacto contra SU PROPIA HORQUILLA y el filtro tumba el panel entero por un artefacto, con un motivo que además es literalmente cierto: por eso no se ve si nadie lo comprueba.
 
   AVISOS:
-    ⚠ El casete que hay hoy en el proyecto (`aav_casete.fa`) es el PARENTAL, sin el módulo del shmiR, y está comprobado por secuencia. Por eso su veredicto se puede leer tal cual. Cuando se sustituya por el terapeutico hay que dar el TRANSCRITO MADURO.
+    ⚠ El casete de este frente es `aav_casete.fa`, y el veredicto sale de ÉL. El que hay versionado en el repositorio es el del RATÓN: es el PARENTAL, sin el módulo del shmiR, y eso está comprobado POR SECUENCIA, así que su veredicto se puede leer tal cual. Para otra especie el vector NO se parametriza — se SUSTITUYE, y de ese otro casete no se ha comprobado nada aquí. Cuando se sustituya por el terapeutico hay que dar el TRANSCRITO MADURO.
     ⚠ XhoI y EcoRI viajan dentro del módulo, heredadas de los contextos de SGEP, y en el plásmido final NO son únicas. El clonaje va por NheI/SacI o por síntesis.
 ```
 
@@ -386,7 +386,7 @@ COMO CERRAR EL FRENTE «transgen»
 
 **Que mide.** ¿Cuántos mensajeros del transcriptoma llevan un sitio para la seed de esta hebra? Es la CARGA de off-targets, y es otra pregunta que la colisión con un miARN conocido. No la contesta ningún alineador: 7 nt contiguos no dan un alineamiento puntuable, así que ningún BLAST los devuelve por mucho que se le baje el word_size.
 
-**Por que importa / resultado.** NOT_RUN: falta `transcriptoma_3utr.fa`, así que los sitios de seed no se han contado. NOT_RUN no es PASS. EL OFF-TARGET MEDIADO POR SEED NO SE BUSCA CON BLAST, y no es una preferencia: 7 nt contiguos NO DAN UN ALINEAMIENTO PUNTUABLE, así que un blastn no los devuelve por mucho que se le baje el word_size. Esto es coincidencia EXACTA del heptamero 2-8 sobre los 3'UTR del transcriptoma murino — busqueda de SUBCADENA, no alineamiento— y necesita `transcriptoma_3utr.fa`. Fundirlo con la especificidad en un solo «PASS» daria por cubierto EL MODO DE OFF-TARGET MÁS FRECUENTE DE RNAi con una herramienta que no lo detecta. Por eso son DOS frentes y se cuentan aparte.
+**Por que importa / resultado.** NOT_RUN: falta `transcriptoma_3utr.fa`, así que los sitios de seed no se han contado. NOT_RUN no es PASS. EL OFF-TARGET MEDIADO POR SEED NO SE BUSCA CON BLAST, y no es una preferencia: 7 nt contiguos NO DAN UN ALINEAMIENTO PUNTUABLE, así que un blastn no los devuelve por mucho que se le baje el word_size. Esto es coincidencia EXACTA del heptamero 2-8 sobre los 3'UTR del transcriptoma de la especie que se diseña —busqueda de SUBCADENA, no alineamiento— y necesita el catálogo de 3'UTR del transcriptoma (rol `transcriptoma`). Fundirlo con la especificidad en un solo «PASS» daria por cubierto EL MODO DE OFF-TARGET MÁS FRECUENTE DE RNAi con una herramienta que no lo detecta. Por eso son DOS frentes y se cuentan aparte.
 
 **Fuente de datos.** NINGUNA CARGADA. El frente queda NOT_RUN — que no es PASS y no es cero.
 
@@ -495,7 +495,7 @@ QUÉ HAY QUE MEDIR EN EL BANCO PARA CERRAR «empalme_intron»
     ⚠ LA PRESENCIA DE BANDA LARGA NO ES EVIDENCIA DE RETENCIÓN, y esto invalida la lectura ingenua del gel. El pre-mRNA sin empalmar EXISTE SIEMPRE: el splicing es cotranscripcional pero NO instantáneo, así que en cualquier población de transcritos hay nacientes a medio procesar y dan banda larga aunque el empalme sea PERFECTO. Aquí estuvo escrito «banda CORTA = empalmado, banda LARGA = retenido» y es FALSO. Por eso el ensayo lleva las cuatro condiciones de los pasos —citoplasma, polyA, DNasa con control −RT, y proporción con dos referencias— y no una de ellas: las tres primeras quitan del medio lo que no es retención, y la cuarta cambia lo que se lee.
     ⚠ UN small RNA-seq PERFECTO NO ES EVIDENCIA DE QUE HAYA PROTEINA. Drosha procesa el pri-miR COTRANSCRIPCIONALMENTE, o sea ANTES del splicing: la horquilla se corta igual este el intrón escindido o no. Son dos sucesos en orden y esa lectura solo mide el primero. Por eso este frente no estaba en la lista.
     ⚠ EL CEBADOR DE AGUAS ABAJO CAE DENTRO DEL ORF DE PrP. La especificidad de vector la da el cebador de aguas ARRIBA, y SOLO ese: un par con los dos cebadores aguas abajo amplificaria también el Prnp ENDOGENO del tejido — saldria banda, del tamaño esperado, y no sería del vector. Es el error que arruinaria el ensayo sin dar ninguna señal.
-    ⚠ El casete que hay (`aav_casete.fa`) NO sirve como parental sin intrón: es el parental sin MÓDULO pero CON el intrón vacío de 82 nt, así que arrastra el mismo problema que se quiere medir. Y el intrón del terapeutico son 296 nt, no 82: la eficiencia de uno no dice nada del otro. La app específica el control sin intrón —donante y aceptor eliminados, todo lo demas conservado base a base— y sale en la hoja de pedido.
+    ⚠ Hace falta la construcción SIN donante ni aceptor, y el casete del frente del transgén —`aav_casete.fa`— no lo es: el versionado, el del RATÓN, es el parental sin MÓDULO pero CON el intrón vacío de 82 nt, así que arrastra el mismo problema que se quiere medir. Y el intrón del terapeutico son 296 nt, no 82: la eficiencia de uno no dice nada del otro. La app específica el control sin intrón —donante y aceptor eliminados, todo lo demas conservado base a base— y sale en la hoja de pedido.
 ```
 
 ### empalme_sitios — NOT_RUN
@@ -1086,7 +1086,7 @@ Estos no salen de ninguna medida. Se declaran como convenio o como decisión de 
 
 ### La especificidad no cubre los off-targets por seed
 
-EL OFF-TARGET MEDIADO POR SEED NO SE BUSCA CON BLAST, y no es una preferencia: 7 nt contiguos NO DAN UN ALINEAMIENTO PUNTUABLE, así que un blastn no los devuelve por mucho que se le baje el word_size. Esto es coincidencia EXACTA del heptamero 2-8 sobre los 3'UTR del transcriptoma murino — busqueda de SUBCADENA, no alineamiento— y necesita `transcriptoma_3utr.fa`. Fundirlo con la especificidad en un solo «PASS» daria por cubierto EL MODO DE OFF-TARGET MÁS FRECUENTE DE RNAi con una herramienta que no lo detecta. Por eso son DOS frentes y se cuentan aparte.
+EL OFF-TARGET MEDIADO POR SEED NO SE BUSCA CON BLAST, y no es una preferencia: 7 nt contiguos NO DAN UN ALINEAMIENTO PUNTUABLE, así que un blastn no los devuelve por mucho que se le baje el word_size. Esto es coincidencia EXACTA del heptamero 2-8 sobre los 3'UTR del transcriptoma de la especie que se diseña —busqueda de SUBCADENA, no alineamiento— y necesita el catálogo de 3'UTR del transcriptoma (rol `transcriptoma`). Fundirlo con la especificidad en un solo «PASS» daria por cubierto EL MODO DE OFF-TARGET MÁS FRECUENTE DE RNAi con una herramienta que no lo detecta. Por eso son DOS frentes y se cuentan aparte.
 
 ### La accesibilidad es DESEMPATE, nunca filtro
 

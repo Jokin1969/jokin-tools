@@ -35,11 +35,19 @@ if str(RAIZ) not in sys.path:
     sys.path.insert(0, str(RAIZ))
 
 from shmir_design import presentation, specificity  # noqa: E402
-from shmir_design.manifest import ROLES  # noqa: E402
+from shmir_design.species import required_files, resolve  # noqa: E402
 
-#: El rol y su fichero se le PIDEN al manifiesto: escribir «aav_casete.fa» aquí sería
-#: una segunda definición de la misma correspondencia (principio nº 13).
-CASETE = next(r for r in ROLES if r.role == "transgen")
+#: La especie de estas comprobaciones va DECLARADA: el nombre del casete depende de
+#: ella —`aav_casete.fa` en ratón, `aav_casete_human.fa` en humano— y sin declararla
+#: la que se ejercitaría sería «la que traiga el valor por defecto» (principio nº 58).
+ESPECIE = "raton"
+
+#: El rol y su fichero se le PIDEN a `species.required_files`, que es la única fuente
+#: de los nombres del depósito: escribir «aav_casete.fa» aquí sería una segunda
+#: definición de la misma correspondencia (principio nº 13). Se le pedían a
+#: `manifest.ROLES`, que es la tabla MURINA, así que con otra especie el test habría
+#: comprobado el fichero equivocado sin dar ningún error.
+CASETE = next(r for r in required_files(resolve(ESPECIE)) if r.role == "transgen")
 DEPOSITO = RAIZ / "data" / "reference" / CASETE.filename
 
 
@@ -60,7 +68,7 @@ class TestElCaseteDelDepositoSeReconoce(unittest.TestCase):
 
     def test_el_del_deposito_COINCIDE_consigo_mismo(self):
         ficha = presentation.cassette_deposit_check(
-            self.deposito, directory=DEPOSITO.parent
+            self.deposito, species=ESPECIE, directory=DEPOSITO.parent
         )
         self.assertEqual(ficha["estado"], presentation.CASETE_COINCIDE)
         self.assertEqual(ficha["md5_en_uso"], ficha["md5_deposito"])
@@ -69,7 +77,9 @@ class TestElCaseteDelDepositoSeReconoce(unittest.TestCase):
     def test_OTRO_casete_NO_coincide_y_lo_dice_con_los_dos_md5(self):
         """El caso real: mismo flanco 5', 112 nt menos por el 3'."""
         otro = self.deposito[:len(self.deposito) - 112]
-        ficha = presentation.cassette_deposit_check(otro, directory=DEPOSITO.parent)
+        ficha = presentation.cassette_deposit_check(
+            otro, species=ESPECIE, directory=DEPOSITO.parent
+        )
         self.assertEqual(ficha["estado"], presentation.CASETE_NO_COINCIDE)
         self.assertEqual(ficha["nt_en_uso"], len(self.deposito) - 112)
         self.assertEqual(ficha["nt_deposito"], len(self.deposito))
@@ -81,7 +91,7 @@ class TestElCaseteDelDepositoSeReconoce(unittest.TestCase):
     def test_y_la_diferencia_de_longitud_va_en_el_motivo(self):
         otro = self.deposito[:len(self.deposito) - 112]
         motivo = presentation.cassette_deposit_check(
-            otro, directory=DEPOSITO.parent
+            otro, species=ESPECIE, directory=DEPOSITO.parent
         )["motivo"]
         self.assertIn("5170", motivo)
         self.assertIn(str(len(self.deposito)), motivo)
@@ -91,7 +101,9 @@ class TestSinCaseteNoSeINVENTA_UN_VERDICTO(unittest.TestCase):
     """NOT_RUN no es COINCIDE: no haber podido comprobar no es haber comprobado."""
 
     def test_sin_casete_en_la_mano_es_NOT_RUN(self):
-        ficha = presentation.cassette_deposit_check(None, directory=DEPOSITO.parent)
+        ficha = presentation.cassette_deposit_check(
+            None, species=ESPECIE, directory=DEPOSITO.parent
+        )
         self.assertEqual(ficha["estado"], presentation.CASETE_SIN_COMPROBAR)
         self.assertTrue(ficha["motivo"].strip())
 
@@ -99,7 +111,9 @@ class TestSinCaseteNoSeINVENTA_UN_VERDICTO(unittest.TestCase):
         import tempfile
 
         with tempfile.TemporaryDirectory() as vacio:
-            ficha = presentation.cassette_deposit_check("ACGT", directory=Path(vacio))
+            ficha = presentation.cassette_deposit_check(
+                "ACGT", species=ESPECIE, directory=Path(vacio)
+            )
         self.assertEqual(ficha["estado"], presentation.CASETE_SIN_COMPROBAR)
         self.assertIn(CASETE.filename, ficha["motivo"])
 
@@ -183,7 +197,7 @@ class TestElCaseteDelDepositoSeCompara_CON_LO_VERSIONADO(unittest.TestCase):
                 )
                 secuencia = "".join(next(iter(db.records.values())).split()).upper()
             return presentation.cassette_deposit_check(
-                secuencia, directory=Path(deposito)
+                secuencia, species=ESPECIE, directory=Path(deposito)
             )
 
     def test_si_el_deposito_ES_el_versionado_no_hay_nada_que_avisar(self):
@@ -231,7 +245,7 @@ class TestElAvisoNO_BLOQUEA(unittest.TestCase):
         from shmir_design.reference import PACKAGE_REFERENCE_DIR
 
         ficha = presentation.cassette_deposit_check(
-            _secuencia(DEPOSITO), directory=PACKAGE_REFERENCE_DIR
+            _secuencia(DEPOSITO), species=ESPECIE, directory=PACKAGE_REFERENCE_DIR
         )
         self.assertEqual(
             ficha["versionado"]["estado"], presentation.DEPOSITO_MISMO_DIRECTORIO

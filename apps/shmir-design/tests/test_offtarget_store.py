@@ -81,9 +81,17 @@ class TestElNombreDelFrente(unittest.TestCase):
 
     def test_sin_corrida_el_veredicto_es_NOT_RUN_y_nombra_el_fichero(self):
         almacen = offtarget_store.OfftargetStore()
-        veredicto = almacen.verdict_for(Q(10))
+        veredicto = almacen.verdict_for(Q(10), species="raton")
         self.assertIs(veredicto.state, FilterState.NOT_RUN)
-        self.assertIn(offtarget.MISSING_FILE, veredicto.reason)
+        self.assertIn(offtarget.missing_file("raton"), veredicto.reason)
+
+    def test_y_SIN_especie_nombra_el_ROL_en_vez_de_inventar_un_fichero(self):
+        # «El fichero de la especie que sea» no significa nada, y el defecto que saldria
+        # es el del caso base — el fallo con otro disfraz (errata nº 157).
+        almacen = offtarget_store.OfftargetStore()
+        motivo = almacen.verdict_for(Q(10)).reason
+        self.assertIn(offtarget.MISSING_ROLE, motivo)
+        self.assertNotIn(offtarget.missing_file("raton"), motivo)
 
     def test_y_NOT_RUN_no_es_cero(self):
         almacen = offtarget_store.OfftargetStore()

@@ -145,21 +145,31 @@ class TestElHuecoDeLaCARGA(unittest.TestCase):
     """Lo que este modal NO cierra, preparado en la misma interfaz y en NOT_RUN."""
 
     def test_hay_un_bloque_para_el_otro_frente(self):
-        hueco = presentation.seed_load_placeholder(None)
+        hueco = presentation.seed_load_placeholder(None, species="raton")
         self.assertIs(hueco["state"], FilterState.NOT_RUN)
 
-    def test_nombra_el_fichero_que_falta(self):
-        self.assertIn("transcriptoma_3utr.fa", presentation.seed_load_placeholder(None)["texto"])
+    def test_nombra_el_fichero_que_falta_DE_ESA_ESPECIE(self):
+        # El SEPTIMO emisor de la familia de la errata nº 157: lo tenia escrito, y era
+        # el murino. El nombre se le pide a `species.required_files` por su ROL.
+        from shmir_design.species import required_files, resolve
+
+        for especie in ("raton", "humano"):
+            nombre = next(
+                f.filename for f in required_files(resolve(especie))
+                if f.role == "transcriptoma"
+            )
+            texto = presentation.seed_load_placeholder(None, species=especie)["texto"]
+            self.assertIn(nombre, texto)
 
     def test_dice_que_es_OTRA_pregunta(self):
-        texto = presentation.seed_load_placeholder(None)["texto"].lower()
+        texto = presentation.seed_load_placeholder(None, species="raton")["texto"].lower()
         self.assertIn("cuántos mensajeros", texto)
 
     def test_con_el_fichero_dejaria_de_ser_un_hueco(self):
         class _Falso:
             provenance = "transcriptoma_3utr.fa, versión x"
 
-        hueco = presentation.seed_load_placeholder(_Falso())
+        hueco = presentation.seed_load_placeholder(_Falso(), species="raton")
         self.assertIsNot(hueco["state"], FilterState.NOT_RUN)
 
 

@@ -444,8 +444,22 @@ class TestLaProcedenciaDelFichero(unittest.TestCase):
         self.assertIn("species.SPECIES", texto)
         self.assertNotIn("mm39", texto)
 
-    def test_el_fichero_que_falta_se_nombra(self):
-        self.assertEqual(offtarget.MISSING_FILE, "transcriptoma_3utr.fa")
+    def test_el_fichero_que_falta_se_nombra_POR_ESPECIE(self):
+        # Era una constante con el nombre MURINO escrito, y en humano el gestor pide
+        # otro: el nombre se le pide a `species.required_files` por su ROL (errata
+        # nº 157). Aqui NO se transcribe ninguno de los dos — se piden los dos.
+        from shmir_design.species import required_files, resolve
+
+        for especie in ("raton", "humano"):
+            nombre = next(
+                f.filename for f in required_files(resolve(especie))
+                if f.role == offtarget.MISSING_ROLE
+            )
+            self.assertEqual(offtarget.missing_file(especie), nombre)
+
+    def test_y_SIN_especie_ABORTA_en_vez_de_devolver_el_del_caso_base(self):
+        with self.assertRaises(ShmirDesignError):
+            offtarget.missing_file("")
 
 
 class TestLaValidacionAlSubir(unittest.TestCase):
@@ -607,7 +621,7 @@ class TestLaCorridaEntera(unittest.TestCase):
                 guides=True, passengers=False,
                 target=self.utr3, target_label="x",
             )
-        self.assertIn(offtarget.MISSING_FILE, str(caja.exception))
+        self.assertIn(offtarget.missing_file("raton"), str(caja.exception))
 
     def test_el_bloque_exportable_se_lee_SIN_la_app_delante(self):
         texto = self.corrida.export_block()
@@ -667,7 +681,7 @@ class TestLaFichaDelCandidato(unittest.TestCase):
         for frente in self.ficha.fronts:
             if frente.name.startswith("offtarget_seed"):
                 self.assertIs(frente.state, FilterState.NOT_RUN)
-                self.assertIn(offtarget.MISSING_FILE, frente.reason)
+                self.assertIn(offtarget.MISSING_ROLE, frente.reason)
 
 
 @unittest.skipUnless(HAY_DOS, "NOT_RUN: faltan los dos fixtures de referencia")

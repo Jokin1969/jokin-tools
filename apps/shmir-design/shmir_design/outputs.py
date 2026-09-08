@@ -1200,7 +1200,9 @@ def text_report(
     lines.extend(f"  {l}" for l in criptico.describe())
     lines.append("")
     lines.append("  LAS CUATRO LECTURAS QUE LO CIERRAN. Ninguna la corre este software:")
-    for lectura in splicing.splicing_readouts(plan_empalme):
+    # LA ESPECIE VIAJA: la lectura del parental sin intron nombra el casete, y
+    # escrito era el MURINO (errata nº 157).
+    for lectura in splicing.splicing_readouts(plan_empalme, species=species):
         trozos = _envolver(f"{lectura.name} [{lectura.state.value}]: {lectura.requirement}", 84)
         lines.append(f"    · {trozos[0]}")
         lines.extend(f"      {l}" for l in trozos[1:])

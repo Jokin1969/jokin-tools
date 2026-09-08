@@ -1983,7 +1983,7 @@ def seed_load_reference(*, stores, species: str, starts) -> dict[str, object]:
     Sin corrida, las celdas van VACIAS y el texto dice que falta: un numero comparativo
     que no se calculo va vacio, nunca a cero.
     """
-    from .offtarget import CONTROL_NAMES, MISSING_FILE, SITE_CLASSES
+    from .offtarget import CONTROL_NAMES, SITE_CLASSES, missing_file_text
 
     almacen = (stores or {}).get("offtarget")
     por_candidato: dict[int, dict[str, str]] = {}
@@ -2027,7 +2027,7 @@ def seed_load_reference(*, stores, species: str, starts) -> dict[str, object]:
             f"contra la nula por permutación, falta el `6mer` y "
             f"faltan los controles biológicos ({', '.join(CONTROL_NAMES)}). Los dos los "
             f"calcula el modal de carga de off-targets, que necesita "
-            f"`{MISSING_FILE}` y una corrida guardada en el proyecto. "
+            f"{missing_file_text(species)} y una corrida guardada en el proyecto. "
             f"{WHY_BOTH_REFERENCES} {WHY_NO_PERCENTILE_FOR_THE_TOTAL}"
         )
     else:
@@ -2269,17 +2269,25 @@ def seed_load_columns(*, stores, species: str, start: int, reference=None) -> di
     return {f"carga_{clase}": celdas.get(clase, vacio) for clase in SITE_CLASSES}
 
 
-def seed_load_placeholder(utr3_set):
-    """El hueco del OTRO frente, preparado en la misma interfaz y en NOT_RUN visible."""
+def seed_load_placeholder(utr3_set, *, species: str = ""):
+    """El hueco del OTRO frente, preparado en la misma interfaz y en NOT_RUN visible.
+
+    EL NOMBRE DEL FICHERO SE DERIVA DE LA ESPECIE. Estaba escrito, y era el murino: en
+    humano este aviso mandaba a conseguir `transcriptoma_3utr.fa` cuando el gestor pide
+    `transcriptoma_3utr_human.fa` (errata nº 157). Es el SÉPTIMO emisor de esa familia,
+    y salió al derivar los otros seis — un nombre escrito no aparece en la lista de
+    quien lee la constante que se acaba de derivar.
+    """
     from .filters import FilterState
-    from .seed_scan import WHAT_THIS_DOES_NOT_ANSWER
+    from .offtarget import missing_file_text
+    from .seed_scan import what_this_does_not_answer
 
     if utr3_set is None:
         return {
             "state": FilterState.NOT_RUN,
             "texto": (
                 f"CARGA DE OFF-TARGETS POR SEED — NOT_RUN. Falta "
-                f"`transcriptoma_3utr.fa`. {WHAT_THIS_DOES_NOT_ANSWER}"
+                f"{missing_file_text(species)}. {what_this_does_not_answer(species)}"
             ),
         }
     return {
@@ -2359,16 +2367,17 @@ def seed_result_rows(scan):
 _OFFTARGET_SETTINGS = ("null_draws", "null_seed", "species_prefix", "normalize_u_t")
 
 
-def offtarget_placeholder(catalog):
+def offtarget_placeholder(catalog, *, species: str = ""):
     """El frente, en NOT_RUN VISIBLE mientras falte el fichero."""
     from .filters import FilterState
-    from .offtarget import MISSING_FILE, USE_NOTE
+    from .offtarget import USE_NOTE, missing_file_text
 
     if catalog is None:
         return {
             "state": FilterState.NOT_RUN,
             "texto": (
-                f"CARGA DE OFF-TARGETS POR SEED — NOT_RUN. Falta `{MISSING_FILE}`. "
+                f"CARGA DE OFF-TARGETS POR SEED — NOT_RUN. Falta "
+                f"{missing_file_text(species)}. "
                 f"NOT_RUN no es PASS, y sobre todo NO ES CERO: no haber contado cuántos "
                 f"mensajeros llevan esta seed no es lo mismo que no llevarla ninguno."
             ),
@@ -6027,8 +6036,9 @@ SPLICE_CONTEXT_MAX = 5000
 SPLICE_CONTEXT_DEFAULT = SPLICE_CONTEXT_MAX
 
 
-def splice_constructions(selection, *, intron_names, scaffold, starts=None,
-                         cassette=None, context_nt=SPLICE_CONTEXT_DEFAULT):
+def splice_constructions(selection, *, species: str, intron_names, scaffold,
+                         starts=None, cassette=None,
+                         context_nt=SPLICE_CONTEXT_DEFAULT):
     """Los pares candidato x intron, montados, CON lo que no se pudo montar.
 
     La guia sale de la ventana de cada candidato y no de ninguna secuencia que pase la
@@ -6041,7 +6051,7 @@ def splice_constructions(selection, *, intron_names, scaffold, starts=None,
     # otro lado —`parse_result` rechaza un resultado cuyo md5 no cuadra— y eso llega
     # cuando la corrida de SpliceAI ya se ha gastado. Ver
     # `WHY_THE_CASSETTE_IS_CHECKED_BEFORE` y la errata nº 129.
-    ficha = cassette_deposit_check(cassette)
+    ficha = cassette_deposit_check(cassette, species=species)
     return build_panel(
         selection, intron_names=tuple(intron_names),
         scaffold=scaffold, starts=starts, cassette=cassette,
@@ -8559,7 +8569,7 @@ def _casete_contra_lo_versionado(carpeta, nombre: str) -> dict[str, object]:
     }
 
 
-def cassette_deposit_check(cassette, *, directory=None) -> dict[str, object]:
+def cassette_deposit_check(cassette, *, species: str, directory=None) -> dict[str, object]:
     """¿El casete que se va a usar es el que hay AHORA en el depósito?
 
     Lo compara por md5 de la secuencia NORMALIZADA, leyendo el depósito por el mismo
@@ -8567,20 +8577,26 @@ def cassette_deposit_check(cassette, *, directory=None) -> dict[str, object]:
     lados hablen la misma normalización: comparar una lectura cruda con una normalizada
     daría «no coincide» siempre y por el motivo equivocado.
 
-    El nombre del fichero se le PIDE a `manifest.ROLES`. Escribirlo aquí sería una
-    segunda definición de la misma correspondencia, y el día que el rol apunte a otro
-    fichero esta comprobación miraría el de antes sin dar ningún error (principio nº 13).
+    El nombre del fichero se le PIDE a `species.required_files`, que es la única fuente
+    de los nombres del depósito. Se lo pedía a `manifest.ROLES`, y ésa es LA TABLA
+    MURINA —su propia documentación dice que es «el caso base del manifiesto que ya
+    existe, no el único posible»—: en humano buscaba `aav_casete.fa` y, como ese fichero
+    está versionado en git y por tanto SIEMPRE está en el depósito, comparaba el casete
+    humano en uso contra el murino y emitía `NO_COINCIDE` en TODA corrida humana
+    correcta. Un guardia con falsos positivos se acaba apagando (errata nº 157).
 
     Devuelve SIEMPRE los dos md5 y las dos longitudes cuando los tiene: «no coincide» a
     secas no se puede investigar, y lo que hace falta para investigarlo es exactamente
     lo que esta función ya ha calculado.
     """
     from .identidad import result_fingerprint  # noqa: PLC0415
-    from .manifest import ROLES  # noqa: PLC0415  (el nombre del fichero, derivado)
+    from .species import required_files, resolve  # noqa: PLC0415
     from .specificity import load_database  # noqa: PLC0415
     from .trabajo import reference_dir  # noqa: PLC0415
 
-    rol = next(r for r in ROLES if r.role == "transgen")
+    rol = next(
+        r for r in required_files(resolve(species)) if r.role == "transgen"
+    )
     carpeta = Path(directory) if directory is not None else reference_dir()
     ruta = carpeta / rol.filename
 

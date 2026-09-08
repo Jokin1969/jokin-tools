@@ -39,6 +39,29 @@ resultado posible».
 | **D1** | Ningún golden tiene al humano como especie de diseño | estructural | `tests/golden/` |
 | **D2** | El inventario de estados no tiene eje de **especie** | estructural | `data/estados.toml` |
 
+### ESTADO (2026-09-08) — ocho de nueve CERRADOS
+
+Va aquí y el hallazgo se queda entero abajo, con la misma disciplina que un frente
+CERRADO que no desaparece del informe: borrar lo que se encontró dejaría al siguiente
+lector sin saber si se resolvió o si nadie lo miró (principio nº 15).
+
+| # | estado | dónde queda escrito |
+|---|---|---|
+| **A1** | **CERRADO** | errata nº 155 · `--usar-manifiesto` conecta por especie |
+| **A2** | **CERRADO** | errata nº 156 · `check_cassette_species` en la ingesta |
+| **A3** | **CERRADO** | errata nº 156 · `ApaSites.utr3_md5` obligatorio |
+| **B1** | **CERRADO** | errata nº 157 · `offtarget.missing_file(species)` |
+| **B2** | **CERRADO** | errata nº 157 · el nombre sale de `species.required_files` |
+| **B3** | **CERRADO** | errata nº 157 · las fichas nombran el ROL |
+| **C1** | **CERRADO** | errata nº 157 · `mirna.core_list_note` |
+| **D1** | **CERRADO** | `humano_informe__con_usar_manifiesto__una_especie.txt` |
+| **D2** | **ABIERTO** | eje de especie en `data/estados.toml` |
+
+**Y el guardia que queda de los tres de la letra B no es el arreglo: es
+`tests/test_NINGUN_MENSAJE_nombra_el_fichero_de_OTRA_ESPECIE.py`**, que mide lo que la app
+EMITE en una corrida humana — los mensajes se pueden volver a escribir, y lo que no puede
+volver a pasar es que salgan.
+
 ---
 
 ## A1 — El CLI conecta los ficheros MURINOS a un diseño humano

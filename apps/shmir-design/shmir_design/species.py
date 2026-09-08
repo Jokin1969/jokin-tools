@@ -278,6 +278,35 @@ def file_for(species: Species, filename: str) -> RequiredFile | None:
     return None
 
 
+def filename_for_role(species, role: str) -> str:
+    """El nombre del fichero de ESE rol para ESA especie. Sin especie, ABORTA.
+
+    Es la puerta unica para «¿como se llama el fichero de X aqui?», que es lo que un
+    mensaje necesita. Escrito en el mensaje, el nombre es el MURINO y en otra especie
+    manda a conseguir un fichero que el gestor no pide (errata nº 157); deducido de una
+    regla de sufijos copiada, la regla vive en dos sitios y envejece por su cuenta
+    (errata nº 28). El nombre lo pone `required_files` y nadie mas.
+
+    No tiene valor por defecto a proposito (principio nº 58): «el fichero de la especie
+    que sea» no significa nada, y el defecto que saldria es el del caso base.
+    """
+    if not species:
+        raise ShmirDesignError(
+            f"Se ha pedido el nombre del fichero del rol {role!r} sin declarar especie, "
+            f"y ese nombre DEPENDE de ella. Se aborta en vez de devolver uno: un nombre "
+            f"de otra especie no da error, manda a conseguir un fichero que el gestor no "
+            f"pide."
+        )
+    especie = resolve(species)
+    for fila in required_files(especie):
+        if fila.role == role:
+            return fila.filename
+    raise ShmirDesignError(
+        f"`species.required_files` no pide el rol {role!r} para {especie.scientific}, "
+        f"así que no hay nombre que dar. Se aborta en vez de inventar uno."
+    )
+
+
 # ─── Que frentes puede cerrar esta especie ───────────────────────────────────
 
 
