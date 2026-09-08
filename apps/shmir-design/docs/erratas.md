@@ -7765,6 +7765,19 @@ el llamador de verdad sin pasarla — y aquí pesa más que en otros sitios: **e
 que va al banco**, y existe justo para que un candidato sin BLAST no se cuele en una tanda
 de once verificados. Diciendo `sin_preguntar` de los once, dice lo mismo de todos.
 
+### Dónde queda cada uno, con las palabras del responsable del proyecto (2026-09-08)
+
+- **El tercero es el que más pesa, y es el principio nº 55**: *«la hoja de pedido existe
+  para que un candidato sin corrida no se cuele, y desde que se escribió decía lo mismo de
+  todos. Es el fallo cuyo producto normal es el silencio con forma de dato»*. El matiz de
+  mecanismo, que no cambia la lectura: no es que el artefacto dijera **menos** que la
+  pantalla — es que decía **lo mismo de los once**, o sea que el campo estaba relleno, con
+  una palabra honesta, y había perdido justo lo que lo hace útil: **discriminar**. Un
+  `sin_preguntar` uniforme y una hoja sin ese campo cuestan lo mismo, y el primero además
+  parece contestado.
+- **El segundo va junto al principio nº 60**, como corolario: *«preguntar por un nombre que
+  nadie garantiza»*. Está escrito ahí.
+
 ### Lo que enseña, y es lo que generaliza
 
 Los tres defectos vivían en el **mismo bloque de veinte líneas** y ninguno daba error: uno

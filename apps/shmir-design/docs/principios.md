@@ -3376,6 +3376,35 @@ fuera bien.**
 
 ---
 
+### Corolario (2026-09-08) — preguntar por un nombre que nadie garantiza
+
+Añadido a petición del responsable del proyecto, que lo colocó aquí: *«una clave que uno
+mismo escribe en vez de pedírsela a quien la produce es exactamente preguntar por un
+nombre que nadie garantiza»*.
+
+El caso (errata nº 154): la página pedía el fragmento con
+
+```python
+paquete.get(f"{nombre}_fragmentos.fasta", "")   # nombre = "Mus musculus"
+```
+
+y las claves del paquete las monta `output_stem`, que le quita los espacios. `Mus
+musculus_…` contra `Mus_musculus_…`: **no coincidían nunca**, así que la comprobación del
+plásmido montado —el último eslabón entre lo que la app emite y lo que acaba en el
+vector— **no comprobó nada desde que se escribió**.
+
+Es el mismo error que el nº 60 un paso antes: allí se investigó el CONTENIDO de un fichero
+cuya PROCEDENCIA no se había establecido; aquí se pide un fichero por un nombre cuya
+CONSTRUCCIÓN no se ha establecido. En los dos, lo que falta es la misma pregunta: **¿quién
+decide este nombre?** Si la respuesta no es «el que me lo va a dar», no hay nada que
+garantice que coincidan — y cuando no coinciden, `.get` con defecto no da error: **da la
+salida honesta del caso que no es**.
+
+**La regla operativa**: la clave se le pide al productor, o se DERIVA de una propiedad que
+no depende de cómo se escriba el nombre — aquí, la extensión. Y el guardia que este
+proyecto ya tenía para esto (`auditar_claves`) mira los TESTS: en producción no había
+nadie mirando.
+
 ## 61 — Un umbral definido sobre la DIANA no dice nada sobre la MOLÉCULA
 
 Sale de la errata nº 144, y es el **tercer** caso del mismo eje.
