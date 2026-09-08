@@ -7603,3 +7603,57 @@ cierre. Así que no hay nada roto que reparar — lo que cambia es **cuánto val
 y con una tasa base del 31,1 % vale bastante menos. Repetir es barato: es búsqueda de
 subcadena contra un `mature.fa` ya cargado, y la corrida vieja se queda en el log, que es
 append-only.
+
+## 152 — Cero proyectos no es «no hay»: es «no hay AHÍ», y la pantalla no decía dónde
+
+**Reportado (2026-09-08), con la captura y el sello delante**: con `6faa283` desplegado,
+*«el proyecto sigue sin abrirse. No aparece ningún texto en rojo con el nombre del
+proyecto ni el motivo. La página va directamente al paso 1 sin mostrar el selector»*.
+
+**Y eso descarta la errata nº 150 como causa**: aquel fallo mata la página entera, y aquí
+el paso 1 se pinta perfectamente. Lo que queda es la otra rama —`if not
+catalogo["slugs"]: return None`— o sea que **`project_list` devolvió CERO filas**. Sin
+proyectos ilegibles (no había rojo) y sin proyectos legibles: el directorio que la app
+está mirando **no tiene ninguna carpeta de proyecto**.
+
+**Cero se lee como «no tengo ninguno guardado» cuando lo que ha pasado puede ser «he
+mirado en otro sitio».** Es el «Alu 0 %» sobre el directorio de proyectos: un cero
+obtenido sin decir dónde se buscó, y la pantalla desaparecía entera en vez de decirlo.
+
+### Lo que este proyecto ya tenía escrito, y no llegaba a ninguna pantalla
+
+`SHMIR_PROJECT_DIR` decide el sitio. **Sin declarar, los proyectos van junto al paquete**
+—dentro de la imagen— y el registro dice qué significa eso: *«en producción se pierde en
+el siguiente redespliegue, sin ningún síntoma hasta que alguien busca lo que guardó
+ayer»*. Esto es exactamente ese día. La contramedida existía **para el directorio de
+referencia** —«cuando el de trabajo NO es el del paquete, la interfaz lo dice con la ruta
+delante»— y no se había aplicado al de proyectos, donde pesa más: una referencia se
+vuelve a bajar; un registro de decisiones, no.
+
+### Lo que cambia
+
+`presentation.projects_location` emite **dónde** se ha mirado, si esa ruta está declarada
+o es la del paquete, si existe, y **dos cifras que no son la misma**: carpetas y
+proyectos. `project_list` se salta **en silencio** cualquier directorio sin
+`proyecto.json`, así que «no hay ninguno» y «hay tres y ninguno se puede listar» daban la
+misma pantalla vacía.
+
+- El paso 0, con cero proyectos, **ya no vuelve mudo**: pinta la ruta. No pinta la caja
+  entera —una pregunta sin ninguna respuesta posible sigue siendo ruido el primer día—,
+  pero la ruta sale siempre.
+- El gestor de la barra lateral la enseña **siempre**: ahí es donde se escribe, y no
+  saber en qué directorio se está guardando es el fallo silencioso de verdad.
+- En ámbar cuando algo no cuadra —sin declarar, no existe, o hay carpetas que no son
+  proyectos— y en gris cuando todo es normal. Un `caption` es el elemento más silencioso
+  que hay, y esto es la explicación de una pantalla vacía.
+- **No aborta ni con la ruta mal declarada**: es lo que se pinta para explicar un
+  problema, y una explicación que puede fallar se lleva por delante lo que venía a
+  cubrir (errata nº 137).
+
+### Lo que sigue SIN saberse, y hace falta para cerrarla
+
+Desde este entorno no se ve el volumen ni el log del despliegue, así que **no se afirma**
+cuál de las dos es: que `SHMIR_PROJECT_DIR` no esté llegando al proceso hijo —y los
+proyectos se estén escribiendo y leyendo dentro de la imagen— o que el volumen sea otro.
+Lo que hace este cambio es que **la propia pantalla lo diga con la ruta delante**, que es
+un vistazo en vez de una ronda.

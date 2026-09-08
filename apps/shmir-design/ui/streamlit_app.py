@@ -93,6 +93,7 @@ from shmir_design.presentation import (  # noqa: E402
     upload_allowed,
     project_rows,
     project_options,
+    projects_location,
     declare_provenance,
     project_rename,
     project_export,
@@ -1180,8 +1181,11 @@ def _gestionar_proyectos(especie: str, raiz, catalogo, fecha: str) -> None:
     los controles de uso diario: se entra a propósito.
     """
     with st.sidebar.expander("Gestionar proyectos"):
+        # LA RUTA, SIEMPRE. Aqui es donde se guarda, asi que es donde mas cuesta no
+        # saber en que directorio se esta escribiendo (errata nº 152).
+        sitio = projects_location()
+        (st.warning if sitio["avisa"] else st.caption)(sitio["texto"])
         if not catalogo["filas"]:
-            st.caption("Todavía no hay ninguno.")
             return
         for fila in catalogo["filas"]:
             slug = str(fila["slug"])
@@ -1710,10 +1714,15 @@ def _paso_cero_proyecto():
         )
         return None
     ilegibles = catalogo["ilegibles"]
-    # SIN NINGUNO —ni bueno ni roto— esto no pinta nada, que es lo de siempre. Pero con
-    # uno roto NO se puede volver mudo: era el caso en que la pagina moria entera y no
-    # habia ni lista ni motivo (errata nº 150).
+    # SIN NINGUNO, LA PANTALLA DICE DONDE HA MIRADO (errata nº 152). Aqui habia un
+    # `return None` mudo, y un cero se lee como «no tengo ninguno guardado» cuando lo que
+    # ha pasado puede ser «he mirado en otro sitio» — que es el caso cuando
+    # `SHMIR_PROJECT_DIR` no llega al proceso y los proyectos acaban dentro de la imagen.
+    # No se pinta la caja entera: una pregunta sin ninguna respuesta posible sigue siendo
+    # ruido para quien entra el primer dia. Lo que se pinta es la RUTA.
     if not catalogo["slugs"] and not ilegibles:
+        sitio = projects_location()
+        (st.warning if sitio["avisa"] else st.caption)(sitio["texto"])
         return None
 
     with st.container(border=True):
@@ -3293,6 +3302,9 @@ def _modal_offtarget(seleccion, nombre: str, maduros, diana: str,
         valores[ajuste["ajuste"]] = st.selectbox(
             ajuste["ajuste"],
             options=ajuste["opciones"],
+            # Igual que en el modal de seed (errata nº 151): la opción por la que se
+            # abre la decide `presentation`, y sale del valor DECLARADO.
+            index=ajuste["indice"],
             key=f"ot_s_{nombre}_{ajuste['ajuste']}",
             help=f"por defecto: {ajuste['por_defecto']}",
         )
