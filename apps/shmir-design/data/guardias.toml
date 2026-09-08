@@ -433,3 +433,28 @@ momento = "INGESTA"
 puede_degradar = false
 degrada_como = "No se degrada: las tres comprobaciones corren sobre los bytes que tiene delante, en cada lectura. Lo que SÍ queda pendiente es otra cosa —validar el FORMATO con un `.dna` real, que hoy sólo prueba un fixture sintético declarado— y está escrito en `montaje.SNAPGENE_FORMAT_DECLARED`."
 revalida = "Se revalida a sí mismo en cada lectura."
+
+[[guardia]]
+guardia = "Los sitios medidos de APA son de ESTE 3'UTR"
+implementa = ["apa.apply_measured_sites"]
+# RECHAZA y no ABORTA, deliberadamente: una tabla de otra especie en el deposito no es
+# un fallo de la corrida —es un fichero que no aplica— y abortar dejaria sin diseñar por
+# algo que no impide proponer candidatos. Lo que no puede pasar es que aplique, y el
+# motivo va a `TilingReport.apa_sites_foreign_reason`, que se emite siempre. Mismo
+# criterio que `resolve_measured` con la tabla de PolyA_DB.
+como_actua = "RECHAZA"
+protege = "Que las posiciones de `apa_medido_<especie>.tsv` —que llegan YA CONVERTIDAS a coordenadas de 3'UTR— no se apliquen a otra secuencia. Sobre el 3'UTR humano unas murinas CABEN (1242 contra 1606), así que no se salen de rango, no salta ninguna alarma y el techo de knockdown sale con la forma correcta referido a otra cosa. Es el hermano de `resolve_measured`, que la tabla de PolyA_DB tiene desde 2026-08-26 y ésta no tenía (errata nº 156)."
+momento = "CADA_CORRIDA"
+puede_degradar = false
+degrada_como = "No se degrada: el md5 del 3'UTR se recalcula de la secuencia que se está tilando, en la misma llamada."
+revalida = "Se revalida a sí mismo en cada corrida."
+
+[[guardia]]
+guardia = "El casete del transgén es el de la especie que se diseña"
+implementa = ["specificity.check_cassette_species"]
+protege = "Que el filtro del transgén no corra contra la construcción de otra especie. MEDIDO: el casete murino sobre un diseño humano emite 415 PASS y 4 FAIL — un PASS cuenta el frente como contestado y un FAIL retira un candidato, los dos contra una construcción que no es la del experimento. Es `RepeatMask.query_length` un rol más allá (errata nº 156)."
+momento = "INGESTA"
+puede_degradar = true
+degrada_como = "La especie del casete se DECLARA al conectarlo por rol, y una base construida a mano puede llegar sin ella: entonces sale `NO DECLARADA` en la procedencia y el guardia no compara nada. No haber podido comprobarlo no es que cuadre, y por eso se dice en vez de callarse — pero no protege."
+revalida = "SUITE — `tests/test_el_CASETE_declara_su_especie.py` cubre las dos direcciones, con el control adversario de que el ratón siga corriendo."
+revalida_en_produccion = "Nada, hoy: lo que ata el casete a su especie es el NOMBRE del fichero en el depósito, y eso lo pone quien lo sube. Lo cerraría que el propio fichero declarase su organismo —como el `.tbl` de RepeatMasker declara el suyo— y que la declaración saliera de ahí y no de la conexión."

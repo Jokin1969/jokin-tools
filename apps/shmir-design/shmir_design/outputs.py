@@ -898,6 +898,11 @@ def text_report(
             lines.append(
                 f"  NOT_RUN — {tiling.apa_missing_reason or tiling.apa_excluded_reason}"
             )
+        # VA APARTE Y SIEMPRE, tambien cuando SI hay tabla de PolyA_DB: son dos causas
+        # que pueden darse a la vez y se arreglan con cosas distintas. Un fichero de
+        # sitios medidos que no se aplica y uno que no esta se leen igual si no se dice.
+        if getattr(tiling, "apa_sites_foreign_reason", ""):
+            lines.append(f"  {tiling.apa_sites_foreign_reason}")
         if tiling.measured_apa is not None:
             lines.append("")
             lines.extend(f"  {l}" for l in CLUSTER_READING.describe())

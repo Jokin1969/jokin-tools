@@ -28,22 +28,35 @@ from shmir_design.apa import (
     load_apa_sites,
     parse_apa_sites,
 )
+from shmir_design.anatomy import Anatomy
 from shmir_design.errors import ChecksumMismatchError, ShmirDesignError
+from shmir_design.reference import sequence_md5
 
+#: `utr3_md5` es OBLIGATORIO en la cabecera desde la errata nº 156: sin el, la tabla no
+#: dice de que secuencia es y sus posiciones —ya convertidas a coordenadas de 3'UTR—
+#: caben sobre cualquier otra sin salirse de rango.
 TABLA = """\
 # sitios de poliadenilacion medidos, coordenadas de 3'UTR
 # posicion<TAB>fraccion<TAB>nombre
+# utr3_md5\t00000000000000000000000000000000
 288\t0.35\tsitio_proximal
 1242\t0.65\tsitio_distal
 """
 
 
-def _sitios(*sitios: ApaSite) -> ApaSites:
+def _sitios(*sitios: ApaSite, utr3: str = "") -> ApaSites:
+    """Los sitios de prueba, con el md5 de SU 3'UTR derivado de la propia secuencia.
+
+    `utr3_md5` es obligatorio desde la errata nº 156: una tabla que no dice de que
+    secuencia es no se puede aplicar a ninguna. Aqui se DERIVA de la secuencia que ese
+    test va a tilar — escribirlo a mano seria transcribir, y ademas no cuadraria.
+    """
     return ApaSites(
         sites=sitios or (ApaSite(288, 0.35, "proximal"), ApaSite(1242, 0.65, "distal")),
         source="sonda",
         version="sonda",
         checksum="0" * 32,
+        utr3_md5=sequence_md5(utr3) if utr3 else "0" * 32,
         coords="3utr",
     )
 
@@ -59,28 +72,43 @@ class TestLectura(unittest.TestCase):
         self.assertEqual(s.sites[0].position, 288)
         self.assertAlmostEqual(s.sites[0].fraction, 0.35)
 
+    #: La cabecera minima. Estos tests prueban el parseo de las FILAS: sin ella el
+    #: aborto de `utr3_md5` llega antes y taparia lo que cada uno comprueba.
+    CABECERA = "# utr3_md5\t" + "0" * 32 + "\n"
+
     def test_el_nombre_es_opcional(self):
-        s = parse_apa_sites("288\t0.35\n", source="s", version="v", checksum="0" * 32)
+        s = parse_apa_sites(
+            self.CABECERA + "288\t0.35\n", source="s", version="v", checksum="0" * 32,
+        )
         self.assertEqual(len(s.sites), 1)
 
     def test_una_fraccion_fuera_de_0_1_aborta(self):
         with self.assertRaises(ShmirDesignError):
-            parse_apa_sites("288\t1.5\n", source="s", version="v", checksum="0" * 32)
+            parse_apa_sites(
+                self.CABECERA + "288\t1.5\n", source="s", version="v",
+                checksum="0" * 32,
+            )
 
     def test_una_fraccion_no_numerica_aborta(self):
         with self.assertRaises(ShmirDesignError):
-            parse_apa_sites("288\tmucho\n", source="s", version="v", checksum="0" * 32)
+            parse_apa_sites(
+                self.CABECERA + "288\tmucho\n", source="s", version="v",
+                checksum="0" * 32,
+            )
 
     def test_las_fracciones_que_suman_mas_de_1_abortan(self):
         with self.assertRaises(ShmirDesignError) as ctx:
             parse_apa_sites(
-                "288\t0.7\n1242\t0.7\n", source="s", version="v", checksum="0" * 32
+                self.CABECERA + "288\t0.7\n1242\t0.7\n", source="s", version="v",
+                checksum="0" * 32,
             )
         self.assertIn("1.4", str(ctx.exception))
 
     def test_un_fichero_sin_sitios_aborta(self):
         with self.assertRaises(ShmirDesignError):
-            parse_apa_sites("# nada\n", source="s", version="v", checksum="0" * 32)
+            parse_apa_sites(
+                self.CABECERA + "# nada\n", source="s", version="v", checksum="0" * 32,
+            )
 
     def test_la_procedencia_es_obligatoria(self):
         with self.assertRaises(ValueError):
@@ -176,6 +204,7 @@ class TestSinFraccionDeLecturas(unittest.TestCase):
         source="sonda",
         version="sonda",
         checksum="0" * 32,
+        utr3_md5="0" * 32,
         coords="3utr",
     )
 
@@ -245,9 +274,15 @@ class TestVentanasQueCruzanLaFrontera(unittest.TestCase):
         anatomia = Anatomy.from_cds(cds=(45, 146), length=len(secuencia))
         return tile_utr(secuencia, anatomy=anatomia, apa_sites=sitios), anatomia
 
+    SECUENCIA = "GCGTCAGTACGATCGAATTACT" * 30  # 660 nt
+    ANATOMIA = Anatomy.from_cds(cds=(45, 146), length=len(SECUENCIA))
     SITIOS = ApaSites(
         sites=(ApaSite(50, 0.4, "proximal"), ApaSite(500, 0.6, "distal")),
-        source="sonda", version="sonda", checksum="0" * 32, coords="3utr",
+        source="sonda", version="sonda", checksum="0" * 32,
+        # DERIVADO del 3'UTR de esta misma secuencia: la tabla tiene que decir de que
+        # secuencia es, y la unica forma de que cuadre es sacarlo de ella.
+        utr3_md5=sequence_md5(SECUENCIA[ANATOMIA.utr3[0] - 1:ANATOMIA.utr3[1]]),
+        coords="3utr",
     )
 
     def test_las_ventanas_de_frontera_no_salen_como_perdidas(self):

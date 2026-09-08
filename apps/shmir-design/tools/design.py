@@ -844,11 +844,21 @@ def main(argv: list[str]) -> int:
                     "--transgen necesita --transgen-version: sin procedencia el "
                     "veredicto no es auditable. Se aborta."
                 )
+            # LA ESPECIE VIAJA CON EL CASETE. El CLI ya la sabe —la declara al
+            # conectar por manifiesto— y no se la pasaba al cargador, asi que el casete
+            # llegaba «NO DECLARADA» y `check_cassette_species` no podia comparar nada.
+            # Lo cazo el DIFF DEL GOLDEN: es el guardia escrito y la pregunta sin
+            # llegarle (principio nº 33).
+            #
+            # Con `--transgen` EXPLICITO y una especie sin declarar sigue saliendo «NO
+            # DECLARADA», que es la verdad: nadie ha dicho de quien es ese fichero.
+            especie_casete = _especie_declarada(args.name)
             transgen_db = load_database(
                 args.transgen,
                 name=args.transgen_name,
                 version=args.transgen_version,
                 expected_md5=args.transgen_md5,
+                species=especie_casete.slug if especie_casete else "",
             )
 
         refseq = None

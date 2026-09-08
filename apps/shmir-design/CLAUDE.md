@@ -6510,6 +6510,69 @@ sufijo eran invisibles, y en su lugar entraban los ocho murinos.
 que no cambia confirma tanto como uno que cambia — aquí dice que la conexión murina es
 exactamente la de antes.
 
+## LOS DOS GUARDIAS DE IDENTIDAD QUE FALTABAN (2026-09-08)
+
+Errata nº 156. `RepeatMask.query_length` protege la mascara desde el principio —compara
+lo que el resumen declara haber analizado contra lo que se le da, y **aborta**— y los
+otros dos ficheros que se aplican a una secuencia no tenian nada equivalente.
+
+### El CASETE declara su especie, y el de otra ABORTA
+
+`SpecificityDatabase.species`, con `check_cassette_species` en la **INGESTA** —dentro de
+`tile_utr`, al lado del guardia de la mascara— y no por ventana: si mordiera al emitir,
+las 415 ventanas humanas con `PASS` contra el casete murino ya estarian escritas cuando
+alguien lo leyera.
+
+- **TRES estados y el tercero NO es «coincide»**: declarada y coincide, declarada y **no**
+  coincide (aborta), o **NO DECLARADA**, que sale escrito **en la procedencia** —que es
+  lo que se imprime en el informe y en el motivo de cada veredicto— y no en un campo que
+  no lee nadie.
+- **La especie se DECLARA al conectar**: `species.required_files` dijo que ESE fichero es
+  el casete de ESA especie, y esa es la declaracion. Con `--transgen` explicito y una
+  especie sin declarar sigue saliendo `NO DECLARADA`, que es la verdad.
+- **Y el CLI declaraba al conectar pero no al CARGAR.** El casete llegaba «NO DECLARADA»
+  y `check_cassette_species` no podia comparar nada: el guardia escrito y la pregunta sin
+  llegarle (principio nº 33). **Lo cazo el DIFF DEL GOLDEN**, una linea, al dia siguiente
+  de que ese golden existiera.
+- **Y el control adversario cazo un fallo mio**: puse `str(...)` sobre la `Species` al
+  declararla, asi que lo que viajaba era el **`repr`** del dataclass y
+  `species.resolve` FABRICA una especie de cualquier cadena — el casete murino sobre un
+  diseño **murino** abortaba. Es la errata nº 49 exacta. Sin el test que exige que el
+  raton siga corriendo, «este guardia aborta siempre» y «este guardia acierta» dan el
+  mismo verde.
+
+### `apa_medido.tsv` dice de QUE 3'UTR es
+
+Los dos ficheros de APA producen un techo de knockdown y **solo uno decia sobre que
+secuencia**:
+
+| rol | fichero | identidad |
+|---|---|---|
+| `polyadb` | `polya_db_<especie>.tsv` | `utr3_md5` obligatorio; `resolve_measured` compara y devuelve `None` |
+| `apa` | `apa_medido_<especie>.tsv` | **ninguna** — `source`, `version` y `checksum` son DEL FICHERO |
+
+Sus posiciones vienen **YA CONVERTIDAS** a coordenadas de 3'UTR, asi que unas murinas
+sobre el 3'UTR humano **caben** —1242 contra 1606—, no se salen de rango, no salta
+ninguna alarma y el techo sale con la forma correcta referido a otra cosa.
+
+- **`ApaSites.utr3_md5` es OBLIGATORIO y sin defecto** (principio nº 58): un `""` seria un
+  tercer estado del que no hay nada sensato que hacer, porque la tabla no se puede
+  aplicar a nada. Mejor que no se pueda construir.
+- **`apply_measured_sites` recibe la secuencia y la anatomia**, con la MISMA forma que
+  `resolve_measured` — no el 3'UTR ya recortado: recortarlo en el llamador es donde nacen
+  los fallos de marco de este proyecto.
+- **Y el motivo tiene CAMPO PROPIO** (`TilingReport.apa_sites_foreign_reason`), no fundido
+  con `apa_missing_reason`: las dos causas pueden darse **a la vez** —no hay tabla de
+  PolyA_DB Y ademas el `apa_medido.tsv` del deposito es de otra especie— y se arreglan
+  con cosas distintas. Se emite SIEMPRE, tambien cuando si hay PolyA_DB.
+- **Estaba a punto de quedarse sin emisor**: el motivo se calculaba y no llegaba a
+  ninguna salida, que es el patron de `page_run` por undecima vez. Se caza preguntandose,
+  antes de commitear, quien lee lo que se acaba de calcular.
+
+**Hoy es LATENTE** —ese fichero no existe para ninguna especie— y es justo el que la
+campaña humana necesita: `apa_medido_human.tsv` esta en la lista de lo que falta. La
+primera vez que se usara habria sido la primera vez que se probaba.
+
 ## EL HUMANO ENTRA EN LOS GOLDEN COMO ESPECIE DE DISEÑO (2026-09-08)
 
 Hasta hoy los ocho goldens eran de ratón y el humano entraba **sólo** como `--fasta-b`,
