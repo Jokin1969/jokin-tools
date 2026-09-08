@@ -64,10 +64,11 @@ from shmir_design.cost import estimate_cost  # noqa: E402
 from shmir_design.errors import ShmirDesignError  # noqa: E402
 from shmir_design.manifest import (  # noqa: E402
     MANIFEST_NAME,
+    EntryStatus,
     check_directory,
     load_manifest,
-    roles_available,
 )
+from shmir_design.species import SPECIES, required_files, resolve  # noqa: E402
 from shmir_design.hard_filters import DEFAULT_THRESHOLDS, Thresholds  # noqa: E402
 from shmir_design.masking import load_rmsk  # noqa: E402
 from shmir_design.outputs import (  # noqa: E402
@@ -210,45 +211,98 @@ DESTINOS = {
 }
 
 
-def conectar_desde_manifiesto(args, estado) -> None:
-    """Rellena los argumentos de fichero a partir del manifiesto.
+def _especie_declarada(nombre: str):
+    """La especie DECLARADA de `--name`, o `None` si ese nombre no lo es.
+
+    `--name` es una ETIQUETA —vale `3utr` por defecto— y `species.resolve` lo sabe: con
+    un nombre no declarado NO aborta, FABRICA una `Species` con el slug puesto y los
+    tres identificadores VACIOS, para que se pueda trabajar sin declarar nada. Quien
+    aborta es el que PIDE un identificador (`mirbase_prefix`, `taxid`).
+
+    Asi que el predicado no es «resolve revienta» —no revienta nunca— sino
+    `Species.known`, que es lo que dice si esta en `species.SPECIES`. Con el predicado
+    equivocado esto no daba un error: `required_files` devolvia nombres como
+    `transcriptoma_3utr_3utr.fa`, que no pueden coincidir con nada, y el resultado era
+    una DESCONEXION SILENCIOSA — el mismo fallo que este arreglo viene a cerrar, un piso
+    mas arriba.
+    """
+    especie = resolve(nombre)
+    return especie if especie.known else None
+
+
+def conectar_desde_manifiesto(args, estado, *, species) -> None:
+    """Rellena los argumentos de fichero a partir del manifiesto, POR ESPECIE.
 
     Una flag explicita MANDA sobre el manifiesto —hace falta para poder probar un
     fichero suelto sin registrarlo— pero se dice en la consola: sobrescribir en silencio
     lo que dice el registro de procedencia es justo lo que este atajo viene a evitar.
+
+    **LOS NOMBRES LOS PONE `species.required_files`, NO `manifest.ROLES`.** Esto
+    emparejaba por el NOMBRE del fichero contra `ROLES`, que trae los MURINOS escritos —
+    su propia documentacion dice que son «el caso base del manifiesto que ya existe, no
+    el unico posible»—. Con un diseño humano y una sola especie, el CLI conectaba
+    `aav_casete.fa` y `rmsk_mouse.out`, y de los diez ficheros que el gestor pide para
+    humano reconocia DOS: los dos que no llevan especie.
+
+    Lo que se veia era el aborto de `RepeatMask.query_length`. Lo que ese aborto TAPABA
+    es que el casete murino ya se habia conectado como filtro del transgen, y ahi no hay
+    ningun guardia: medido, 415 PASS y 4 FAIL sobre ventanas humanas contra una
+    construccion que no es la suya. Quinta divergencia entre los dos frontales: la
+    pagina si pasa `species=` a `resources.load_from_manifest`.
+
+    `species` es OBLIGATORIO y sin defecto (principio nº 58): un valor por defecto aqui
+    seria «conecta lo que haya», que es el fallo con otro nombre.
     """
-    disponibles = roles_available(estado)
-    if not disponibles:
+    if species is None:
+        raise ShmirDesignError(
+            f"--usar-manifiesto necesita saber QUE ESPECIE se esta diseñando, y "
+            f"--name vale {getattr(args, 'name', '')!r}, que no es ninguna declarada. "
+            f"Sin especie no se puede saber cuales de los ficheros del deposito son "
+            f"los tuyos: conectar por rol a secas es lo que ponia la máscara y el "
+            f"casete de una especie delante del transcrito de la otra. Las especies se "
+            f"declaran en `species.SPECIES`, con su nombre científico, su prefijo de "
+            f"miRBase y su taxid — ninguno se deduce del nombre."
+        )
+
+    # Se indexa el estado por nombre en vez de preguntar y capturar el KeyError: un
+    # fichero que no esta en el manifiesto no es un fallo, es la respuesta, y un
+    # `except` que se lo traga no distingue eso de un fallo de verdad (regla 2).
+    por_nombre = {r.entry.name: r for r in estado.results}
+    conectables = []
+    for fila in required_files(species):
+        if DESTINOS[fila.role] is None:
+            continue  # lo resuelve el nucleo, no hay bandera que rellenar
+        resultado = por_nombre.get(fila.filename)
+        if resultado is not None and resultado.status is EntryStatus.OK:
+            conectables.append((fila, resultado.entry))
+
+    if not conectables:
         print(
-            "  --usar-manifiesto: ningún fichero de referencia está en OK, así que no "
-            "hay nada que conectar. Los filtros que dependen de uno quedaran en "
-            "NOT_RUN.\n"
+            f"  --usar-manifiesto: ningún fichero de {species.scientific} está en OK, "
+            f"así que no hay nada que conectar. Los filtros que dependen de uno "
+            f"quedaran en NOT_RUN.\n"
         )
         return
 
-    print("  --usar-manifiesto conecta:")
-    for rol in disponibles:
-        conexion = DESTINOS[rol.role]
-        if conexion is None:
-            continue  # lo resuelve el nucleo, no hay bandera que rellenar
-        destino, version, md5 = conexion
-        entrada = estado.result_of(rol.filename).entry
+    print(f"  --usar-manifiesto conecta, para {species.scientific}:")
+    for fila, entrada in conectables:
+        destino, version, md5 = DESTINOS[fila.role]
         if getattr(args, destino) is not None:
             print(
-                f"    {rol.filename:<24} NO se conecta: --{destino.replace('_', '-')} "
+                f"    {fila.filename:<24} NO se conecta: --{destino.replace('_', '-')} "
                 f"explicito manda sobre el manifiesto."
             )
             continue
-        setattr(args, destino, args.datos / rol.filename)
+        setattr(args, destino, args.datos / fila.filename)
         if version is not None:
             setattr(args, version, entrada.date or entrada.md5)
         if md5 is not None:
             setattr(args, md5, entrada.md5)
-        if rol.role == "rmsk":
+        if fila.role == "rmsk":
             # Ni la especie ni el resumen se teclean: la primera sale del organismo de
             # la referencia que el manifiesto declara en `accession`, el segundo del
-            # `.tbl` hermano. Si falta cualquiera de los dos, la carga aborta despues —
-            # aqui no se rellena con nada por defecto.
+            # hermano que la propia fila DECLARA (`companion`) — no de cambiarle la
+            # extension, que es una segunda definicion de la misma pareja.
             from shmir_design.reference import REFERENCES
 
             referencia = REFERENCES.get(entrada.accession)
@@ -256,12 +310,13 @@ def conectar_desde_manifiesto(args, estado) -> None:
                 args.rmsk_especie = referencia.organism.lower()
             if not args.rmsk_biblioteca:
                 args.rmsk_biblioteca = entrada.library or None
-            resumen = (args.datos / rol.filename).with_suffix(".tbl")
-            if args.rmsk_resumen is None and resumen.is_file():
-                args.rmsk_resumen = resumen
+            if args.rmsk_resumen is None and fila.companion:
+                resumen = args.datos / fila.companion
+                if resumen.is_file():
+                    args.rmsk_resumen = resumen
         print(
-            f"    {rol.filename:<24} → {rol.what}  ({entrada.date or 'sin fecha'}, "
-            f"md5 {entrada.md5[:8]}…)"
+            f"    {fila.filename:<24} \u2192 {fila.what}  ({entrada.date or 'sin fecha'}, "
+            f"md5 {entrada.md5[:8]}\u2026)"
         )
     print()
 
@@ -673,7 +728,9 @@ def main(argv: list[str]) -> int:
                     f"--usar-manifiesto necesita un {MANIFEST_NAME} en {args.datos}: "
                     f"es de donde salen el fichero, la versión y el md5 de cada filtro."
                 )
-            conectar_desde_manifiesto(args, estado_datos)
+            conectar_desde_manifiesto(
+                args, estado_datos, species=_especie_declarada(args.name),
+            )
 
         scaffold = load_scaffold(args.scaffold) if args.scaffold else SGEP_SCAFFOLD
         seeds = BOOTSTRAP_SEEDS if args.bootstrap_seeds else None

@@ -1,0 +1,532 @@
+# GOLDEN — se genera con: el CLI sobre el TRANSCRITO ENTERO del HUMANO con --usar-manifiesto, con el humano como especie de DISEÑO y no como segunda especie; una sola especie.
+
+═══ Diseño de shmiR — humano ═══
+
+── Anatomía del transcrito ──
+  Declarada por quien lanzo el análisis (no hay transcrito verificado):
+  total 2435 nt
+  5'UTR 1-67 (67 nt)
+  CDS   68-829 (762 nt)
+  3'UTR 830-2435 (1606 nt)
+  Las ventanas llevan sus dos coordenadas: la del transcrito y la del 3'UTR. Los tercios se calculan sobre el 3'UTR.
+  Procedencia de la anatomía: feature CDS de un fichero GenBank suministrado y verificado
+  Rango tilado: transcrito completo, 1-2435 (2435 nt) — cubre 5'UTR, CDS, 3'UTR
+
+── Señales de poliadenilación ──
+  · AGTAAA en tx:1062-1067 (a 1368 nt del extremo 3') → OTRA
+  · AGTAAA en tx:1456-1461 (a 974 nt del extremo 3') → OTRA
+  · AGTAAA en tx:1661-1666 (a 769 nt del extremo 3') → OTRA
+  · ATTAAA en tx:1784-1789 (a 646 nt del extremo 3') → APA_POSIBLE
+  · ATTAAA en tx:1996-2001 (a 434 nt del extremo 3') → APA_POSIBLE
+  · AGTAAA en tx:2001-2006 (a 429 nt del extremo 3') → OTRA
+  · AATATA en tx:2105-2110 (a 325 nt del extremo 3') → OTRA
+  · TATAAA en tx:2117-2122 (a 313 nt del extremo 3') → OTRA
+  · AATATA en tx:2122-2127 (a 308 nt del extremo 3') → OTRA
+  · TATAAA en tx:2375-2380 (a 55 nt del extremo 3') → OTRA
+  · ATTAAA en tx:2411-2416 (a 19 nt del extremo 3') → SEÑAL_TERMINAL_PROBABLE
+
+── Bloques conservados ──
+  No se comparo con otra especie: no hay bloques conservados que reportar.
+
+── Tiling y selección ──
+  ventanas:        2414
+  biofisicos_ok:   414
+  elegibles:       288 con criterio ESCALONADO (la variante rara de poliadenilación penaliza, no excluye)
+                   253 con criterio ESTRICTO (±flanco para los doce hexámeros por igual)
+  sitios:          102
+  seleccionados:   11 de 11 pedidos (espaciado mínimo 50 nt entre posiciones de inicio)
+    #7 pos tx:939-960 proximal asim +5.39  INCOMPLETE
+    #11 pos tx:1075-1096 proximal asim +4.32  INCOMPLETE
+    #3 pos tx:1216-1237 proximal asim +5.88  INCOMPLETE
+    #1 pos tx:1305-1326 proximal asim +6.42  INCOMPLETE
+    #8 pos tx:1480-1501 medio    asim +5.23  INCOMPLETE
+    #2 pos tx:1539-1560 medio    asim +6.13  INCOMPLETE
+    #5 pos tx:1608-1629 medio    asim +5.86  INCOMPLETE
+    #4 pos tx:1686-1707 medio    asim +5.88  INCOMPLETE
+    #9 pos tx:1940-1961 distal   asim +5.23  INCOMPLETE  riesgo_APA
+    #10 pos tx:2075-2096 distal   asim +4.85  INCOMPLETE  riesgo_APA
+    #6 pos tx:2250-2271 distal   asim +5.85  INCOMPLETE  riesgo_APA
+
+── Reparto de plazas ──
+  Cuotas DURAS de este panel: 1 por tercio del 3'UTR; 3 inmunes al corte de la señal proximal (empiezan por delante de tx:1799).
+  De donde salen esas plazas: el bloque «solo de fuente externa» desaparecio por VACÍO.
+  Contra el conjunto completo de sitios elegibles no queda ni un sitio exclusivo de la
+  fuente externa que supere nuestros filtros duros, así que sus plazas se reasignan a
+  COBERTURA GEOGRAFICA.
+  Por que a cobertura y no por asimetría: las causas de fallo son regionales, no puntuales
+  —un APA, un elemento repetitivo, un tramo estructurado afectan a una REGIÓN entera—, así
+  que con la predicción SATURADA la única variable que sigue comprando independencia entre apuestas
+  es el espaciado. Dos candidatos del mismo tramo con asimetrías distintas siguen
+  compartiendo modo de fallo.
+
+── Cobertura por tercios ──
+  Tercios del 3'UTR: 3utr:1-535, 3utr:536-1070, 3utr:1071-1606.
+    La columna `tercio` etiqueta por el PUNTO MEDIO de la ventana; la particion de arriba va
+    por POSICIÓN DE INICIO. Con ventanas de 22 nt discrepan en el borde, así que se dan las dos.
+    ventanas elegibles, por punto medio (así se etiqueta): proximal 99, medio 109, distal 80
+    ventanas elegibles, por inicio: proximal 97, medio 109, distal 82
+    SITIOS elegibles, por inicio: proximal 36, medio 41, distal 25
+    SITIOS INMUNES por tramo (empiezan por delante de 3utr:970, el corte más temprano de la señal proximal):
+      proximal 36, medio 36, distal 1
+      Es hacia donde se puede REBALANCEAR el panel si el APA resulta funcional. Un tramo con
+      cero no admite rebalanceo: ahi no hay nada que no lleve techo.
+
+  proximal — 3utr:1-535, 535 nt: 36 sitios elegibles por inicio (36 por punto medio).
+    Panel: 4 candidato(s) por PUNTO MEDIO —la definición que usa la cuota— y 4 por inicio. Cuota 1: cumplida.
+    Margen: 25 sitio(s) del tramo quedan a 50 nt o más de 3utr:476, y 6 lo cumplen con TODO el panel. El que manda es el segundo: añadir uno exige espaciado con todos.
+    Los mejores del tramo a 50 nt o más de 3utr:476, por el mismo orden con que se eligió el panel (asimetría): 3utr:362-383 (asimetría +5.15); 3utr:112-133 (asimetría +4.10); 3utr:190-211 (asimetría +4.06).
+    Los que además caben con TODO el panel NO son los mismos: 3utr:190-211 (asimetría +4.06); 3utr:318-339 (asimetría +2.20); 3utr:314-335 (asimetría +2.17).
+  medio — 3utr:536-1070, 535 nt: 41 sitios elegibles por inicio (41 por punto medio).
+    Panel: 4 candidato(s) por PUNTO MEDIO —la definición que usa la cuota— y 4 por inicio. Cuota 1: cumplida.
+    Margen: 28 sitio(s) del tramo quedan a 50 nt o más de 3utr:857, y 12 lo cumplen con TODO el panel. El que manda es el segundo: añadir uno exige espaciado con todos.
+    Los mejores del tramo a 50 nt o más de 3utr:857, por el mismo orden con que se eligió el panel (asimetría): 3utr:789-810 (asimetría +4.45); 3utr:611-632 (asimetría +4.32); 3utr:614-635 (asimetría +4.15).
+    Los que además caben con TODO el panel NO son los mismos: 3utr:907-928 (asimetría +3.69); 3utr:986-1007 (asimetría +3.69); 3utr:1029-1050 (asimetría +3.63).
+  distal — 3utr:1071-1606, 536 nt: 25 sitios elegibles por inicio (24 por punto medio).
+    Panel: 3 candidato(s) por PUNTO MEDIO —la definición que usa la cuota— y 3 por inicio. Cuota 1: cumplida.
+    Margen: 13 sitio(s) del tramo quedan a 50 nt o más de 3utr:1421, y 7 lo cumplen con TODO el panel. El que manda es el segundo: añadir uno exige espaciado con todos.
+    Los mejores del tramo a 50 nt o más de 3utr:1421, por el mismo orden con que se eligió el panel (asimetría): 3utr:1204-1225 (asimetría +3.96); 3utr:1345-1366 (asimetría +3.80); 3utr:1479-1500 (asimetría +3.80).
+    Los que además caben con TODO el panel NO son los mismos: 3utr:1345-1366 (asimetría +3.80); 3utr:1479-1500 (asimetría +3.80); 3utr:1184-1205 (asimetría +2.37).
+
+── Especificidad ──
+  NOT_RUN: no hay base de RefSeq RNA cargada. NOT_RUN no es PASS — un fallo de red, un timeout o una base ausente nunca se convierten en PASS.
+  BLAST remoto de inspeccion (NUNCA fuente del veredicto), solo para los 11 supervivientes:
+    blastn -task blastn-short -db refseq_rna -remote -entrez_query "txid9606[ORGN]" -query humano_guias.fasta
+    Etiqueta de NCBI: una sumision cada ~10 s, polling >= 60 s.
+  ⚠  Este filtro NO cubre los off-targets mediados por seed: un sitio complementario a las posiciones 2-8 aparece por azar cada ~16 kb, hay miles en el transcriptoma y ningún alineador los devuelve. Eso se cuenta aparte (sitios 7mer-m8/8mer en 3'UTR ponderados por expresión cerebral, o siSPOTR/POTS) y es el hueco más importante que queda abierto.
+
+── Procedencia de los ficheros de referencia usados ──
+  Copiado del manifiesto de data/reference/. Sin estas líneas, dentro de un año
+  nadie podra saber con que versión de cada base se saco este veredicto.
+    mature.fa — colision de seed, nivel aviso (paso 10a) — 5659566 B — md5 320a5a535c75bff442dbdc7bbccfff4c — 2026-08-26 — miRBase, fichero de maduros de TODAS las especies (69020 registros), aportado por el responsable del proyecto. No se versiona en git: 5,6 MB de base de datos. release 23 de miRBase, declarada por el responsable del proyecto el 2026-08-30: el fichero NO la trae dentro. `hairpin.fa` tiene que llegar con la MISMA release y `mirbase_release.comprobar_release` aborta si no
+    rmsk_human.out — elementos repetitivos (paso 2, humano) — 317 B — md5 bcc33dbc7a65e74690f5f9d1fb270035 — 2026-08-26 — RepeatMasker open-4.0.9 · rmblastn 2.17.1+ · Dfam_3.0 sobre NM_000311.5. UNA repeticion: (TA)n en tx:2097-2130 = 3utr:1268-1301, que SI cae en el 3'UTR y solapa 5 ventanas elegibles (3utr:1247, 1249, 1250, 1251, 1252). Cero Alu, cero interspersed en 2435 nt
+    NM_000311.5.gb — anatomia del transcrito humano (CDS 68..829) — 19682 B — md5 4e1d2d5d8ed681a99efa7ebb1eb4cc00 — 2026-08-26 — NCBI, registro GenBank completo aportado por el responsable del proyecto; se pasa con --genbank-b. Su ORIGIN es IDENTICO al FASTA (2435 nt, e28a945d24ce53e0d1d93ba5b55a532a) y declara CDS 68..829, ATG…TGA: comprobado aqui, no dado por bueno
+
+── Tabla comparativa de los candidatos ──
+  inicio_transcrito  inicio_3utr  region  tercio    GC     asimetria  penalizacion  asimetria_penalizada  polyA_solapa_seed  riesgo_APA     carga_8mer  accesibilidad  veredicto 
+  tx:939             3utr:110     3'UTR   proximal  0.455  +5.39      0.00          +5.39                 no                 prediccion:no              NO_PEDIDO      INCOMPLETE
+  tx:1075            3utr:246     3'UTR   proximal  0.318  +5.32      1.00          +4.32                 no                 prediccion:no              NO_PEDIDO      INCOMPLETE
+  tx:1216            3utr:387     3'UTR   proximal  0.364  +5.88      0.00          +5.88                 no                 prediccion:no              NO_PEDIDO      INCOMPLETE
+  tx:1305            3utr:476     3'UTR   proximal  0.364  +6.42      0.00          +6.42                 no                 prediccion:no              NO_PEDIDO      INCOMPLETE
+  tx:1480            3utr:651     3'UTR   medio     0.500  +5.23      0.00          +5.23                 no                 prediccion:no              NO_PEDIDO      INCOMPLETE
+  tx:1539            3utr:710     3'UTR   medio     0.364  +6.13      0.00          +6.13                 no                 prediccion:no              NO_PEDIDO      INCOMPLETE
+  tx:1608            3utr:779     3'UTR   medio     0.455  +5.86      0.00          +5.86                 no                 prediccion:no              NO_PEDIDO      INCOMPLETE
+  tx:1686            3utr:857     3'UTR   medio     0.409  +5.88      0.00          +5.88                 no                 prediccion:no              NO_PEDIDO      INCOMPLETE
+  tx:1940            3utr:1111    3'UTR   distal    0.364  +5.23      0.00          +5.23                 no                 prediccion:si              NO_PEDIDO      INCOMPLETE
+  tx:2075            3utr:1246    3'UTR   distal    0.455  +5.85      1.00          +4.85                 no                 prediccion:si              NO_PEDIDO      INCOMPLETE
+  tx:2250            3utr:1421    3'UTR   distal    0.455  +5.85      0.00          +5.85                 no                 prediccion:si              NO_PEDIDO      INCOMPLETE
+  La tabla COMPLETA —con la pasajera, el módulo de 149 nt, los cinco campos de
+  polyA, los recuentos de especificidad y una columna por filtro— está en el TSV comparativo,
+  con la columna knockdown_medido vacía para que vuelva rellena del laboratorio.
+  inicio_3utr/fin_3utr van sobre el 3'UTR y empiezan en 1; inicio_transcrito/fin_transcrito,
+  sobre la secuencia que se tilo.
+  Las TRES columnas de asimetría son cantidades distintas y no se mezclan: `asimetria` es la CRUDA,
+  `penalizacion` lo que resta la variante rara de poliadenilación (0.00 si no la hay), y
+  `asimetria_penalizada` la NETA con la que se ordena. Darlas en una sola columna hizo que 3utr:221
+  saliera +4.15 al lado de candidatos sin penalizar, y pareciera una discrepancia de calculo.
+  polyA_hexamero_pos y polyA_dist_extremo3 van en el marco de LO TILADO, igual que
+  inicio_transcrito: un hexámero en 1983 con el CDS declarado es el 1034 del 3'UTR.
+  Anatomia: feature CDS de un fichero GenBank suministrado y verificado.
+
+── Riesgo de polyA: los DOS riesgos, separados ──
+  La regla de ±flanco mezclaba dos cosas distintas, y esto las separa:
+    TRUNCAMIENTO  la ventana está POR DETRÁS del corte que dirige un hexámero funcional.
+                  El corte cae 10-30 nt aguas abajo. Es un riesgo sobre la EXISTENCIA de
+                  la diana: si esa isoforma se usa, el tramo no esta.
+    ESTERICO      la ventana SOLAPA el hexámero y compite con CPSF/CstF por ese tramo.
+                  Es un riesgo sobre la ACCESIBILIDAD, y solo existe si el hexámero se usa.
+  Un mismo hexámero NUNCA produce los dos en la misma ventana: o estas encima de la
+  señal, o estas por detrás de su corte.
+
+  SEÑALES DE APA POSIBLE: 2. Cada una pone su propio techo, y se cuentan aparte:
+    · APA_POSIBLE (canónico, asumido): ATTAAA en tx:1784 (por CANONICIDAD, sin dato de uso)
+      (corte tx:1799-1819): TECHO sobre 89 de 288 ventanas elegibles (30.9%); 6 en la banda
+      de corte (PENALIZADO, no se sabe de que lado caen); 193 por delante, inmunes. Techo
+      INDETERMINADO en las tres: fraccion_isoforma_larga sin medir.
+    · APA_POSIBLE (canónico, asumido): ATTAAA en tx:1996 (por CANONICIDAD, sin dato de uso)
+      (corte tx:2011-2031): TECHO sobre 65 de 288 ventanas elegibles (22.6%); 5 en la banda
+      de corte (PENALIZADO, no se sabe de que lado caen); 218 por delante, inmunes. Techo
+      INDETERMINADO en las tres: fraccion_isoforma_larga sin medir.
+
+  RIESGO DE TRUNCAMIENTO DOMINANTE DEL PANEL: ATTAAA en tx:1784-1789 (3utr:955-960).
+  Clasificada APA_POSIBLE POR SER CANÓNICA y estar a más de 100 nt del extremo 3',
+  NO POR EVIDENCIA DE USO: aquí no hay ni un dato de uso de este sitio. Es un SUPUESTO,
+  no una medida. Con una tabla de PolyA_DB o PolyASite (--apa-medido) dejaria de serlo.
+  Su corte cae en tx:1799-1819. Un candidato que empiece por detrás pierde su diana en la
+  isoforma CORTA y la conserva en la LARGA: el APA reparte los transcritos en una
+  MEZCLA DE ISOFORMAS, así que lo que corre es un TECHO de knockdown — NO ES UN VETO.
+    con TECHO (por detrás del corte): 3utr:1111, 3utr:1246, 3utr:1421
+      techo indeterminado: fraccion_isoforma_larga NO MEDIDA. No es 0 ni 1 — es que
+      nadie la ha medido, y hasta entonces el techo de estos candidatos no se escribe.
+    INMUNES al TRUNCAMIENTO por ser proximales a esa señal: 3utr:110, 3utr:246, 3utr:387, 3utr:476, 3utr:651, 3utr:710, 3utr:779, 3utr:857 (del panel)
+      INMUNES elegibles NO elegidos: 65 sitio(s). Los mejores por asimetría:
+        3utr:362 (+5.15); 3utr:789 (+4.45); 3utr:611 (+5.32 − 1.00 penal. = +4.32); 3utr:614 (+5.15 − 1.00 penal. = +4.15); 3utr:112 (+4.10); 3utr:190 (+4.06)  ← inmunes también
+      Son las plazas con las que se cambia un candidato con techo por uno inmune.
+  Sobre si está conservada en otra especie: NOT_RUN. No se ha pasado ningún 3'UTR
+  con el que comparar (--fasta-b), así que este informe no lo confirma ni lo desmiente.
+
+  ── Fracción de isoforma larga ──
+  NOT_RUN — No hay tabla de PolyA_DB en el directorio de referencia (polya_db_humano.tsv), así que el frente del APA queda NOT_RUN y `riesgo_APA` sigue siendo una PREDICCIÓN. Se sube por el gestor.
+
+  ANTES DEL BANCO — mirar si la fracción ya está medida y publicada:
+    1. PolyA_DB / PolyASite: ¿hay sitio anotado en este 3'UTR, y con que fracción de
+       lecturas? Si lo hay, entra por --apa-medido y el techo deja de estar indeterminado.
+    2. Datos públicos de 3'-end seq (3'-seq / PAS-seq / QuantSeq REV) de CEREBRO murino
+       sobre Prnp: la fracción de uso del sitio proximal se lee directamente de ahi.
+    Si la fracción está publicada, el experimento de abajo es una CONFIRMACIÓN, no un
+    descubrimiento — y entonces cuesta lo que cuesta comprobar dos amplicones, no una serie.
+
+  EXPERIMENTO QUE RESUELVE EL TECHO — RT-qPCR de dos amplicones sobre el 3'UTR
+    Señal en cuestion: ATTAAA en tx:1784-1789 (3utr:955-960); banda de corte tx:1799-1819.
+    proximal: tx:1350-1469 (3utr:521-640) (120 nt). entero por delante de ATTAAA@tx:1784 (holgura 10 nt) y dentro de la región analizada: presente en las DOS isoformas, mide el total.
+    distal: tx:2107-2226 (3utr:1278-1397) (120 nt). entero por detrás de la banda de corte tx:1799-1819 (holgura 10 nt): solo presente en la isoforma LARGA.
+    QUÉ MIDE ESTE PAR: la fracción de transcritos que sobrevive a las bandas de corte de
+    esta señal Y de ATTAAA@tx:1996 — o sea el techo de los candidatos que quedan por detrás de
+    TODAS ellas, que es exactamente el que necesita el panel.
+    QUÉ NO MIDE: no separa esta señal de ATTAAA@tx:1996 y no confirma el techo del tramo
+    INTERMEDIO. El amplicón distal queda entero por DETRÁS de esa otra banda, así que
+    tampoco da producto en la isoforma que corta ahí: ausente y partido dan la misma
+    lectura.
+    Y NO se arregla moviéndolo: entre las dos bandas, con la misma holgura, queda tx:1830-2000 — 171 nt para un amplicón de 120. NO CABE.
+    SI ALGÚN DÍA HICIERA FALTA el tramo intermedio: no se alcanza moviendo amplicones —es geométricamente imposible— sino con 3'RACE o secuenciación de extremos, donde la resolución no depende de que quepa un amplicón entre dos cortes. Línea abierta: hoy no hay ningún candidato ahí, así que no confirmarlo no cuesta nada.
+    Los dos se cuantifican contra una CURVA ESTÁNDAR COMUN: sin ella las dos eficiencias
+    no son comparables y la razón no significa nada.
+    RETROTRANSCRIPCION CON HEXÁMEROS ALEATORIOS. Con oligo-dT NO, y el sesgo tiene dirección
+    conocida: el oligo-dT ceba en la cola de poli(A) y la RT avanza 3'→5', así que una RT
+    incompleta cubre lo que está cerca de la cola y pierde lo de lejos. En la isoforma LARGA
+    el amplicon proximal queda a 966 nt de la cola y el distal a 209 nt:
+    la larga se subrepresenta MÁS en el proximal que en el distal, y la razón distal/proximal
+    sale sesgada HACIA MÁS ISOFORMA LARGA — que es justo el resultado que se está buscando.
+    Con hexámeros aleatorios el cebado no depende de la distancia a la cola.
+    RNA con RIN DOCUMENTADO: la degradación produce el mismo sesgo por la misma razón.
+    CONTROL POSITIVO DE ENSAYO, obligatorio: un gen con APA caracterizado en el mismo tejido,
+    medido en las MISMAS muestras y con la MISMA arquitectura de amplicones (uno delante de su
+    señal proximal, otro detrás de su banda de corte). Sin el, un «casi todo isoforma larga» no
+    se distingue de un ensayo CIEGO a las isoformas cortas: los dos dan la misma cifra.
+    Ese gen se elige con su cita — aquí no se propone ninguno, porque nombrarlo de memoria
+    sería inventarse la referencia que lo respalda.
+      control_positivo_ensayo: NOT_RUN — falta el gen de control con su cita. NOT_RUN no es
+      PASS: mientras no lo aporte alguien, el ensayo no se puede leer, porque su resultado
+      esperado y el de un ensayo averiado son el mismo.
+    fraccion_isoforma_larga = razón distal/proximal. Ese número ES el techo de knockdown
+    de los candidatos que quedan por detrás del corte.
+    Se mide sobre tejido SIN tratar: en muestras tratadas un amplicon que solape una diana
+    mide corte por RNAi, no isoformas.
+    Se emiten COORDENADAS: no se emiten cebadores. El diseño de cebadores necesita Tm,
+    especificidad y comprobación de horquillas, y eso no se improvisa aquí.
+
+── Que se ha analizado ──
+  2435 nt, md5 canónico e28a945d24ce53e0d1d93ba5b55a532a
+  Sin estas dos cifras no hay forma de saber que secuencia se analizo. El md5 es el de la
+  secuencia canónica (mayusculas, sin cabecera, sin saltos), no el del fichero.
+  Posiciones de CONVENIO, excluidas de toda comparación de identidad:
+    · posición 1 de la guía: se fuerza una T/U para que AGO2 cargue la hebra; no viene de la diana.
+    · posición 1 de la pasajera: desapareamiento deliberado que mantiene el bulge basal; tampoco viene de la diana.
+
+── Score externo (columna vacía) ──
+  No hay ninguna API de score externo verificada, así que la columna `score_externo`
+  de la tabla comparativa va VACÍA, igual que `knockdown_medido`. No se ha puesto
+  ningún número calculado aquí: eso sería un score propio con etiqueta ajena.
+
+  Se comprobo el 2026-08-25 y **no se ha podido comprobar** si miRarchitect y
+  SplashRNA tienen API: las cuatro direcciones dieron 403 en el proxy de este
+  entorno, que es una denegacion de politica de red y no una respuesta del servicio.
+  Puede que existan; desde aquí no se sabe, así que no se cablea ninguna URL.
+
+  Los dos servicios (direcciones dadas por el responsable del proyecto, no
+  verificadas desde aquí):
+    · miRarchitect             https://mirarchitect.cs.put.poznan.pl/
+      puntua el diseño de la horquilla; es la fuente de `score_externo`; pegar la guía de 22 nt en ADN y el andamio miR-E
+      Produce guías de 22 nt.
+    · SplashRNA                http://splashrna.mskcc.org/
+      predice potencia de shRNA; sus features salen aquí en columnas feat_*; pegar la guía de 22 nt en ADN
+      Produce guías de 22 nt.
+    · GPP Web Portal           https://portals.broadinstitute.org/gpp/public/
+      portal de la Genetic Perturbation Platform del Broad, con sus herramientas de diseño; sirve para contrastar, NO alimenta score_externo; pegar el gen diana
+      No declara qué longitud de guía produce, así que no se cruza nada con esta fuente. Se declara en `external_score.EXTERNAL_TOOLS`, en su entrada. NO se deduce del nombre ni de la familia de la herramienta: ese número decide cómo se cruza, y uno equivocado no da ningún error — da un cruce con la forma correcta sobre el candidato de al lado.
+    · siDirect                 Sin dirección aportada. No se escribe ninguna de memoria: desde este entorno no se puede verificar (403 en el CONNECT del proxy, que es política de red y no una respuesta del servicio), y una dirección deducida por patrón es exactamente lo que la regla 4 prohíbe. La aporta quien la conozca.
+      diseñador de siRNA con reglas de especificidad; es CONTRASTE de sitio, NO ordena estos candidatos; pegar la secuencia diana (el 3'UTR o el transcrito)
+      Produce guías de 19 nt.
+    · BLOCK-iT RNAi Designer   Sin dirección aportada. No se escribe ninguna de memoria: desde este entorno no se puede verificar (403 en el CONNECT del proxy, que es política de red y no una respuesta del servicio), y una dirección deducida por patrón es exactamente lo que la regla 4 prohíbe. La aporta quien la conozca.
+      diseñador de RNAi de Thermo Fisher; es CONTRASTE de sitio, NO ordena estos candidatos; pegar la secuencia diana (el 3'UTR o el transcrito)
+      No declara qué longitud de guía produce, así que no se cruza nada con esta fuente. Se declara en `external_score.EXTERNAL_TOOLS`, en su entrada. NO se deduce del nombre ni de la familia de la herramienta: ese número decide cómo se cruza, y uno equivocado no da ningún error — da un cruce con la forma correcta sobre el candidato de al lado.
+
+  ESTAS HERRAMIENTAS SE CONOCÍAN Y SE DECIDIÓ NO USARLAS COMO FUENTE PRINCIPAL, sino como CONTRASTE independiente. Dos motivos, y ninguno es que sean malas: (a) devuelven una lista de candidatos y NO DECLARAN qué no han comprobado, así que un sitio que no sale no se distingue de uno que no miraron —que es la misma razón por la que aquí todo filtro emite `NOT_RUN` con su motivo—; y (b) ninguna considera la POLIADENILACIÓN ALTERNATIVA, que en este 3'UTR condiciona a seis de los diez candidatos con un techo de knockdown. Lo que sí aportan es convergencia de sitio: que otro método señale la misma región es información, y por eso están en la lista en vez de fuera de ella.
+
+  Para puntuarlas a mano:
+    1. Abre https://mirarchitect.cs.put.poznan.pl/.
+    2. Pega la guía de 22 nt y elige el andamio miR-E.
+    3. Copia del resultado el score y su escala (el rango posible), una línea
+       por guía, en un TSV de dos columnas: `guia<TAB>score`.
+    4. Importalo:
+         python3 tools/import_scores.py --fuente mirarchitect --tsv resultados.tsv --comparativa <especie>_comparativa.tsv
+       La columna `fuente_score` quedara en `manual_mirarchitect`.
+
+  El score es INFORMATIVO: no es un filtro, no da PASS y no da FAIL. Ningún
+  candidato se descarta ni se aprueba por el.
+
+  Guías que hay que pegar (en ADN, como las pide el formulario):
+    TATTGATTAGCCTATCCGGGAC
+    TTTAACCAATGGTTATTTGCTG
+    TAATCTCTACTAAGATAGGGCA
+    TTTGAATAAGTATCATGTGGCC
+    TAATATGTCCTCTAGCCAGAGG
+    TAAACATTTGATTTCAAGTCCC
+    TAAAGGAATGCCACATATAGGG
+    TAATGGACAAAGGAGATTTGCC
+    TAATCATATTTCTGTCATCTCC
+    TAATACTCACAAAGTGCAAGCC
+    TATTCAGTGCACATTGTAAGCC
+
+── Rango que cubre la selección ──
+  GC             cubre alto, bajo (de 0.32 a 0.50)
+  accesibilidad  sin dato en 11 de 11 candidato(s): ese eje no se pudo repartir.
+  APA            cubre delante, detras
+  polyA_debil    cubre con_bandera, sin_bandera
+  La selección se hizo por asimetría, no repartiendo. La asimetría predice SELECCIÓN DE HEBRA, no potencia: si lo que se quiere es correlacionar parámetros contra el knockdown medido, --reparto-rango reparte los candidatos por los extremos de los parámetros dudosos.
+
+── Poliadenilación alternativa (APA) ──
+  El frente del APA lo cierra cualquiera de dos ficheros, y no son el mismo con otro
+  nombre: `polya_db_<especie>.tsv` es PolyA_DB en crudo —coordenadas genómicas, PSE y
+  AvgRPM— y de él sale la promoción por medida; `apa_medido_<especie>.tsv` es una
+  medida que llega ya convertida a coordenadas de 3'UTR, que es el caso de un 3'-end
+  seq del tejido. Con uno de los dos el frente está cerrado. Si el techo del 3'-end seq
+  de cerebro y el de PolyA_DB discrepan, la discrepancia NO es un fallo a reconciliar:
+  es el dato. PolyA_DB promedia todos los tejidos y las neuronas alargan los 3'UTR, así
+  que lo esperable es que el de cerebro sea MAYOR que 0,86 — y una discrepancia en esa
+  dirección CONFIRMA el modelo. En la contraria hay que PARAR: contradice la dirección
+  conocida del sesgo, y antes de mover ningún veredicto hay que buscar la causa. No se
+  promedian.
+  riesgo_APA es una PREDICCIÓN, no un dato: 625 de 2414 ventana(s) (25.9%) quedan por detrás de una señal de APA posible.
+  Que esa señal se use o no, esto no lo puede saber. Si se usa, esas ventanas tienen un techo de knockdown duro e invisible. Con una tabla de PolyA_DB o PolyASite (--apa-medido) el dato sustituiria a la predicción.
+
+── Accesibilidad de la diana ──
+  NOT_RUN: no se pidio (--accesibilidad). NOT_RUN no es cero: no haber plegado no es lo mismo que una diana inaccesible.
+
+── Elementos repetitivos ──
+  ⚠  DOS EJES, no uno: (TA)n (Simple_repeat) en 2097-2130 es una repetición POLIMÓRFICA en longitud.
+     `repetitivo` aplica a la ESTABILIDAD DEL GENOMA AAV —un tramo repetitivo dentro del
+     casete es sustrato de recombinación— y, sobre la diana, a que una guía derivada de un
+     elemento repetitivo tiene miles de sitios perfectos: no es un off-target, es una guía
+     inservible.
+     `repeticion_polimorfica` aplica a la VIABILIDAD CLINICA, que es otra cosa. Un
+     microsatelite varia en NÚMERO DE REPETICIONES entre individuos, así que una guía
+     sobre el tendría RESPONDEDORES Y NO RESPONDEDORES por variación de LONGITUD, no de
+     secuencia. Y hay un hueco que no cubre nadie: gnomAD anota SUSTITUCIONES y capta mal
+     la variación de longitud, así que el filtro de variación NO cubre este riesgo.
+     Decirlo importa: un «gnomAD limpio» invita a creer que la ventana está comprobada.
+
+  Máscara: /home/user/jokin-tools/apps/shmir-design/data/reference/rmsk_human.out, version 2026-08-26, biblioteca Dfam_3.0, especie homo sapiens, checksum bcc33dbc7a65e74690f5f9d1fb270035, 1 elemento(s), 0 SINE
+  El enmascarado va ANTES de tilar y se RETILA: una ventana parcialmente repetitiva se reevalua entera, no se tacha de una lista ya hecha.
+  La máscara se lleva 5 ventana(s) elegible(s) de este 3'UTR (3utr:1247, 3utr:1249,
+  3utr:1250, 3utr:1251, 3utr:1252), de 1 elemento(s) repetitivo(s) dentro de él. Que la
+  máscara no quite ninguna ventana es una propiedad del TRANSCRITO, no del pipeline: la
+  misma maquinaria se lleva 0 ventanas elegibles en Mus musculus —cuyo 3'UTR de Prnp no
+  tiene ni un elemento repetitivo: el único hallazgo, el `(CTC)n`, está entero dentro
+  del CDS— y 5 en Homo sapiens, por el `(TA)n` de `3utr:1268-1301`. Un cero aquí es un
+  resultado medido, no un filtro que no corrió.
+
+── Colisión de seed con miARN endogeno ──
+  Maduros: /home/user/jokin-tools/apps/shmir-design/data/reference/mature.fa, versión 2026-08-26, checksum 320a5a535c75bff442dbdc7bbccfff4c, 69020 maduro(s) (), 12292 seed(s) distintas
+  Lista de abundancia en cerebro: AUSENTE. El nivel FAIL queda en NOT_RUN; el nivel de aviso si ha corrido y las colisiones se listan por candidato.
+  Dos niveles porque hay 16384 7-meros posibles: una colisión por azar no es rara, así que el FAIL solo lo da la lista curada.
+
+── Carga de off-targets por seed ──
+  NOT_RUN: no hay FASTA de 3'UTR del transcriptoma cargado. Esto NO es un cero: no saber cuántos sitios de seed hay no es lo mismo que no haber ninguno.
+  Ningún alineador devuelve estos sitios — la especificidad compara la guía entera — así que un veredicto de especificidad limpio no dice nada sobre esto.
+
+── Transgén terapeutico ──
+  NOT_RUN: no hay casete del transgén cargado, así que queda sin comprobar si algun candidato apaga la propia construcción terapeutica. NOT_RUN no es PASS.
+  Por que importa: una guía a 1 desapareamiento del ORF del transgén lo silencia casi igual que a su diana perfecta. El fallo sería silencioso — knockdown global bonito y ningún beneficio en el ratio.
+
+── Empalme del intrón ──
+  RIESGO BINARIO. NO ES UN PARÁMETRO DE CALIDAD y no se lee como tal: o el intrón se
+  escinde o no. Si no se escinde, la horquilla se queda en el 5'UTR del mRNA maduro y no
+  hay proteina DN EN ABSOLUTO — no hay «un poco de proteina» que optimizar. Lo que decide
+  no es un candidato ni una plaza del panel: decide si la ARQUITECTURA INTRÓNICA sigue
+  viva. Por eso va como frente y no como columna.
+  Y la lectura que se hace por defecto NO lo coge: un small RNA-seq puede salir PERFECTO
+  con el empalme fallando. Drosha procesa el pri-miR COTRANSCRIPCIONALMENTE, o sea ANTES
+  del splicing, así que la horquilla se corta igual este el intrón escindido o no. Un
+  shmiR correcto NO ES EVIDENCIA de que haya proteina: son dos sucesos en orden y esa
+  lectura solo mide el primero.
+
+  No hay casete cargado (--transgen), así que no se emiten coordenadas de cebador. NOT_RUN
+  no es PASS: el frente sigue igual de abierto.
+
+  SI EL INTRÓN SE RETIENE FALLAN DOS COSAS DISTINTAS, no una: (a) la horquilla se queda
+  dentro del mRNA maduro, en el 5'UTR, con lo que eso haga al transito del ribosoma y a la
+  estabilidad; y (b) el ribosoma escanea desde el extremo 5' y se encuentra varios AUG
+  antes del legítimo. El (b) actua AUNQUE la horquilla no estorbara nada: son mecanismos
+  distintos y se cuentan aparte.
+
+  (b) EL SEGUNDO MODO — el escaneo del ribosoma:
+      +16  (MVM5        ) TAAGGGATG      -3=G +4=G Kozak FUERTE    a 318 nt del ATG legítimo, EN MARCO, para a los 10 codones → uORF
+      +38  (MVM5        ) GTATTAATG      -3=T +4=T Kozak debil     a 296 nt del ATG legítimo, fuera de marco, para a los 36 codones → uORF
+      +45  (espaciador5 ) TGTACAATG      -3=A +4=A Kozak adecuado  a 289 nt del ATG legítimo, fuera de marco, para a los 6 codones → uORF
+      +116 (horquilla   ) ATTATAATG      -3=A +4=C Kozak adecuado  a 218 nt del ATG legítimo, fuera de marco, para a los 10 codones → uORF
+      +141 (horquilla   ) CCACAGATG      -3=C +4=T Kozak debil     a 193 nt del ATG legítimo, fuera de marco, para a los 3 codones → uORF
+      +167 (horquilla   ) ATTCCTATG      -3=C +4=C Kozak debil     a 167 nt del ATG legítimo, fuera de marco, para a los 18 codones → uORF
+      +210 (espaciador3 ) GAGCTCATG      -3=C +4=G Kozak adecuado  a 124 nt del ATG legítimo, fuera de marco, SIN codón de parada antes del ATG legítimo → uORF_SOLAPANTE
+      +237 (espaciador3 ) GTGCCTATG      -3=C +4=T Kozak debil     a 97 nt del ATG legítimo, fuera de marco, SIN codón de parada antes del ATG legítimo → uORF_SOLAPANTE
+    ESCANEO DEL RIBOSOMA — 8 AUG por delante del legítimo. EXTENSION N-TERMINAL: ninguno.
+    Se comprueba, no se supone: de los 8 uAUG, +16 esta(n) en marco pero para(n) antes del
+    ATG legítimo. Así que ninguno produce una proteina que un Western pueda confundir con
+    la DN. PERO NO TODOS SON IGUALES: +210, +237 no llega(n) a codón de parada antes del
+    ATG legítimo, así que el ribosoma SIGUE ELONGANDO al pasar por el — un uORF que SOLAPA
+    el inicio no deja reiniciar ahi, y eso es peor que uno que termina antes. Kozak,
+    criterio declarado (no citado): se miran dos posiciones, -3 (purina A o G) y +4 (G).
+    Las dos → FUERTE; una → adecuado; ninguna → debil. Es el criterio de este análisis y
+    se escribe para que se pueda discutir, no para dar por buena una referencia que aquí
+    no se ha comprobado. OJO: la cuenta cambia POR CANDIDATO — la horquilla aporta parte
+    de estos AUG y otra guía da otros. Lo que no cambia son los del andamio y los
+    espaciadores.
+
+  DONANTE CRÍPTICO GTGAGCG en +98 del intrón (flanco 5' de miR-E, dentro del ANDAMIO:
+    viaja con cualquier candidato, no depende de la guía).
+    ¿Hay un ACEPTOR utilizable entre el (+98) y el legítimo (+295)? Se han mirado los
+    13 AG del intervalo. El aceptor LEGÍTIMO tiene un tracto de 9 pirimidinas contiguas;
+    el mejor críptico llega a 3. NO hay ninguno comparable.
+    Criterio de sitio 3' declarado como PARÁMETRO de este análisis; NO ES UNA CITA. Se miden dos cosas sobre cada AG: (1) el tracto de pirimidinas CONTIGUAS inmediatamente aguas arriba —contiguas, no el porcentaje en una ventana, que diluye—, y (2) si hay algun YURAY entre 18 y 40 nt aguas arriba, como punto de ramificacion candidato. Los dos números salen tal cual y la comparación se hace CONTRA EL ACEPTOR LEGÍTIMO del mismo intrón, que es la referencia interna: así el veredicto no depende de ningún umbral tomado de fuera.
+  
+    LO QUE ESO CIERRA: los productos que necesitarian un aceptor críptico en ese intervalo. No hay
+    ninguno con un sitio 3' comparable al legítimo, así que esa familia de productos se descarta POR SECUENCIA.
+  
+    LO QUE NO CIERRA, y es lo importante: el riesgo del donante críptico NO se cierra por aquí, porque
+    ese donante NO NECESITA un aceptor críptico — el aceptor LEGÍTIMO del MVM está aguas abajo (+295)
+    y es perfectamente utilizable. Un empalme +98 → +295 quita 198 nt y deja
+    los 97 primeros nt del intrón dentro del mRNA: banda = empalmada + 97 pb, frente a +0 (correcta) y
+    +296 (retenida). Es una banda INTERMEDIA, que es exactamente la que se puede confundir en un gel,
+    y por eso la lectura 4 —secuenciar la union— no es opcional. Los dos donantes compiten por el MISMO
+    aceptor, y cual gana no lo dice la secuencia.
+
+  LAS CUATRO LECTURAS QUE LO CIERRAN. Ninguna la corre este software:
+    · rtpcr_empalme [NOT_RUN]: RT-PCR con cebadores en los exones que flanquean el intrón
+      MVM. OJO, y esto invalida la lectura ingenua: la PRESENCIA de banda larga NO ES
+      EVIDENCIA de retención. El pre-mRNA sin empalmar existe SIEMPRE —el splicing es
+      cotranscripcional pero no instantáneo—, así que hay transcritos NACIENTES a medio
+      procesar aunque el empalme sea perfecto, y dan banda larga igual. Por eso el ensayo
+      lleva CUATRO condiciones y ninguna es opcional: (1) RNA CITOPLÁSMICO, no total — el
+      pre-mRNA sin empalmar es NUCLEAR, y lo que sí es fallo es encontrarlo retenido en el
+      citoplasma; (2) SELECCIÓN POR polyA, que excluye la mayor parte del naciente; (3)
+      DNasa y CONTROL SIN RETROTRANSCRIPTASA, porque el genoma del AAV LLEVA el intrón y
+      una traza de ADN da una banda larga indistinguible de la retención; (4) la lectura
+      es la PROPORCIÓN corta/larga, NO la presencia, y no se lee sola: necesita DOS
+      referencias en la MISMA TANDA —el control sin intrón, que es el 100 % corta, y el
+      terapéutico—. Coordenadas NO emitidas: falta el casete (--transgen).
+    · western_L42_por_vg [NOT_RUN]: Western L42 NORMALIZADO por vg-qPCR. Sin normalizar,
+      «no hay proteina» no se distingue de «no llego el vector»: los dos dan una membrana
+      vacía, y solo uno de los dos culpa al empalme. La vg-qPCR es la que separa las dos
+      hipotesis.
+    · secuencia_union_exon_exon [NOT_RUN]: SECUENCIAR la banda corta, no solo verla. Es LA
+      QUE CIERRA el frente: la lectura de exito es la SECUENCIA de la union exon-exon, NO
+      LA ALTURA de la banda. Sirve para descartar el donante críptico GTGAGCG del flanco
+      5' del andamio: un empalme por ahi al aceptor legítimo dejaria 97 nt de intrón
+      dentro y daria una banda INTERMEDIA —empalmada + 97 pb— que en un gel se puede
+      confundir con la correcta. Con la union secuenciada, o pone exon5|exon3 o no lo
+      pone.
+    · parental_sin_intron [NOT_RUN]: Parental SIN INTRÓN en la MISMA TANDA, como TECHO de
+      expresión. Sin techo, un western flojo no dice si el empalme va mal o si la
+      construcción expresa poco de por si. OJO: el casete que hay (aav_casete.fa) NO es
+      ese. Es el parental sin MÓDULO pero CON el intrón vacío de 82 nt, así que tiene el
+      mismo problema de empalme que se quiere medir y no sirve de techo. Hace falta la
+      construcción sin donante ni aceptor.
+
+── Criterio de poliadenilación: los tres modos lado a lado ──
+  Modo usado en esta corrida: escalonado
+  El corte no ocurre en el hexámero, ocurre 10-30 nt aguas abajo: el hexámero se queda
+  dentro del ARNm maduro. La ventana que desaparece es la que empieza DESPUÉS del corte,
+  así que la zona prohibida por esa razón es asimetrica y está desplazada aguas abajo.
+  Modo        elegibles   candidatos elegidos
+  estricto          253   tx:939, tx:1019, tx:1216, tx:1305, tx:1480, tx:1539, tx:1608, tx:1686, tx:1940, tx:2033, tx:2250
+  escalonado        288   tx:939, tx:1075, tx:1216, tx:1305, tx:1480, tx:1539, tx:1608, tx:1686, tx:1940, tx:2075, tx:2250
+  permisivo         302   tx:939, tx:1075, tx:1216, tx:1305, tx:1480, tx:1539, tx:1608, tx:1686, tx:1940, tx:2075, tx:2250
+  Los tres modos NO eligen lo mismo: aquí el criterio de polyA SI cambia quien entra, así que la elección de modo es una decisión de diseño y no un detalle.
+
+── Sensibilidad de la penalizacion por poliadenilación debil ──
+  ventanas con bandera: 299
+    0.5 kcal/mol → tx:939, tx:1075, tx:1216, tx:1305, tx:1480, tx:1539, tx:1608, tx:1686, tx:1940, tx:2075, tx:2250
+    1.0 kcal/mol → tx:939, tx:1075, tx:1216, tx:1305, tx:1480, tx:1539, tx:1608, tx:1686, tx:1940, tx:2075, tx:2250
+    1.5 kcal/mol → tx:939, tx:1019, tx:1216, tx:1305, tx:1480, tx:1539, tx:1608, tx:1686, tx:1940, tx:2075, tx:2250
+    2.0 kcal/mol → tx:939, tx:1019, tx:1216, tx:1305, tx:1480, tx:1539, tx:1608, tx:1686, tx:1940, tx:2033, tx:2250
+  Los seleccionados CAMBIAN dentro del rango 0.5–2.0 kcal/mol: el valor no es inocuo, decidelo a propósito.
+
+── FILTROS QUE NO SE EJECUTARON ──
+  especificidad: NOT_RUN en 2414 de 2414 ventanas
+  transgen: NOT_RUN en 2414 de 2414 ventanas
+  seed: NOT_RUN en 2000 de 2414 ventanas
+  seed_colision: NOT_RUN en 2000 de 2414 ventanas
+  GC: NOT_RUN en 55 de 2414 ventanas
+  asimetria: NOT_RUN en 55 de 2414 ventanas
+  homopolimero: NOT_RUN en 55 de 2414 ventanas
+  homopolimero_molecula: NOT_RUN en 55 de 2414 ventanas
+  NOT_RUN no es PASS. Mientras haya filtros sin correr, la selección es PROVISIONAL y ningún candidato está aprobado: su veredicto es INCOMPLETE.
+  EL PANEL ES PROVISIONAL EN 8 FRENTE(S): empalme_intron, empalme_sitios, especificidad, fraccion_isoforma_larga, offtarget_seed, seed, seed_colision, transgen.
+    offtarget_seed: NOT_RUN: falta `transcriptoma_3utr.fa`, así que los sitios de seed no
+    se han contado. NOT_RUN no es PASS. EL OFF-TARGET MEDIADO POR SEED NO SE BUSCA CON
+    BLAST, y no es una preferencia: 7 nt contiguos NO DAN UN ALINEAMIENTO PUNTUABLE, así
+    que un blastn no los devuelve por mucho que se le baje el word_size. Esto es
+    coincidencia EXACTA del heptamero 2-8 sobre los 3'UTR del transcriptoma murino —
+    busqueda de SUBCADENA, no alineamiento— y necesita `transcriptoma_3utr.fa`. Fundirlo
+    con la especificidad en un solo «PASS» daria por cubierto EL MODO DE OFF-TARGET MÁS
+    FRECUENTE DE RNAi con una herramienta que no lo detecta. Por eso son DOS frentes y se
+    cuentan aparte.
+    empalme_intron: RIESGO BINARIO. NO ES UN PARÁMETRO DE CALIDAD y no se lee como tal: o
+    el intrón se escinde o no. Si no se escinde, la horquilla se queda en el 5'UTR del
+    mRNA maduro y no hay proteina DN EN ABSOLUTO — no hay «un poco de proteina» que
+    optimizar. Lo que decide no es un candidato ni una plaza del panel: decide si la
+    ARQUITECTURA INTRÓNICA sigue viva. Por eso va como frente y no como columna. Y la
+    lectura que se hace por defecto NO lo coge: un small RNA-seq puede salir PERFECTO con
+    el empalme fallando. Drosha procesa el pri-miR COTRANSCRIPCIONALMENTE, o sea ANTES del
+    splicing, así que la horquilla se corta igual este el intrón escindido o no. Un shmiR
+    correcto NO ES EVIDENCIA de que haya proteina: son dos sucesos en orden y esa lectura
+    solo mide el primero. SE CIERRA CON TRES LECTURAS DE BANCO, las tres NOT_RUN y ninguna
+    la corre este software: (1) RT-PCR de empalme con cebadores en los exones que
+    flanquean el intrón MVM; (2) Western L42 normalizado por vg-qPCR, que es lo que separa
+    «no empalmo» de «no llego el vector»; (3) parental SIN INTRÓN en la misma tanda, como
+    techo de expresión. Coordenadas NO emitidas en esta corrida: falta el casete
+    (--transgen). El detalle, en el bloque «Empalme del intrón».
+    empalme_sitios: NOT_RUN: no se ha consultado la predicción de sitios de splicing sobre
+    ningún cassette montado. La unidad de este frente es el PAR candidato x intrón, no el
+    candidato. Es DESEMPATE Y ALERTA, nunca filtro: no puede excluir a nadie, y por eso su
+    veredicto solo puede ser NOT_RUN o PASS. Lo accionable es que guías introducen
+    crípticos que las otras no.
+    fraccion_isoforma_larga: NO MEDIDA, y bloquea. 3 de 11 candidatos quedan por detrás
+    del corte de tx:1784: comparten UN ÚNICO MODO DE FALLO. Y el rebalanceo tiene tope:
+    los sitios inmunes por tramo son 36/36/1 —repartidos entre proximal, medio, distal—;
+    con el espaciado de 50 nt caben 16 de esos sitios juntos y el panel lleva 8. Son DOS
+    cantidades: la primera se mide sobre los sitios elegibles y no cambia al retirar un
+    candidato del panel. POR QUE BLOQUEABA: si la fracción de isoforma corta es alta, esos
+    3 candidatos entran al cribado con un TECHO INDISTINGUIBLE DE UN shmiR MALO — un techo
+    de 0,3 y una guía que no funciona dan la misma lectura en la placa, y el experimento
+    se gasta en no poder separarlos. ESTADO: NO HAY MEDIDA EN ESTA CORRIDA, así que el
+    techo sigue INDETERMINADO y este frente sigue bloqueando. No hay tabla de PolyA_DB en
+    el directorio de referencia (polya_db_humano.tsv), así que el frente del APA queda
+    NOT_RUN y `riesgo_APA` sigue siendo una PREDICCIÓN. Se sube por el gestor.
+  NO SE PIDE OLIGO hasta que los ocho tengan veredicto. Que uno de ellos se arregle con un fichero pequeño
+  y otro necesite una base entera no cambia nada: los dos bloquean igual, y llamar «único
+  bloqueante» al pequeño es lo que hace que se pida oligo con dos filtros sin correr.
+  Y uno de ellos NO SE CIERRA CON NINGÚN FICHERO: el empalme del intrón solo se cierra en el
+  banco, con las tres lecturas de su bloque. Además es el único BINARIO — los demas degradan el
+  resultado, este lo anula: sin empalme no hay proteina DN en absoluto.
+
+── Multiplexado: núcleos de seed compartidos ──
+  Ninguna pareja del panel comparte el núcleo de 6 nt: en este eje los candidatos son
+  independientes. Se dice aunque salga limpio — su ausencia se leeria como que nadie lo miro.
+
+── Triple motivo: repetitivo + polimorfico + TECHO ──
+  5 ventana(s) caen por TRES razones INDEPENDIENTES. No se recuperan
+  arreglando una:
+    3utr:1247-1268: 3 motivos — repetitivo y polimorfico por (TA)n (Simple_repeat) en
+    2097-2130, y con TECHO por quedar detrás de 3utr:955, 3utr:1167.
+    3utr:1249-1270: 3 motivos — repetitivo y polimorfico por (TA)n (Simple_repeat) en
+    2097-2130, y con TECHO por quedar detrás de 3utr:955, 3utr:1167.
+    3utr:1250-1271: 3 motivos — repetitivo y polimorfico por (TA)n (Simple_repeat) en
+    2097-2130, y con TECHO por quedar detrás de 3utr:955, 3utr:1167.
+    3utr:1251-1272: 3 motivos — repetitivo y polimorfico por (TA)n (Simple_repeat) en
+    2097-2130, y con TECHO por quedar detrás de 3utr:955, 3utr:1167.
+    3utr:1252-1273: 3 motivos — repetitivo y polimorfico por (TA)n (Simple_repeat) en
+    2097-2130, y con TECHO por quedar detrás de 3utr:955, 3utr:1167.
+
+── Avisos ──
+  ⚠  [APA_PROXIMAL] Posible poliadenilación alternativa: ATTAAA (canonicidad) en tx:1784 (a 646 nt del extremo 3'). Afecta a 625 de 2414 ventana(s) corriente abajo (25.9%), posiciones tx:1790-2435. Podrian no capturar la isoforma corta. NO se excluyen: quedan anotadas con riesgo_APA=True y la lista completa está en el TSV. La decisión es del responsable. El límite de riesgo es la SEÑAL (tx:1784), no el sitio de corte, que cae 10-30 nt aguas abajo: el marcado es conservador a propósito y NO es una predicción del extremo de la isoforma corta.
+  ⚠  [APA_PROXIMAL] Posible poliadenilación alternativa: ATTAAA (canonicidad) en tx:1996 (a 434 nt del extremo 3'). Afecta a 413 de 2414 ventana(s) corriente abajo (17.1%), posiciones tx:2002-2435. Podrian no capturar la isoforma corta. NO se excluyen: quedan anotadas con riesgo_APA=True y la lista completa está en el TSV. La decisión es del responsable. El límite de riesgo es la SEÑAL (tx:1996), no el sitio de corte, que cae 10-30 nt aguas abajo: el marcado es conservador a propósito y NO es una predicción del extremo de la isoforma corta.

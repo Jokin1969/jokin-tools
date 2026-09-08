@@ -52,11 +52,20 @@ class _Base(unittest.TestCase):
             "\t".join(LEGACY_COLUMNS) + "\n" + "".join(filas), encoding="utf-8"
         )
 
+    #: LA ESPECIE SE DECLARA, y no es cosmetico. Desde 2026-09-08 `--usar-manifiesto`
+    #: aborta sin una especie declarada: los nombres del deposito llevan sufijo de
+    #: especie, asi que conectar por rol sin saber cual se diseña es exactamente lo que
+    #: ponia `aav_casete.fa` y `rmsk_mouse.out` delante de un transcrito humano. Estos
+    #: tests se escribieron cuando `--name` no hacia falta; lo que comprueban —que el
+    #: casete se conecta solo y que su version sale del manifiesto— sigue siendo suyo.
+    ESPECIE = "raton"
+
     def _correr(self, extra=None):
         return _correr(
             [
                 "--fasta", str(self.fa), "--out", str(self.raiz / "out"),
                 "--region", "3utr", "--datos", str(self.datos),
+                "--name", self.ESPECIE,
             ]
             + (extra or [])
         )
