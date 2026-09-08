@@ -8,7 +8,7 @@
   <link rel="preconnect" href="https://fonts.googleapis.com" />
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
   <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=JetBrains+Mono:wght@500;700&display=swap" rel="stylesheet" />
-  <link rel="stylesheet" href="/src/pharma.css?v=4" />
+  <link rel="stylesheet" href="/src/pharma.css?v=5" />
 </head>
 <body>
   <header class="ph-header">
@@ -45,6 +45,7 @@
           <span class="ph-card-ico">${a.icon || ''}</span>
           <span class="ph-card-body">
             <span class="ph-card-title">${esc(a.name)} <span class="ph-count" data-count="${esc(a.path)}" hidden></span></span>
+            <span class="ph-count ph-count-purple" data-count2="${esc(a.path)}" title="Unidades totales: la suma de las cajas/mes de cada medicamento, de todas las personas" hidden></span>
             <span class="ph-card-desc">${esc(a.desc)}</span>
             <span class="ph-tags">${(a.tags || []).map(t => `<span class="ph-tag">${esc(t)}</span>`).join('')}</span>
           </span>
@@ -71,8 +72,17 @@
           '/datamatrix': c.dmActive != null ? `📦 ${c.dmActive} sin utilizar` : null,
           '/asignacion': c.cnCount != null ? `💊 ${c.cnCount} medicamentos` : null,
         };
-        document.querySelectorAll('.ph-count').forEach(el => {
+        // Unidades totales de Asignación: suma de las cajas/mes de cada medicamento
+        // de cada persona (no el número de medicamentos distintos, de arriba).
+        const labels2 = {
+          '/asignacion': c.unitsCount != null ? `${c.unitsCount} U` : null,
+        };
+        document.querySelectorAll('[data-count]').forEach(el => {
           const t = labels[el.dataset.count];
+          if (t) { el.textContent = t; el.hidden = false; }
+        });
+        document.querySelectorAll('[data-count2]').forEach(el => {
+          const t = labels2[el.dataset.count2];
           if (t) { el.textContent = t; el.hidden = false; }
         });
       } catch { /* counters are optional */ }

@@ -175,6 +175,7 @@ app.get('/farmacia/api/counts', requireAuth, (req, res) => {
       people: qrTisDb.listPeople().length,            // personas en QR (TIS)
       dmActive: dmDb.counts().activo,                 // DM sin utilizar (en stock)
       cnCount: asigDb.distinctCnCount(),              // medicamentos distintos (CN) en Asignación
+      unitsCount: asigDb.totalPlanUnits(),            // unidades (cajas/mes) totales, sumando cada medicamento de cada persona
     });
   } catch { res.json({}); }
 });
