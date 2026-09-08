@@ -7362,3 +7362,77 @@ golden, y arreglarlos de paso los metería en un diff que se lee por otro motivo
 declarado para que el siguiente no tenga que volver a encontrarlo — principio nº 31: un
 comentario protege su clase, un mecanismo protege la siguiente, y aquí lo que hay de
 momento es esta lista.
+
+---
+
+## 148 — `blocking_fronts` no es la lista de los frentes que EXISTEN, y validar un nombre contra ella hace que un frente desaparezca cuando llega su fichero
+
+Al rechazar una corrida de off-targets ya guardada —el guardia de duplicados hizo lo que
+debe—, el aviso que dice **qué sigue faltando** abortó:
+
+```
+pending_after_duplicate no conoce el frente 'offtarget_seed'.
+Los que hay son: empalme_intron, empalme_sitios, especificidad,
+fraccion_isoforma_larga, seed, seed_colision, transgen.
+```
+
+`offtarget_seed` **existe**: tiene almacén en `STORE_FOR_FRONT`, ficha de obtención,
+corridas guardadas y dos columnas en el export. Con las palabras del reporte: *«una lista
+que declara los frentes no está completa, y el que falta es invisible para todo lo que la
+consulta»*.
+
+### La lista no estaba incompleta: era la lista equivocada
+
+`blocking_fronts` contesta **«qué frentes están ABIERTOS en esta corrida»**, y un frente
+cuyo fichero ya está en el depósito **deja de salir de ella**. Medido:
+
+| corrida | frentes que emite |
+|---|---|
+| sin máscara | los 10 |
+| **con la máscara murina** | 8 — se van `repeticiones` y `repeticion_polimorfica` |
+| con el transcriptoma (el caso reportado) | se va `offtarget_seed` |
+
+O sea que **un frente existía o no según lo que hubiera en el volumen**. Y el efecto no
+es un mensaje raro: es que la salida que el principio nº 47 puso ahí —*qué te sigue
+faltando de este frente*— **aborta justo en el frente que se estaba intentando cerrar**.
+
+### Lo que más enseña: el comentario correcto encima del código equivocado
+
+La versión anterior de esa validación arregló un fallo hermano y dejó escrito, dos líneas
+más arriba:
+
+> *«El principio nº 19: la pregunta era por el NOMBRE y la comprobación miraba el
+> CONTENIDO.»*
+
+Y validaba contra `blocking_fronts`, **que también es contenido**. Se cambió un contenido
+por otro y se escribió la lección correcta encima. **Saber la regla no basta si no se
+aplica al eje que toca** — la misma forma que los generadores de goldens, que tenían dos
+líneas más arriba escrito que la tabla de PolyA_DB no se pasa a mano y llevaban cuatro
+parámetros puestos a mano.
+
+### El registro, y por qué ESAS tres tablas
+
+`informe_doc.declared_fronts()` es la unión de `BENCH_FRONTS`, `UPLOADED_FRONTS` y
+`_FRONT_SOURCE_ATTR`. No se eligen por gusto: son la única declaración **forzada** que
+hay — `_front_source` **aborta** con un frente que no esté en ninguna de las tres, así
+que un frente nuevo no puede llegar a producir un texto sin pasar por ahí.
+
+Y quedan **dos preguntas con dos funciones**, que es lo que faltaba: `declared_fronts()`
+contesta «¿existe?» y `blocking_fronts` contesta «¿está abierto?». Confundirlas era todo
+el fallo.
+
+### El mecanismo, porque el reporte pedía la familia y no el caso
+
+`tests/test_los_frentes_DECLARADOS_no_son_los_ABIERTOS.py` cruza **las ocho tablas del
+proyecto indexadas por frente** contra el registro. Son subconjuntos legítimos —no todo
+frente tiene almacén, ni umbral, ni criterio relativo—, así que lo que se exige no es que
+estén completas sino que **ninguna nombre algo que no existe**: un frente mal escrito en
+cualquiera de ellas es invisible **exactamente igual** que uno que falta, y no da ningún
+error. Con su control adversario, porque una tabla que saliera vacía haría pasar el cruce
+sola.
+
+Y en las dos direcciones: todo frente que el núcleo puede **emitir** —mirando las
+configuraciones que dan listas distintas, no una sola— tiene que estar declarado, ningún
+declarado puede ser huérfano, y todos tienen ficha de obtención. El guardia sigue
+mordiendo: un frente inventado aborta igual, y el mensaje **nombra los que hay** para que
+un error de tecleo se vea de una vez.

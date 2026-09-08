@@ -6009,6 +6009,31 @@ del proyecto. **Principio nº 53 por segunda vez sobre la misma lista**:
 `FRONTS_WITHOUT_COLUMN` se leyó como «sin columna en ninguna parte» y lo que declara es
 que no cabe una columna POR PAR donde la fila es el candidato.
 
+### «QUÉ FRENTES EXISTEN» y «QUÉ FRENTES ESTÁN ABIERTOS» son DOS PREGUNTAS (2026-09-08)
+
+Errata nº 148. `blocking_fronts` contesta la segunda, y **un frente cuyo fichero ya está
+en el depósito deja de salir de ella**: con la máscara puesta se van `repeticiones` y
+`repeticion_polimorfica`; con el transcriptoma, `offtarget_seed`. Validar un NOMBRE
+contra esa lista hacía que un frente **existiera o no según lo que hubiera en el
+volumen** — y el aviso de «qué te sigue faltando» abortaba justo en el frente que se
+estaba intentando cerrar.
+
+**`informe_doc.declared_fronts()` es el registro**, y son esas tres tablas porque son la
+única declaración **forzada**: `_front_source` aborta con un frente que no esté en
+ninguna, así que uno nuevo no puede llegar a producir un texto sin pasar por ahí. Quien
+pregunte «¿existe?» pregunta ahí; quien pregunte «¿está abierto?» sigue preguntando a
+`blocking_fronts`.
+
+**Lo que más enseña**: la versión anterior de esa validación arregló un fallo hermano y
+dejó escrito dos líneas más arriba *«la pregunta era por el NOMBRE y la comprobación
+miraba el CONTENIDO»* — y validaba contra `blocking_fronts`, que también es contenido.
+**Saber la regla no basta si no se aplica al eje que toca.**
+
+Y el mecanismo cruza **las ocho tablas indexadas por frente** contra el registro: son
+subconjuntos legítimos, así que no se exige que estén completas sino que **ninguna nombre
+algo que no existe** — un frente mal escrito es invisible igual que uno que falta, y no
+da ningún error.
+
 **Y POR ESO LA LISTA SE RENOMBRA A `NO_CABE_COLUMNA_POR_CANDIDATO`** (corolario del
 principio nº 53). La primera mordida se arregló separando el cierre a `PAIR_UNIT_FRONTS`
 y escribiendo el motivo; la segunda llegó **por el lado contrario** —el frente sí tiene
