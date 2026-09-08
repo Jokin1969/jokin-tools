@@ -146,10 +146,14 @@ class TestLosFicherosDeRefinamientoSoloQuitan(unittest.TestCase):
         self.assertTrue(con <= self.base)
         self.assertEqual(len(self.base) - len(con), 17)
 
-    def test_mature_fa_quita_2_y_no_añade_ninguna(self):
+    def test_mature_fa_quita_1_y_no_añade_ninguna(self):
+        # UNA desde el 2026-09-07: de las dos que quitaba, una ya no está en la base
+        # —cae por el homopolímero de la molécula (errata nº 144)—, así que este
+        # fichero ya no puede cobrársela. Lo que el test fija sigue siendo lo mismo:
+        # que sólo QUITA, y que lo que quita está contado.
         con = self._con("mature.fa")
         self.assertTrue(con <= self.base)
-        self.assertEqual(len(self.base) - len(con), 2)
+        self.assertEqual(len(self.base) - len(con), 1)
 
     def test_la_mascara_del_raton_no_quita_NINGUNA_y_eso_no_es_que_no_haga_nada(self):
         """El 3'UTR murino no tiene ni un elemento repetitivo: el `(CTC)n` esta en el CDS.

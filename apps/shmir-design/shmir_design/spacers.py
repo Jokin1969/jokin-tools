@@ -53,6 +53,7 @@ from dataclasses import dataclass
 
 from .blocks import PIECES
 from .errors import ShmirDesignError
+from .hard_filters import MAX_HOMOPOLYMER as _MAX_HOMOPOLYMER
 from .hard_filters import gc_fraction
 from .hard_filters import longest_homopolymer as _longest_homopolymer
 
@@ -135,7 +136,8 @@ SPACER_SCOPE = (
 POLYA_SIGNALS = ("AATAAA", "ATTAAA")
 CASSETTE_SITES = ("GCTAGC", "GAGCTC", "ACGCGT", "ACCGGT", "CTCGAG", "GAATTC")
 FORBIDDEN_RUNS = ("GGGG", "CCCC")
-MAX_HOMOPOLYMER = 3
+#: DERIVADO de `hard_filters`, no transcrito (principio nº 13).
+MAX_HOMOPOLYMER = _MAX_HOMOPOLYMER
 GC_MIN = 0.28
 GC_MAX = 0.45
 

@@ -43,6 +43,7 @@ from dataclasses import dataclass, field
 from types import MappingProxyType
 
 from .errors import ShmirDesignError
+from .hard_filters import MAX_HOMOPOLYMER as _MAX_HOMOPOLYMER
 from .hard_filters import longest_homopolymer as _longest_homopolymer
 from .filters import FilterResult, FilterState
 from .scaffold import (
@@ -63,7 +64,11 @@ GIBSON_ARM = 30
 
 #: Homopolimero maximo permitido EN LA PARTE VARIABLE. El GGGG del contexto 3' es
 #: nativo de SGEP y no cuenta: recortarlo cambiaria el andamio.
-MAX_HOMOPOLYMER = 3
+#:
+#: SE DERIVA de `hard_filters`, no se transcribe (principio nº 13): estaba escrito
+#: `= 3` en cuatro modulos y el dia que uno cambiara los otros seguirian con el viejo
+#: sin dar ningun error — solo un veredicto distinto segun quien preguntara.
+MAX_HOMOPOLYMER = _MAX_HOMOPOLYMER
 
 #: Enzimas heredadas de SGEP que viajan DENTRO del modulo. En el plasmido final no son
 #: unicas, asi que no sirven para el clonaje; se avisa en la hoja de pedido.

@@ -43,7 +43,10 @@ RAIZ = Path(__file__).resolve().parent.parent
 if str(RAIZ) not in sys.path:
     sys.path.insert(0, str(RAIZ))
 
-from tests.nombres_heredados import por_nombre_heredado, starts_del_medido  # noqa: E402
+from tests.nombres_heredados import (  # noqa: E402
+    por_nombre_heredado,
+    starts_disponibles_hoy,
+)
 
 from shmir_design import presentation, spliceai  # noqa: E402
 from shmir_design.anatomy import Anatomy, RegionSource  # noqa: E402
@@ -108,7 +111,11 @@ class TestElCaminoENTERO(unittest.TestCase):
         cls.corrida = presentation.page_run(
             species=ESPECIE, sequence=secuencia, anatomy=anatomia,
         )
-        cls.de_la_corrida = starts_del_medido(MEDIDO)
+        # Los del fichero medido que HOY siguen siendo elegibles. Desde el 2026-09-07
+        # caen cuatro de aquel panel (errata nº 144) y `build_panel` aborta —con razón—
+        # si se le piden. La evidencia no se reescribe: se lee la parte que este panel
+        # puede montar, y se DICE cuántos quedan fuera.
+        cls.de_la_corrida, cls.caidos = starts_disponibles_hoy(MEDIDO, cls.corrida)
         panel = spliceai.build_panel(
             cls.corrida.selection, intron_names=INTRONES, scaffold=SGEP_SCAFFOLD,
             starts=cls.de_la_corrida, cassette=_casete(), context_nt=5000,
@@ -152,10 +159,20 @@ class TestElCaminoENTERO(unittest.TestCase):
         )
         return next(f for f in filas if f["inicio"] == inicio)
 
-    def test_la_corrida_cubre_DIEZ_candidatos_por_DOS_intrones(self):
-        """Veinte pares: la unidad es el par, así que se cuentan pares."""
+    def test_la_corrida_cubre_SEIS_candidatos_por_DOS_intrones(self):
+        """Doce pares: la unidad es el par, así que se cuentan pares.
+
+        Eran DIEZ hasta el 2026-09-07. La corrida sigue siendo la misma —su fichero no
+        se reescribe— y lo que cambia es cuántos de sus candidatos este panel puede
+        montar: al medir el homopolímero sobre la molécula (errata nº 144) cuatro de
+        ellos dejan de ser ventanas elegibles. Los CUATRO se nombran, porque un
+        subconjunto silencioso convierte una corrida parcial en una que parece completa.
+        """
         self.assertEqual(self.pares, len(self.de_la_corrida) * len(INTRONES))
-        self.assertEqual(len(self.de_la_corrida), 10)
+        self.assertEqual(len(self.de_la_corrida), 6)
+        self.assertEqual(
+            [self.corrida.tiling.utr3_of(i) for i in self.caidos], [143, 652, 735, 819]
+        )
 
     def test_cada_candidato_de_la_corrida_queda_CONTESTADO(self):
         for inicio in self.de_la_corrida:
@@ -199,9 +216,13 @@ class TestElCaminoENTERO(unittest.TestCase):
             if e not in presentation.ESTADOS_SIN_RESPUESTA
         ]
         faltan = sorted(set(estados) - set(contestados))
-        self.assertEqual(len(contestados), 9)
+        # CINCO de once desde el 2026-09-07: la corrida es de un panel anterior y
+        # además cuatro de los suyos ya no son elegibles. Que el frente NO se cierre con
+        # cinco de once es exactamente lo que este test protege.
+        self.assertEqual(len(contestados), 5)
         self.assertEqual(
-            [self.corrida.tiling.utr3_of(i) for i in faltan], [359, 1071]
+            [self.corrida.tiling.utr3_of(i) for i in faltan],
+            [144, 359, 673, 736, 818, 1071],
         )
 
     def test_un_candidato_QUE_LA_CORRIDA_NO_MIRO_dice_SIN_CONSULTAR(self):

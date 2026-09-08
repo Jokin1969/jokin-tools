@@ -35,6 +35,8 @@ from shmir_design.reference import (
 )
 from shmir_design.tiling import tile_utr
 
+from .panel_confirmado import INMUNES_UTR3, PANEL_UTR3
+
 RATON = REFERENCES["NM_011170.3"]
 HAY = fixture_available(RATON)
 
@@ -92,7 +94,7 @@ class TestSobreLaSECUENCIA_QUE_ES(unittest.TestCase):
         """Medido: `3utr:359` entra DERIVADO, sin pinchar ninguna plaza a mano."""
         self.assertEqual(
             self.panel,
-            [60, 143, 200, 359, 449, 553, 652, 735, 819, 1018, 1071],
+            list(PANEL_UTR3),
         )
 
     def test_quedan_TRES_inmunes_y_son_60_143_y_200(self):
@@ -101,7 +103,7 @@ class TestSobreLaSECUENCIA_QUE_ES(unittest.TestCase):
             self.informe.utr3_of(c.start)
             for c in self.seleccion.selection.chosen if c.start < corte
         ]
-        self.assertEqual(sorted(inmunes), [60, 143, 200])
+        self.assertEqual(sorted(inmunes), list(INMUNES_UTR3))
 
     def test_la_retirada_SE_DICE_en_las_DECISIONES(self):
         """Un panel que ya no lleva a alguien tiene que decir por qué."""

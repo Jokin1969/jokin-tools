@@ -90,11 +90,14 @@ class TestElHallazgoDE_LOS_CUATRO_SIGUE_EN_PIE(unittest.TestCase):
         utr3 = load_3utr(ref)
         informe = tile_utr(utr3)
         seleccion = select_from_report(informe, default_config())
+        # LA VENTANA, NO EL PANEL. `3utr:819` salió del panel el 2026-09-07 al medir
+        # el homopolímero sobre la molécula (errata nº 144), y el hallazgo que este test
+        # protege no es sobre el panel: es sobre esas cuatro VENTANAS y su autoconteo,
+        # que no ha cambiado. Buscarlo en `chosen` ataba la medida a una decisión
+        # posterior y la habría borrado con ella.
+        por_inicio = {w.window.start: w for w in informe.windows}
         for inicio, esperado in self.ESPERADO.items():
-            eleccion = next(
-                c for c in seleccion.selection.chosen if c.start == inicio
-            )
-            ventana = seleccion.window_of(eleccion)
+            ventana = por_inicio[inicio]
             sitios = self_sites(
                 ventana.evaluation.guide, target=utr3,
                 window=(ventana.window.start, ventana.window.end),

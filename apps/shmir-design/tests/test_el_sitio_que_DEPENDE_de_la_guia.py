@@ -34,7 +34,10 @@ RAIZ = Path(__file__).resolve().parent.parent
 if str(RAIZ) not in sys.path:
     sys.path.insert(0, str(RAIZ))
 
-from tests.nombres_heredados import por_nombre_heredado, starts_del_medido
+from tests.nombres_heredados import (
+    por_nombre_heredado,
+    starts_disponibles_hoy,
+)
 from shmir_design import presentation, spliceai  # noqa: E402
 from shmir_design.anatomy import Anatomy, RegionSource  # noqa: E402
 from shmir_design.reference import (  # noqa: E402
@@ -63,7 +66,10 @@ def _scan():
     # las construcciones no cruzarian con las filas y el hallazgo saldria vacio.
     panel = spliceai.build_panel(
         corrida.selection, intron_names=("mvm_actual",), scaffold=SGEP_SCAFFOLD,
-        starts=starts_del_medido(MEDIDO),
+        # DESDE EL 2026-09-07 no todos siguen siendo elegibles: cuatro caen al
+        # medir el homopolimero sobre la molecula (errata nº 144) y `build_panel`
+        # aborta si se le piden. Se monta la parte que este panel puede montar.
+        starts=starts_disponibles_hoy(MEDIDO, corrida)[0],
         cassette=casete, context_nt=5000,
     )
     # EL FICHERO MEDIDO TRAE LOS NOMBRES DE ENTONCES y no se reescribe: es la
@@ -99,7 +105,9 @@ class TestElSitioQueVARIA_con_la_guia(unittest.TestCase):
         sitio = next(
             s for s in self.variables if (s.position, s.kind) == (3261, "aceptor")
         )
-        self.assertEqual(len(sitio.scores), 10)
+        # SEIS desde el 2026-09-07: la corrida medida sigue siendo la misma y de
+        # sus candidatos sólo seis siguen siendo elegibles (errata nº 144).
+        self.assertEqual(len(sitio.scores), 6)
         self.assertAlmostEqual(sitio.maximum, 0.0751, places=3)
         self.assertAlmostEqual(
             sitio.scores["mvm_actual__tx:959"], 0.0751, places=3,
@@ -160,7 +168,9 @@ class TestSaleDESTACADO_y_no_al_pie(unittest.TestCase):
         filas = presentation.splice_guide_dependent_rows(self.scan)
         fila = next(f for f in filas if f["posicion"] == 3261)
         self.assertEqual(fila["region"], "intron")
-        self.assertEqual(len(fila["por_construccion"]), 10)
+        # SEIS desde el 2026-09-07: la corrida medida sigue siendo la misma y de
+        # sus candidatos sólo seis siguen siendo elegibles (errata nº 144).
+        self.assertEqual(len(fila["por_construccion"]), 6)
         # `tx:`, no `3utr:`: esta corrida se monta sobre el transcrito. Un test que
         # afirmaba `3utr:959` fijaba la etiqueta equivocada del emisor.
         self.assertIn("tx:959", str(fila["por_construccion"]))

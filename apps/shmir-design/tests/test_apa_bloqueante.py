@@ -63,7 +63,14 @@ class TestElAPAEsUnFrenteBloqueante(unittest.TestCase):
         # `not_run_filters` porque su estado es NOT_RUN, pero no son frentes — no se
         # cierran consiguiendo nada, se cierran decidiendo su criterio por escrito.
 
-        de_recurso = set(self.seleccion.not_run_filters)
+        # Y hay filtros en NOT_RUN que NO abren frente: los biofisicos y, desde el
+        # 2026-09-07, el homopolimero de la molecula —que sale NOT_RUN en las ventanas
+        # que no superan los biofisicos, por coste—. La lista se DERIVA de
+        # `filtros_sin_frente()`, que es la misma que usa `blocking_fronts`: transcrita
+        # aqui, el dia que entre otro la cuenta falla y se «arregla» sumando uno.
+        from shmir_design.selection import filtros_sin_frente
+
+        de_recurso = set(self.seleccion.not_run_filters) - filtros_sin_frente()
         self.assertEqual(len(self.frentes), len(de_recurso) + 4)
 
     def test_y_uno_de_ellos_es_el_APA(self):
@@ -75,8 +82,10 @@ class TestElAPAEsUnFrenteBloqueante(unittest.TestCase):
             "empalme_sitios",
         }
 
+        from shmir_design.selection import filtros_sin_frente
+
         self.assertEqual(
-            de_recurso, set(self.seleccion.not_run_filters)
+            de_recurso, set(self.seleccion.not_run_filters) - filtros_sin_frente()
         )
 
     def test_con_los_tres_ficheros_cargados_quedarian_SEIS(self):
@@ -115,11 +124,30 @@ class TestElAPAEsUnFrenteBloqueante(unittest.TestCase):
         # SIETE desde el 2026-09-07: `3utr:10` era inmune y está retirado, así que su
         # plaza la ocupa un candidato con techo. La cuenta se DERIVA del panel; lo que
         # este test fija es que el motivo la lleve.
-        self.assertIn("7 de 10", apa.reason)
+        # SEIS desde el 2026-09-07, no siete: al medir el homopolímero sobre la
+        # molécula (errata nº 144) el panel cambia y uno de los que estaban por detrás
+        # del corte deja de estar. La cifra la emite el frente; aquí sólo se fija que
+        # la lleve.
+        self.assertIn("6 de 10", apa.reason)
         # 16/0/0, no 20/0/0: la promoción por medida entra siempre y el corte de la
         # inmunidad se adelanta de `3utr:303` a `3utr:251`.
-        self.assertIn("16/0/0", apa.reason)
-        self.assertIn("cuatro", apa.reason.lower())
+        # DIECISIETE desde el 2026-09-07, y SUBE con un filtro MÁS estricto — que es
+        # contraintuitivo y por eso se escribe: un sitio es un bloque de ventanas
+        # elegibles CONTIGUAS, así que quitar una del medio parte el bloque en dos.
+        # Menos ventanas y más sitios no es una contradicción: son dos cantidades.
+        self.assertIn("17/0/0", apa.reason)
+        # EL TOPE DEL ESPACIADO SE DERIVA desde el 2026-09-07. Aquí se exigía la palabra
+        # «cuatro», que iba ESCRITA en el motivo desde que la cuota era cuatro: al bajar
+        # a tres por geometría, la tarjeta pasó a decir «deja meter cuatro, que son los 3
+        # que ya están» — dos cantidades pegadas con un «que son», y la escrita
+        # contradiciendo a la derivada de al lado. Ahora las dos se derivan y salen
+        # NOMBRADAS como dos (`selection.inmunes_que_caben`). Principios nº 13 y nº 27.
+        self.assertIn("caben 4 de esos sitios juntos", apa.reason)
+        self.assertIn("Son DOS cantidades", apa.reason)
+        # Control adversario del arreglo: si volviera a haber un número en letra, este
+        # test no lo vería mirando sólo las cifras.
+        for escrito in ("cuatro", "tres", "cinco"):
+            self.assertNotIn(escrito, apa.reason.lower(), f"«{escrito}» va escrito")
 
     def test_y_la_frase_que_explica_POR_QUE_bloquea(self):
         apa = [f for f in self.frentes if f.name == "fraccion_isoforma_larga"][0]
@@ -203,7 +231,7 @@ class TestLoQueDiceElInforme(unittest.TestCase):
 
     def test_y_el_APA_esta_entre_ellos_con_su_cifra(self):
         self.assertIn("fraccion_isoforma_larga", self.texto)
-        self.assertIn("7 de 10", self.texto)
+        self.assertIn("6 de 10", self.texto)
 
     def test_no_se_pide_oligo_hasta_que_TODOS_tengan_veredicto(self):
         self.assertIn("NO SE PIDE OLIGO", self.texto)

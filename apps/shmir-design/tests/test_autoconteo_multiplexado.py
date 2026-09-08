@@ -70,12 +70,19 @@ class TestLaClaseDeCadaSegundoSitio(unittest.TestCase):
             [(460, "6mer", False), (568, "7mer-m8", True)],
         )
 
-    def test_819_es_el_PEOR_dos_7mer_m8_en_el_mismo_mensajero(self):
-        """Cooperatividad real: el segundo sitio es de la MISMA clase que el suyo."""
-        sitios = self._sitios(819)
+    def test_818_tiene_un_8mer_propio_y_un_7mer_A1_de_mas(self):
+        """`3utr:819` era el PEOR —dos `7mer-m8`— y ya no está en el panel.
+
+        Cae al medir el homopolímero sobre la molécula (errata nº 144) y entra su vecino
+        `3utr:818`, que también tiene dos sitios pero de OTRAS clases: el suyo es un
+        `8mer` —la clase más fuerte, que juega a favor— y el de más es un `7mer-A1`.
+        **El caso de dos sitios de la misma clase ya no lo ejemplifica nadie del panel**,
+        y eso se dice en vez de dejar el nombre del test afirmándolo.
+        """
+        sitios = self._sitios(818)
         self.assertEqual(
             [(s.position, s.site_class, s.own_window) for s in sitios],
-            [(148, "7mer-m8", False), (834, "7mer-m8", True)],
+            [(147, "7mer-A1", False), (833, "8mer", True)],
         )
 
     def test_1018_tiene_un_8mer_en_SU_diana_y_un_6mer_de_mas(self):
@@ -86,29 +93,38 @@ class TestLaClaseDeCadaSegundoSitio(unittest.TestCase):
             [(464, "6mer", False), (1033, "8mer", True)],
         )
 
+    def test_673_ENTRA_en_la_lista_de_los_que_tienen_DOS(self):
+        """No estaba antes: entra con el panel del 2026-09-07 (errata nº 144)."""
+        sitios = self._sitios(673)
+        self.assertEqual(
+            [(s.position, s.site_class, s.own_window) for s in sitios],
+            [(458, "6mer", False), (688, "7mer-m8", True)],
+        )
+
     def test_los_otros_seis_tienen_un_solo_sitio(self):
         # `3utr:10` está retirado desde el 2026-09-07; entra `3utr:1071` en su lugar.
-        for inicio in (60, 143, 359, 652, 735, 1071):
+        for inicio in (60, 359, 736, 900, 1071):
             self.assertEqual(len(self._sitios(inicio)), 1, inicio)
 
     def test_sin_ventana_no_se_marca_NINGUNO_como_propio(self):
         """Deducir cual es el suyo por el orden seria un supuesto. No se hace."""
         sitios = offtarget.self_sites(
-            self.guias[819], target=self.utr3, frame=Frame.UTR3
+            self.guias[818], target=self.utr3, frame=Frame.UTR3
         )
         self.assertFalse(any(s.own_window for s in sitios))
 
     def test_el_autoconteo_imprime_la_clase_junto_a_la_posicion(self):
         elegido = next(
-            c for c in self.seleccion.selection.chosen if c.start == 819
+            c for c in self.seleccion.selection.chosen if c.start == 818
         )
         propio = offtarget.self_count(
-            self.guias[819], target=self.utr3, target_label="Prnp",
+            self.guias[818], target=self.utr3, target_label="Prnp",
             window=(elegido.start, elegido.end), frame=Frame.UTR3,
         )
         texto = propio.describe()
-        self.assertIn("7mer-m8", texto)
-        self.assertIn("3utr:148", texto)
+        self.assertIn("8mer", texto)
+        self.assertIn("3utr:147", texto)
+        self.assertIn("SEGUNDO SITIO", texto)
         self.assertIn("8mer", texto)  # la explicacion de por que la clase importa
 
 
@@ -169,8 +185,8 @@ class TestLaInterseccionDeDosRedes(unittest.TestCase):
 
     def test_dos_candidatos_con_nucleos_DISTINTOS_no_comparten_casi_nada(self):
         red = offtarget.shared_network(
-            self.guias[449], self.guias[819], catalog=self.catalogo,
-            label_a="3utr:449", label_b="3utr:819",
+            self.guias[449], self.guias[818], catalog=self.catalogo,
+            label_a="3utr:449", label_b="3utr:818",
         )
         self.assertFalse(red.same_core)
         self.assertEqual(red.positions_shared, 0)

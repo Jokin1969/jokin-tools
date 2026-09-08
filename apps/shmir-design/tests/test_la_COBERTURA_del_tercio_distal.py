@@ -74,19 +74,30 @@ class TestLaCoberturaPorTercios(unittest.TestCase):
         # elige, no lo elegido.
         self.assertEqual(
             {c.tercio: c.sites_by_start for c in self.cobertura},
-            {"proximal": 28, "medio": 42, "distal": 16},
+            {"proximal": 29, "medio": 48, "distal": 18},
         )
 
-    def test_el_distal_tiene_DOS_por_inicio_y_TRES_por_punto_medio(self):
-        """Desde el 2026-09-06 el panel lleva `3utr:1071` como SEGUNDO distal.
+    def test_el_distal_tiene_DOS_por_inicio_y_DOS_por_punto_medio(self):
+        """Desde el 2026-09-07 las dos definiciones COINCIDEN en el distal.
 
-        El «tres por punto medio» sigue siendo dos de verdad: `3utr:819-840` entra ahí
-        por su punto medio y acaba en el nt 840 de un tramo que llega al 1242. Es la
-        misma discrepancia que hizo que la cuota fuera POR INICIO.
+        Coincidían en tres y dos hasta ese día, porque `3utr:819-840` entraba por su
+        punto medio y acababa en el nt 840 de un tramo que llega al 1242. Ese candidato
+        **cae** al medir el homopolímero sobre la molécula (errata nº 144), así que el
+        distal se queda sin su caso de borde.
+
+        **La discrepancia NO ha desaparecido, sólo su ejemplo en el panel**: en el mismo
+        tramo siguen siendo 18 sitios por inicio y 20 por punto medio, y por eso la cuota
+        sigue yendo POR INICIO. Lo comprueba `test_las_dos_definiciones_siguen_sin_coincidir`.
         """
         distal = self.por_nombre["distal"]
         self.assertEqual(distal.panel_by_start, (1018, 1071))
-        self.assertEqual(distal.panel_by_midpoint, (819, 1018, 1071))
+        self.assertEqual(distal.panel_by_midpoint, (1018, 1071))
+
+    def test_las_dos_definiciones_siguen_sin_coincidir(self):
+        """Lo que el caso de `3utr:819` ilustraba, medido sobre los SITIOS del tramo."""
+        distal = self.por_nombre["distal"]
+        self.assertEqual(distal.sites_by_start, 18)
+        self.assertNotEqual(distal.sites_by_start, distal.sites_by_midpoint)
 
     def test_la_cuota_se_cumple_y_se_dice_con_que_definicion(self):
         distal = self.por_nombre["distal"]
@@ -95,11 +106,15 @@ class TestLaCoberturaPorTercios(unittest.TestCase):
         texto = "\n".join(distal.describe())
         self.assertIn("punto medio", texto)
 
-    def test_el_dos_del_borde_se_marca_como_borde(self):
-        """819-840 acaba en el nt 840 de un tercio que llega al 1242."""
+    def test_ya_NO_hay_ninguno_del_borde_y_el_marcador_sigue(self):
+        """`3utr:819` era el único y cae con el filtro de la molécula (errata nº 144).
+
+        El marcador NO se retira: es lo que distinguiría un panel cuya cobertura distal
+        depende de una ventana que apenas entra en el tramo. Lo que se fija es que hoy
+        no hay ninguno, no que el mecanismo sobre.
+        """
         distal = self.por_nombre["distal"]
-        self.assertEqual(distal.borderline, (819,))
-        self.assertIn("819", "\n".join(distal.describe()))
+        self.assertEqual(distal.borderline, ())
 
     def test_el_siguiente_distal_con_espaciado(self):
         distal = self.por_nombre["distal"]
@@ -128,9 +143,9 @@ class TestLaCoberturaPorTercios(unittest.TestCase):
         # errata nº 116 y ya no se puede reproducir desde aquí, porque el panel cambió.
         self.assertEqual(
             [(s.start, s.end) for s in distal.next_free_of_reference],
-            [(900, 921), (851, 872), (846, 867)],
+            [(900, 921), (1020, 1041), (825, 846)],
         )
-        self.assertEqual(distal.free_of_reference, 8)
+        self.assertEqual(distal.free_of_reference, 11)
         texto = "\n".join(distal.describe())
         self.assertIn("3utr:900-921", texto)
         self.assertIn("3utr:1071", texto)
@@ -143,22 +158,22 @@ class TestLaCoberturaPorTercios(unittest.TestCase):
 
     def test_se_distingue_libre_de_1018_de_libre_del_panel_entero(self):
         distal = self.por_nombre["distal"]
-        self.assertEqual(distal.free_of_reference, 8)
+        self.assertEqual(distal.free_of_reference, 11)
         self.assertEqual(distal.free_of_panel, 4)
         texto = "\n".join(distal.describe())
-        self.assertIn("8", texto)
+        self.assertIn("11", texto)
         self.assertIn("4", texto)
 
     def test_el_tercio_MEDIO_esta_saturado_y_tambien_se_dice(self):
-        """MEDIDO: 41 sitios elegibles y CERO caben — todos a menos de 50 nt.
+        """MEDIDO: 46 sitios elegibles y CERO caben — todos a menos de 50 nt.
 
-        Los cinco elegidos del tramo (449, 553, 652, 735, 819) dejan una franja de
+        Los cinco elegidos del tramo (449, 553, 673, 736, 818) dejan una franja de
         +/-50 nt que cubre casi los 414. No es lo mismo que el distal, donde quedan
         nueve: un tramo se lee lleno y el otro depende de uno. Los dos números salen del
         mismo sitio y por eso se pueden comparar.
         """
         medio = self.por_nombre["medio"]
-        self.assertEqual(medio.sites_by_midpoint, 41)
+        self.assertEqual(medio.sites_by_midpoint, 46)
         self.assertEqual(medio.free_of_panel, 0)
         self.assertTrue(medio.quota_met)
         self.assertEqual(medio.next_free, ())

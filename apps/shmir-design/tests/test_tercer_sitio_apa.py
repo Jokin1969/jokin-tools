@@ -273,16 +273,36 @@ class TestLoQueCUESTALaPromocion(unittest.TestCase):
         self.assertIn(200, self._sitios(self.con))
 
     def test_la_piscina_se_encoge_y_la_cifra_va_escrita(self):
-        self.assertEqual(len(self._elegibles(self.sin)), 287)
-        self.assertEqual(len(self._elegibles(self.con)), 270)
-        self.assertEqual(len(self._sitios(self.sin)), 90)
-        self.assertEqual(len(self._sitios(self.con)), 86)
+        """Las cuatro cifras BAJAN el 2026-09-07 y las DOS RESTAS no se mueven.
 
-    def test_los_sitios_INMUNES_bajan_de_20_a_16(self):
+        Eran 287 → 270 y 90 → 86. El homopolimero pasa a medirse sobre la MOLECULA que
+        se sintetiza (errata n 144), asi que la piscina de partida es mas pequeña por un
+        motivo que NADA tiene que ver con el APA. Lo que este test protege es lo que
+        cuesta la PROMOCION, y eso sigue siendo **17 ventanas y 4 sitios**: los mismos
+        de siempre. Que el coste no se moviera al encoger la piscina es la comprobacion
+        de que se cobran solo las que caen POR ESTO.
+        """
+        self.assertEqual(len(self._elegibles(self.sin)), 271)
+        self.assertEqual(len(self._elegibles(self.con)), 254)
+        self.assertEqual(len(self._sitios(self.sin)), 99)
+        self.assertEqual(len(self._sitios(self.con)), 95)
+        self.assertEqual(
+            len(self._elegibles(self.sin)) - len(self._elegibles(self.con)), 17
+        )
+        self.assertEqual(len(self._sitios(self.sin)) - len(self._sitios(self.con)), 4)
+
+    def test_los_sitios_INMUNES_bajan_de_21_a_17(self):
+        """Eran 20 → 16 hasta el 2026-09-07, y SUBEN al endurecer un filtro.
+
+        No es una contradiccion y conviene no leerla como tal: un sitio agrupa ventanas
+        contiguas, asi que quitar una ventana de en medio PARTE un bloque en dos y deja
+        un sitio mas. La resta sigue siendo la misma —cuatro—, que es la cifra que la
+        promocion se cobra.
+        """
         from shmir_design.selection import tercio_counts
 
-        self.assertEqual(sum(tercio_counts(self.sin).sites_immune.values()), 20)
-        self.assertEqual(sum(tercio_counts(self.con).sites_immune.values()), 16)
+        self.assertEqual(sum(tercio_counts(self.sin).sites_immune.values()), 21)
+        self.assertEqual(sum(tercio_counts(self.con).sites_immune.values()), 17)
 
     def test_y_siguen_TODOS_en_el_tercio_proximal(self):
         from shmir_design.selection import tercio_counts
@@ -304,8 +324,8 @@ class TestLoQueCUESTALaPromocion(unittest.TestCase):
         self.assertEqual(sorted(filas), [236, 288])
         # Mas ventanas por detras del tercero que del de 288: su corte es anterior.
         self.assertGreater(filas[236].behind, filas[288].behind)
-        self.assertEqual(filas[236].behind, 217)
-        self.assertEqual(filas[288].behind, 208)
+        self.assertEqual(filas[236].behind, 203)
+        self.assertEqual(filas[288].behind, 195)
 
 
 @unittest.skipUnless(fixture_available(RATON), "falta data/reference/NM_011170.3.fa")

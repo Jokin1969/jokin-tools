@@ -49,29 +49,38 @@ def _ficha_del_3utr(utr3_start: int):
 
 
 class TestLaRegionDeCadaSitio(unittest.TestCase):
-    """`3utr:143` es el caso medido: sobre el transcrito gana un 6mer FUERA del 3'UTR
-    que en la lectura del 3'UTR no existe."""
+    """`3utr:359` es el caso medido: sobre el transcrito gana TRES sitios FUERA del
+    3'UTR —un `7mer-A1` en `tx:492` y dos `6mer` en `tx:499` y `tx:656`, los tres en el
+    CDS— que en la lectura del 3'UTR pelado no existen.
+
+    **El caso medido era `3utr:143` hasta el 2026-09-07** y cambia porque ese candidato
+    dejo de ser elegible: el homopolimero pasa a medirse sobre la MOLECULA que se
+    sintetiza —guia y pasajera— y no sobre la ventana, y ahi cae (errata n 144). No se
+    borra el test: se busca en el panel de hoy quien exhibe el mismo fenomeno, que es lo
+    que este fichero comprueba. Y el sustituto es MAS fuerte que el original: aquel
+    ganaba un solo sitio de fuera y este gana tres, con dos clases distintas.
+    """
 
     def test_el_caso_existe_y_es_el_medido(self):
         """Control adversario del dato: sin un sitio fuera del 3'UTR, este test no
         probaria nada — «ninguno se mezcla» y «no hay ninguno» darian el mismo verde."""
-        del_tx = _ficha_del_transcrito(143)
-        del_utr = _ficha_del_3utr(143)
+        del_tx = _ficha_del_transcrito(359)
+        del_utr = _ficha_del_3utr(359)
         self.assertGreater(len(del_tx.self_sites), len(del_utr.self_sites))
 
     def test_cada_sitio_DICE_su_region(self):
-        for sitio in _ficha_del_transcrito(143).self_sites:
+        for sitio in _ficha_del_transcrito(359).self_sites:
             self.assertTrue(sitio.region, sitio)
 
     def test_y_los_de_fuera_del_3utr_salen_marcados(self):
-        regiones = {s.region for s in _ficha_del_transcrito(143).self_sites}
+        regiones = {s.region for s in _ficha_del_transcrito(359).self_sites}
         self.assertIn("3'UTR", regiones)
         self.assertTrue(regiones - {"3'UTR"}, "ninguno sale fuera del 3'UTR")
 
     def test_la_ficha_AVISA_de_que_no_son_comparables(self):
         from shmir_design.offtarget import SITES_OUTSIDE_UTR3
 
-        texto = _ficha_del_transcrito(143).render()
+        texto = _ficha_del_transcrito(359).render()
         self.assertIn(" ".join(SITES_OUTSIDE_UTR3.split())[:60], " ".join(texto.split()))
 
     def test_y_NO_avisa_cuando_todos_estan_en_el_3utr(self):
@@ -79,7 +88,7 @@ class TestLaRegionDeCadaSitio(unittest.TestCase):
         que distinguir, asi que no se dice nada."""
         from shmir_design.offtarget import SITES_OUTSIDE_UTR3
 
-        texto = _ficha_del_3utr(143).render()
+        texto = _ficha_del_3utr(359).render()
         self.assertNotIn(" ".join(SITES_OUTSIDE_UTR3.split())[:60], " ".join(texto.split()))
 
 

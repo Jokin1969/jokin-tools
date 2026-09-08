@@ -7084,3 +7084,220 @@ la del principio nº 3:
 Y su corolario, que es el que evita la ronda perdida: **la atribución se verifica
 volviendo a correr**, no razonando. Ocho rojos que desaparecen sin tocar una línea son la
 prueba de que no eran del diff; ninguna cantidad de leer el diff lo habría demostrado.
+
+---
+
+## 144 — El homopolímero se medía sobre un PROXY, y los cuatro tramos los creaba una posición de convenio
+
+La hoja de pedido sacaba `check:homopolimeros` en **`FAIL`** para cuatro fragmentos de
+síntesis —`tx:1092`, `tx:1601`, `tx:1684`, `tx:1768`— de candidatos que **ya habían
+pasado** el filtro de homopolímeros del diseño. Un segundo `FAIL` sobre lo mismo pide
+explicación, y la explicación no era una discrepancia de criterio.
+
+### Es el MISMO criterio sobre OTRA secuencia
+
+Los dos usan `hard_filters.MAX_HOMOPOLYMER` y la misma `longest_homopolymer`. Lo que
+cambia es **qué se le da**: el filtro del diseño mide la **ventana diana** y la hoja de
+pedido mide **lo que se sintetiza**, o sea la guía y la pasajera dentro del 97-mero.
+
+Y esas dos secuencias **no son la misma**, ni siquiera reverso-complementarias, por dos
+posiciones que este proyecto ya tenía declaradas como **CONVENIO**
+(`comparative.CONVENTION_NOTE`):
+
+- la **posición 1 de la guía**, donde se fuerza una T/U para que AGO2 cargue la hebra;
+- la **posición 1 de la pasajera**, el desapareamiento deliberado del bulge basal.
+
+**Medido**, y los cuatro casos son exactamente esos dos:
+
+| candidato | hebra | tramo | lo crea |
+|---|---|---|---|
+| `3utr:143` (`tx:1092`) | pasajera | `CCCC` | el desapareamiento de la posición 1 |
+| `3utr:652` (`tx:1601`) | guía | `TTTT` | la U forzada de la posición 1 |
+| `3utr:735` (`tx:1684`) | pasajera | `CCCC` | el desapareamiento de la posición 1 |
+| `3utr:819` (`tx:1768`) | guía | `TTTT` | la U forzada de la posición 1 |
+
+La diana lleva tres bases iguales y la molécula acaba con cuatro. **El filtro de la
+ventana no estaba roto**: contesta a otra pregunta, y la contesta bien.
+
+### Por qué NO se resuelve moviendo el filtro de sitio
+
+La tentación era cambiar el filtro de la ventana para que midiera la guía. Eso habría
+**perdido** la medida sobre la diana, que es la que tiene sentido biofísico, y habría
+dejado el proyecto sin poder comparar las dos. La decisión del responsable fue la
+contraria: *«implementa el filtro con nombre propio y sin borrar el de la ventana. Son
+dos medidas distintas y la comparación tiene valor»*.
+
+Así que son **dos filtros con dos nombres** —`homopolimero` y `homopolimero_molecula`—
+y el motivo del segundo dice expresamente «la ventana diana puede estar por debajo»,
+para que un `FAIL` aquí y un `PASS` allí no se lean como una contradicción.
+
+### La familia: una guía NO es su diana, y ya había costado antes
+
+Es el tercer caso del mismo eje y conviene verlos juntos, porque el que viene será el
+cuarto:
+
+- **`3utr:449` no admite scrambled** — el GC de la guía baja de 0,318 a 0,273 al forzarse
+  la T de la posición 1 y cruza el mínimo. El candidato es legítimo; lo que no admite es
+  esa vía;
+- **el cruce con miRarchitect** no compara la posición 1, porque los dos lados fuerzan
+  ahí una T y esa base es convenio, no dato;
+- **y esto**: cuatro homopolímeros que la diana no tiene.
+
+**La regla que sale**: un umbral definido sobre la DIANA no dice nada sobre la MOLÉCULA
+mientras haya una sola posición de convenio entre las dos. Cada vez que un criterio de
+secuencia vaya a aplicarse a lo que se sintetiza, la pregunta es **sobre qué cadena se
+midió el umbral**.
+
+### Lo que costó, y lo que NO se movió
+
+Cuatro plazas del panel se corren dentro de su propio sitio: `143→144`, `652→673`,
+`735→736`, `819→818`. Ningún candidato de una región nueva. La asimetría del panel pasa
+de +57,80 a +52,80 y el reparto por tercios de 4/4/3 a 4/5/2 —**un distal menos**,
+porque `3utr:819-840` tenía su punto medio en el tercio distal por un nucleótido y
+`3utr:818-839` no—. Ninguna decisión anterior se toca.
+
+Y **la piscina de partida baja** —elegibles 287 → 271, sitios 90 → 99 por partición de
+bloques, inmunes 20 → 21—, así que **todas las cifras de la promoción por medida se
+recalculan**: lo que la promoción CUESTA sigue siendo 17 ventanas y 4 sitios, que es la
+comprobación de que sólo se cobran las que caen por ella.
+
+### Y lo que sólo se ve corriéndolo: `3utr:200`
+
+`3utr:200` seguía en el panel sin fallar nada, y por poco. Salía porque `3utr:187`
+estaba bloqueado por espaciado con `3utr:143`; al caer `143`, `187` se libera —está a 44
+nt de `143` y a 43 de `144`— y **gana a `200` en asimetría** (+4,06 contra +3,80). El
+orden voraz lo cogía, y entonces `144`, `171`, `200` y `69` quedaban bloqueados contra
+`60` o contra `187`: **dos inmunes de tres**.
+
+Nadie lo habría predicho mirando la tabla —el que cae es `143` y el que se mueve es
+`200`, dos sitios a 57 nt—, y por eso la consecuencia es un cambio de mecanismo y no un
+ajuste: **la cuota de inmunes pasa a ser un REQUISITO**. Si el orden por asimetría no la
+cumple, se busca el conjunto más grande que sí cabe (`_conjunto_que_cumple`), y la
+sustitución se APUNTA en `Selection.decisions`. El orden voraz era sólo el camino rápido.
+
+---
+
+## 145 — «Deja meter cuatro, que son los 3 que ya están»: un número escrito al lado de uno derivado
+
+En la tarjeta del frente de APA —**la verde, la que más se lee**— el motivo decía:
+
+> …los sitios inmunes por tramo son 17/0/0 —todos en el proximal— y el espaciado deja
+> meter **cuatro**, que son los **3** que ya están.
+
+El `cuatro` iba **escrito en la f-string** y el `3` se **deriva** del panel. Cuando la
+cuota de inmunes bajó de cuatro a tres por geometría (2026-09-07, retirada de `3utr:10`),
+la mitad derivada se movió y la escrita no: **la frase pasó a contradecirse sola**, sin
+dar ningún error, en el texto que se copia a un correo.
+
+### Y las dos cifras eran ciertas — lo que sobraba era el «que son»
+
+No es que una estuviera mal. Son **DOS cantidades distintas** (principio nº 27):
+
+- **cuántos CABEN** se mide sobre los **sitios elegibles** y **no cambia** al retirar un
+  candidato del panel — `3utr:10` sigue siendo elegible, así que sigue contando. Hoy: **4**;
+- **cuántos LLEVA el panel**. Hoy: **3**.
+
+Pegarlas con un «que son» afirma que son la misma, que es justamente lo que el registro
+ya tenía escrito que no lo es: *«que cuatro QUEPAN y que el panel LLEVE tres son dos
+cantidades distintas y las dos siguen siendo ciertas»*. La prosa del registro lo sabía y
+la del código no.
+
+### El arreglo es derivar la que faltaba, no corregir el número
+
+`selection.inmunes_que_caben` lo calcula, y el motivo emite las dos **nombradas como
+dos**. La comprobación es de forma además de valor: el test exige que en el motivo no
+aparezca ningún número **en letra**, porque mirando sólo las cifras un `cuatro` nuevo
+volvería a colarse.
+
+### Y el barrido es VORAZ, no la búsqueda combinatoria
+
+`_conjunto_que_cumple` da la respuesta exacta y enumera ~130.000 conjuntos sobre 17
+sitios — y este texto se repinta en **cada rerun** de la página: es la errata nº 59
+esperando. El espaciado es una restricción de **distancia en una dimensión**, así que
+coger el más temprano y saltar al siguiente que quepa da el **máximo** (selección de
+actividades) en O(n). Los dos están **cruzados con un test sobre los sitios reales**
+(principio nº 5): la implementación barata no se acepta porque parezca equivalente.
+
+### Por qué ningún guardia lo veía
+
+`auditar_umbrales` mira comparaciones que deciden un veredicto y esto no decide nada;
+`auditar_claves` mira claves de diccionario; el golden **sí** lo leía —está en el informe
+entero— pero sólo delata un cambio, y este número llevaba escrito desde antes que el
+golden existiera en su forma actual: un valor **estable y equivocado** no produce diff.
+Lo que lo destapó fue leerlo junto al derivado de al lado, que es el mismo mecanismo del
+principio nº 11 — código y prosa discrepando, y aquí las dos mitades dentro de la misma
+frase.
+
+---
+
+## 146 — La limitación dejó de imprimirse porque el amplicón se alejó, y la limitación no había cambiado
+
+`_lineas_de_cruce` emite la pareja **«QUÉ MIDE / QUÉ NO MIDE»** del ensayo de RT-qPCR, que
+es la que dice que este par de amplicones **no aísla el evento de `3utr:236`** y no
+confirma el techo del tramo intermedio. Salía bajo una sola condición:
+
+```python
+if not self.distal_crosses:
+    return []
+```
+
+Correcto mientras el distal fue `3utr:282-401`, que **atraviesa** la banda del `AATAAA`
+de `3utr:288`. Al moverse el panel (errata nº 144) el distal que emite el informe pasó a
+`3utr:850-969`, que queda **entero por detrás de las dos bandas** y no atraviesa ninguna
+— y **la pareja dejó de imprimirse**.
+
+### Lo que hace que esto sea grave y no un texto que falta
+
+**La limitación no había cambiado nada.** Un amplicón entero por detrás de una banda está
+tan ausente de esa isoforma corta como uno partido por ella: en los dos casos la razón
+mide la fracción que sobrevive a **todos** los cortes y no separa uno del otro. Lo único
+que cambió es **cuál de las dos formas de estar ausente** se daba.
+
+Así que el informe pasó a callar una limitación vigente **justo cuando el diseño mejoró**
+—el distal nuevo mide lo mismo sin quedar partido—, y un informe que calla una limitación
+no se lee como «no lo dice»: se lee como **que el problema desapareció**. Con las palabras
+con que se pidió el arreglo: *«si el informe la calla cuando no hay cruce, alguien puede
+leerlo como que el problema desapareció»*.
+
+### La condición era la FORMA del fallo, no lo que lo hace posible
+
+Es el principio nº 34 sobre un emisor en vez de sobre un guardia. `distal_crosses` es
+**cómo se veía** el caso conocido; lo que decide qué mide la razón es otra cosa y más
+ancha: **que el distal no quede entero por delante de la otra banda** —desde su corte más
+temprano posible, `end + CLEAVAGE_MIN`—. Atravesar es un caso particular de eso.
+
+`AmpliconPlan.distal_behind` lo deriva de la geometría, y `measures_all_cuts` pasa a
+leerlo a él. `distal_crosses` **no se borra**: sigue distinguiendo los dos casos, porque
+**no se arreglan igual** —uno se podría mover, el otro ya está donde tiene que estar— y
+el motivo emitido dice cuál es. Fundirlos daría una frase correcta y una instrucción
+equivocada.
+
+Y `gap_between` —el «y no se arregla moviéndolo: 11 nt para un amplicón de 120»— se
+calculaba también sólo para los que cruzan. Es la respuesta a «¿y por qué no lo mueves?»,
+y esa pregunta se le hace igual al distal que está detrás.
+
+### El control adversario, que es lo que impide el arreglo perezoso
+
+Emitir la pareja **siempre** habría hecho pasar el caso reportado y habría convertido la
+frase en ruido: un aviso que sale siempre deja de leerse.
+`test_la_limitacion_del_TRAMO_INTERMEDIO_es_PERMANENTE` exige las dos mitades —que salga
+con los **dos** distales reales de hoy, el que atraviesa y el que está detrás, y que
+**calle** cuando no hay ninguna otra señal de la que separar—. Sin la segunda, «lo dice
+cuando toca» y «lo dice siempre» darían el mismo verde.
+
+### Y la nota va además al registro, porque un informe puede volver a callarse
+
+En «SI VAS AL BANCO» queda como **nota permanente y no condicional**, con la tabla de los
+dos distales y el veredicto de los dos: ninguno aísla `3utr:236`, y no es propiedad de
+unas coordenadas sino de la geometría —entre las dos bandas caben 11 nt y el amplicón mide
+120—. Las cifras de esa nota **no están transcritas**: el test las recalcula del mismo
+plan que las emite (principio nº 13).
+
+### Lo que queda ABIERTO y se dice aquí para no perderlo
+
+El **documento descargable** (`.md`/`.docx`/`.pdf`) **no lleva el plan de amplicones**: la
+RT-qPCR sólo aparece nombrada dentro del motivo del frente. O sea que las coordenadas de
+banco y esta limitación viven hoy en el informe de texto del CLI y en el registro, y **no
+en el artefacto que viaja** — que es el principio nº 55 exactamente. No se corrige aquí
+porque meter el plan en el documento obliga a imprimir **unas** coordenadas, y cuáles van
+al banco es la decisión que está abierta a propósito.

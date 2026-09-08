@@ -354,7 +354,10 @@ class TestLoQueDiceElInforme(unittest.TestCase):
         texto = " ".join(inmunes)
         # 200, no 221: con la medida aplicada `3utr:221` solapa el `AATATA` de 236 y
         # cae por riesgo ESTÉRICO. Su plaza proximal la ocupa `3utr:200`.
-        for posicion in ("60", "143", "200"):
+        # Y 144, no 143: desde el 2026-09-07 el homopolímero se mide sobre la MOLÉCULA
+        # que se sintetiza (errata nº 144) y `3utr:143` deja de ser elegible; el sitio
+        # sigue estando y su mejor ventana pasa a empezar un nucleótido más allá.
+        for posicion in ("60", "144", "200"):
             with self.subTest(posicion):
                 self.assertIn(posicion, texto)
 
@@ -462,27 +465,48 @@ class TestElBloqueNoMezclaMarcosDeCoordenadas(unittest.TestCase):
         ][0]
 
     def test_los_inmunes_elegibles_van_en_coordenadas_de_3utr(self):
-        for posicion in ("143", "200"):
+        # 144 y no 143 desde el 2026-09-07: ver `test_los_tres_inmunes_salen_nombrados`.
+        for posicion in ("144", "200"):
             with self.subTest(posicion):
                 self.assertIn(posicion, self.linea)
 
     def test_y_no_en_coordenadas_del_transcrito(self):
-        for posicion in ("1092", "1170"):
+        # Las MISMAS dos posiciones en el marco del transcrito: 144 + 949 y 200 + 949.
+        for posicion in ("1093", "1149"):
             with self.subTest(posicion):
                 self.assertNotIn(posicion, self.linea)
 
     def test_el_experimento_da_las_DOS_parejas(self):
-        # Con desfase, cada amplicon lleva su coordenada de lo tilado y la del 3'UTR.
-        # COORDENADAS NUEVAS (2026-08-27), y no es cosmético: el experimento se diseña
-        # contra la señal de corte MÁS TEMPRANA, y con la promoción por medida aplicada
-        # siempre ésa pasó a ser el `AATATA` de `3utr:236` en vez del `AATAAA` de
-        # `3utr:288`. Los amplicones se mueven en consecuencia. Quien vaya al banco tiene
-        # que usar ÉSTOS.
+        """Cada amplicon lleva su coordenada de lo tilado Y la del 3'UTR.
+
+        El proximal no se mueve: se coloca contra la señal de corte MAS TEMPRANA —el
+        `AATATA` de `3utr:236` desde que la promocion por medida entra siempre— y eso no
+        depende del panel.
+
+        **El DISTAL si depende del panel, y se ha movido el 2026-09-07** de
+        `3utr:282-401` a `3utr:585-704`. No es cosmetico y no es un cambio de criterio:
+        `_place_amplicon` esquiva las ventanas diana de los elegidos, y con el
+        homopolimero medido sobre la MOLECULA (errata n 144) el panel de SEIS que monta
+        este test pasa de `3utr: 60, 449, 553, 652, 819, 1018` a
+        `3utr: 60, 359, 449, 553, 818, 1018`. **`3utr:359-380` cae DENTRO de
+        `3utr:282-401`**, asi que el distal ya no cabe ahi y se va al primer hueco
+        siguiente. Un amplicon que solapa una diana mide corte por RNAi, no isoformas.
+
+        Lo que este test fija son LAS DOS PAREJAS de coordenadas, no un valor: que cada
+        amplicon salga con su marco y con el del 3'UTR entre parentesis. Los numeros van
+        MEDIDOS de esta corrida.
+
+        **OJO, y no lo arregla este test**: las coordenadas del bloque «SI VAS AL BANCO»
+        del registro salen de `rtqpcr_amplicons` **sin panel que esquivar**, asi que son
+        `3utr:282-401` y no coinciden con las que emite el informe de NINGUNA corrida con
+        candidatos elegidos. Lo comprueba `test_prosa_contra_codigo`, que llama sin
+        `avoid`.
+        """
         bloque = self.texto.split("EXPERIMENTO QUE RESUELVE")[1]
         self.assertIn("tx:1055-1174", bloque)
         self.assertIn("(3utr:106-225)", bloque)
-        self.assertIn("tx:1231-1350", bloque)
-        self.assertIn("(3utr:282-401)", bloque)
+        self.assertIn("tx:1534-1653", bloque)
+        self.assertIn("(3utr:585-704)", bloque)
 
 
 @unittest.skipUnless(RATON.is_file(), "NOT_RUN: falta data/reference/NM_011170.3.fa")

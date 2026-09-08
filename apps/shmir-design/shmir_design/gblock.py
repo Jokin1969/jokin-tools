@@ -35,6 +35,7 @@ from types import MappingProxyType
 
 from .errors import ShmirDesignError
 from .filters import FilterResult, FilterState, Verdict, overall_verdict
+from .hard_filters import MAX_HOMOPOLYMER as _MAX_HOMOPOLYMER
 from .scaffold import Hairpin
 
 
@@ -72,7 +73,8 @@ MLUI_SITE = _pieza("MluI")
 AGEI_SITE = _pieza("AgeI")
 
 GBLOCK_LENGTH = 149
-MAX_HOMOPOLYMER = 3
+#: DERIVADO de `hard_filters`, no transcrito (principio nº 13).
+MAX_HOMOPOLYMER = _MAX_HOMOPOLYMER
 HOMOPOLYMER = re.compile(r"(.)\1{" + str(MAX_HOMOPOLYMER) + r",}")
 
 #: Posiciones de los contextos en el plasmido SGEP depositado (1-based, inclusivas).

@@ -34,7 +34,10 @@ RAIZ = Path(__file__).resolve().parent.parent
 if str(RAIZ) not in sys.path:
     sys.path.insert(0, str(RAIZ))
 
-from tests.nombres_heredados import por_nombre_heredado, starts_del_medido
+from tests.nombres_heredados import (
+    por_nombre_heredado,
+    starts_disponibles_hoy,
+)
 from shmir_design import presentation, spliceai  # noqa: E402
 from shmir_design.anatomy import Anatomy, RegionSource  # noqa: E402
 from shmir_design.errors import ShmirDesignError  # noqa: E402
@@ -83,7 +86,10 @@ def _panel(corrida, intrones=("mvm_actual",)):
     # fichero medido no se reescribe nunca.
     return spliceai.build_panel(
         corrida.selection, intron_names=intrones, scaffold=SGEP_SCAFFOLD,
-        starts=starts_del_medido(MEDIDO),
+        # DESDE EL 2026-09-07 no todos siguen siendo elegibles: cuatro caen al
+        # medir el homopolimero sobre la molecula (errata nº 144) y `build_panel`
+        # aborta si se le piden. Se monta la parte que este panel puede montar.
+        starts=starts_disponibles_hoy(MEDIDO, corrida)[0],
         cassette=_casete(), context_nt=5000,
     )
 
@@ -246,7 +252,9 @@ class TestElGuardiaDelMARCO(unittest.TestCase):
         scan = spliceai.scan_from_result(
             crudo, constructions=self.panel.constructions
         )
-        self.assertEqual(len(scan.pairs), 10)
+        # SEIS desde el 2026-09-07: la corrida medida sigue siendo la misma y de
+        # sus candidatos sólo seis siguen siendo elegibles (errata nº 144).
+        self.assertEqual(len(scan.pairs), 6)
         por_nombre = {p.construction: p for p in scan.pairs}
         # Las puntuaciones MEDIDAS, ya en el sitio que la app declara.
         self.assertAlmostEqual(
@@ -256,7 +264,10 @@ class TestElGuardiaDelMARCO(unittest.TestCase):
             por_nombre["mvm_actual__tx:959"].legit_donor, 0.6638, places=3,
         )
         self.assertAlmostEqual(
-            por_nombre["mvm_actual__tx:1684"].legit_donor, 0.8714, places=3,
+            # `tx:1502` y no `tx:1684`: éste último ya no es una ventana elegible
+            # (errata nº 144), así que esta corrida no lo monta. La puntuación MEDIDA
+            # del fichero no cambia — cambia cuál de sus filas se puede cruzar.
+            por_nombre["mvm_actual__tx:1502"].legit_donor, 0.8443, places=3,
         )
         self.assertAlmostEqual(
             por_nombre["mvm_actual__tx:959"].legit_acceptor, 0.7979, places=3,
@@ -365,14 +376,18 @@ class TestLaGuiaMODULA_el_donante_legitimo(unittest.TestCase):
         mvm = modulacion[0]
         self.assertEqual(mvm.intron, "mvm_actual")
         self.assertAlmostEqual(mvm.minimum, 0.6638, places=3)
-        self.assertAlmostEqual(mvm.maximum, 0.8714, places=3)
-        self.assertGreater(mvm.spread, 0.30)
+        # El máximo baja a 0,8443 porque el que lo tenía —`tx:1684`— ya no se monta;
+        # la DISPERSIÓN sigue por encima del 27 %, que es el hallazgo: la guía mueve
+        # el donante legítimo del MVM.
+        self.assertAlmostEqual(mvm.maximum, 0.8443, places=3)
+        self.assertGreater(mvm.spread, 0.25)
 
     def test_cada_par_dice_como_queda_FRENTE_A_SUS_HERMANAS(self):
         filas = presentation.splice_result_rows(self.scan)
         por_nombre = {f["construccion"]: f for f in filas}
         self.assertAlmostEqual(
-            por_nombre["mvm_actual__tx:1684"]["donante_vs_hermanas"], 1.0, places=6,
+            # `tx:1502` es el máximo de los seis que hoy se montan; era `tx:1684`.
+            por_nombre["mvm_actual__tx:1502"]["donante_vs_hermanas"], 1.0, places=6,
         )
         self.assertLess(
             por_nombre["mvm_actual__tx:959"]["donante_vs_hermanas"], 0.80,

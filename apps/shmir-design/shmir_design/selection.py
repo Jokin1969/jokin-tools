@@ -31,6 +31,8 @@ Python 3.11+, solo libreria estandar (regla 6).
 
 from __future__ import annotations
 
+import math
+
 from dataclasses import dataclass, field, replace
 from types import MappingProxyType
 
@@ -449,6 +451,103 @@ def _rellenar(
         usados.add(id(site))
 
 
+#: Tope de combinaciones que se prueban al rescatar una cuota. Con la cuota de tres y
+#: los 17 sitios inmunes del raton son 680, pero una cuota grande sobre una piscina
+#: grande crece rapido y esto NO puede convertir una seleccion en un cuelgue. Si se pasa
+#: del tope se deja el resultado voraz y la cuota sale como no cubierta, que es la
+#: respuesta honesta: «no se ha encontrado», nunca «no existe».
+TOPE_COMBINACIONES = 200_000
+
+
+def _conjunto_que_cumple(
+    sitios: list[Site], cuota: int, ya: list[Choice], min_spacing: int
+) -> list[Site] | None:
+    """El MAYOR conjunto de hasta `cuota` sitios que cumple el espaciado.
+
+    Entre los del mismo tamaño manda la asimetria total. Se busca de mayor a menor y se
+    para en el primero que existe, asi que devuelve el optimo.
+
+    **Por que el MAYOR y no solo el de tamaño `cuota`.** Porque cuando la cuota no se
+    puede cumplir la respuesta no es «pues la voraz»: la voraz puede sacar MENOS de lo
+    alcanzable por el mismo motivo que la deja corta —el mejor de cada paso se lleva por
+    delante a dos que juntos cabian—. Medido el 2026-09-07 sobre el panel de diez con
+    cuota cinco: la voraz sacaba 2 inmunes y caben 3. Rendirse al numero de la voraz
+    seria dar por imposible lo que solo era un orden.
+
+    Devuelve `None` si no cabe ni uno, o si hay tantas combinaciones que no se exploran:
+    quien llama lo distingue por la nota, no por el valor.
+    """
+    from itertools import combinations  # noqa: PLC0415
+
+    tope = min(cuota, len(sitios))
+    for tamaño in range(tope, 0, -1):
+        if math.comb(len(sitios), tamaño) > TOPE_COMBINACIONES:
+            continue
+        mejor: list[Site] | None = None
+        mejor_suma = float("-inf")
+        for combinacion in combinations(sitios, tamaño):
+            elegidos = [s.best for s in combinacion]
+            if not all(
+                _respects_spacing(
+                    c, ya + [o for o in elegidos if o is not c], min_spacing
+                )
+                for c in elegidos
+            ):
+                continue
+            suma = sum(c.asymmetry for c in elegidos)
+            if suma > mejor_suma:
+                mejor, mejor_suma = list(combinacion), suma
+        if mejor is not None:
+            return mejor
+    return None
+
+
+def inmunes_que_caben(sitios: list[Site], min_spacing: int) -> int:
+    """CUANTOS sitios inmunes caben juntos con el espaciado. Un HECHO GEOMETRICO.
+
+    NO es la cuota, y no es cuantos lleva el panel: se mide sobre los SITIOS ELEGIBLES,
+    que no cambian al retirar un candidato del panel. Las dos cantidades conviven —hoy
+    caben cuatro y el panel lleva tres— y son las dos ciertas; pegarlas con un «que son»
+    es lo que hacia que la tarjeta dijera «deja meter cuatro, que son los 3 que ya
+    estan». Principio nº 27.
+
+    **Se DERIVA, no se teclea.** Estaba escrito `cuatro` en el texto del frente desde
+    que la cuota era cuatro, y siguio ahi cuando bajo a tres: un numero en prosa al lado
+    de otro derivado envejece solo y no da ningun error (principio nº 13).
+
+    El barrido es voraz por posicion, no `_conjunto_que_cumple`, y por dos razones que
+    van juntas: el espaciado es una restriccion de DISTANCIA en una dimension, asi que
+    coger el mas temprano y saltar al siguiente que quepa da el MAXIMO —es seleccion de
+    actividades—, y ademas cuesta O(n). La busqueda combinatoria sobre 17 sitios enumera
+    ~130.000 conjuntos y esto se repinta en cada rerun: es la errata nº 59 esperando.
+    Comprobado que los dos dan lo mismo sobre los sitios reales.
+    """
+    cabe: list[int] = []
+    for inicio in sorted(s.best.start for s in sitios):
+        if all(respects_spacing(inicio, otro, spacing=min_spacing) for otro in cabe):
+            cabe.append(inicio)
+    return len(cabe)
+
+
+def filtros_sin_frente() -> frozenset[str]:
+    """Los filtros que NO abren frente, en un solo sitio.
+
+    Un frente se cierra CONSIGUIENDO algo — un fichero o una lectura de banco. Estos no:
+    los biofisicos no dependen de ningun recurso, y el homopolimero de la molecula se
+    calcula con el andamio que ya esta dentro. Ponerlos en la lista haria que la app
+    pidiera su ficha de obtencion y dijera «falta el recurso» de algo que no tiene
+    recurso — el fallo que `blocking_fronts` describe en su docstring.
+
+    Vive aqui y no dentro de `blocking_fronts` para que los tests que cuentan frentes lo
+    DERIVEN en vez de transcribirlo (principio nº 13): transcrito, el dia que entre otro
+    filtro sin frente la cuenta falla en un sitio y se «arregla» sumando uno.
+    """
+    from .filters import BIOPHYSICAL_FILTERS  # noqa: PLC0415
+    from .scaffold import MOLECULE_HOMOPOLYMER  # noqa: PLC0415
+
+    return frozenset(BIOPHYSICAL_FILTERS | {MOLECULE_HOMOPOLYMER})
+
+
 def choose(sites: list[Site], config: SelectionConfig) -> Selection:
     """Seleccion voraz: cuota por tercio primero, y el resto por asimetria (paso 5).
 
@@ -474,6 +573,8 @@ def choose(sites: list[Site], config: SelectionConfig) -> Selection:
     usados: set[int] = set()
     quota_unfilled: list[str] = []
     notes: list[str] = []
+    #: Lo que alguien DECIDIÓ, frente a lo que se pidió y no se pudo dar.
+    decisions: list[str] = []
 
     if config.region_quota is not None:
         if not sites:
@@ -517,6 +618,7 @@ def choose(sites: list[Site], config: SelectionConfig) -> Selection:
             config=config,
             quota_unfilled=tuple(quota_unfilled),
             notes=tuple(notes),
+            decisions=tuple(decisions),
             _ranked=tuple(c.start for c in por_asimetria),
         )
 
@@ -542,12 +644,64 @@ def choose(sites: list[Site], config: SelectionConfig) -> Selection:
             s for s in ordenados
             if s.best.start <= config.apa_immune_before and id(s) not in usados
         ]
-        puestos = 0
+        voraces: list = []
         for sitio in inmunes:
-            if puestos >= config.apa_immune_quota:
+            if len(voraces) >= config.apa_immune_quota:
                 break
-            if not _respects_spacing(sitio.best, chosen, config.min_spacing):
+            if not _respects_spacing(
+                sitio.best, chosen + [s.best for s in voraces], config.min_spacing
+            ):
                 continue
+            voraces.append(sitio)
+
+        # LA CUOTA ES UN REQUISITO, NO UNA PREFERENCIA. El orden voraz coge el de mas
+        # asimetria primero, y ese puede llevarse por delante a DOS que juntos la
+        # habrian completado: paso el 2026-09-07, cuando `3utr:187` (+4,06) dejo fuera a
+        # `3utr:144` (a 43 nt) y a `3utr:200` (a 13 nt) y la cuota se quedo en dos.
+        #
+        # Asi que si la voraz se queda corta se busca el conjunto que SI la cumple, y
+        # entre los que la cumplen el de mas asimetria total. Solo entonces: donde la
+        # voraz ya la cumple no se toca nada, que es lo que mantiene en su sitio el panel
+        # confirmado. Ver `tests/test_la_cuota_de_inmunes_es_un_REQUISITO.py`.
+        elegidos_inmunes = voraces
+        if len(voraces) < config.apa_immune_quota:
+            rescate = _conjunto_que_cumple(
+                inmunes, config.apa_immune_quota, chosen, config.min_spacing
+            )
+            # Solo si MEJORA lo que ya habia: un rescate que empata no cambia nada y
+            # ensuciaria las notas con una decision que no se ha tomado.
+            if rescate is not None and len(rescate) > len(voraces):
+                elegidos_inmunes = rescate
+                llega = len(rescate) >= config.apa_immune_quota
+                # VA EN `decisions`, NO EN `notes`. `notes` dice lo que se PIDIÓ y no se
+                # pudo dar —algo que quien lee puede cambiar—; esto dice CÓMO se cumplió
+                # la cuota. Si además se quedara corta, el aviso lo da `quota_unfilled`,
+                # que es su sitio. Puesto en `notes` saldría en rojo en toda corrida por
+                # defecto, y un aviso que sale siempre deja de leerse — la misma razón
+                # por la que la retirada declarada tampoco es un aviso.
+                decisions.append(
+                    f"inmunes al corte: el orden por asimetría sacaba {len(voraces)} de "
+                    f"{config.apa_immune_quota} —el mejor de cada paso deja a los "
+                    f"siguientes por debajo del espaciado de {config.min_spacing} nt—, "
+                    + (
+                        "así que se toma el conjunto que sí la cumple: "
+                        if llega
+                        # La cuota SIGUE sin cumplirse y eso sale en `quota_unfilled`.
+                        # Decir aquí que se cumple sería un PASS silencioso.
+                        else f"así que se toman los {len(rescate)} que sí caben juntos, "
+                             f"que siguen sin llegar a la cuota: "
+                    )
+                    + ", ".join(
+                        str(sitio.best.label)
+                        for sitio in sorted(rescate, key=lambda x: x.best.start)
+                    )
+                    + " (nombres de ventana, no posiciones: aquí no hay marco al que "
+                    "referirlas). La cuota es un requisito; el orden voraz sólo es el "
+                    "camino rápido."
+                )
+
+        puestos = 0
+        for sitio in elegidos_inmunes:
             chosen.append(sitio.best)
             usados.add(id(sitio))
             puestos += 1
@@ -677,6 +831,7 @@ def choose(sites: list[Site], config: SelectionConfig) -> Selection:
         config=config,
         quota_unfilled=tuple(quota_unfilled),
         notes=tuple(notes),
+        decisions=tuple(decisions),
         _ranked=tuple(c.start for c in por_asimetria),
     )
 
@@ -701,6 +856,23 @@ class ReportSelection:
     def window_of(self, choice: Choice) -> TiledWindow:
         return self.windows[choice.label]
 
+    def resolvable_choices(self) -> dict[int, Choice]:
+        """El alcance de esta corrida: `{inicio: candidato}`, panel MAS elegibles.
+
+        Es la mitad de `choices_for` que contesta «¿esta este inicio?» sin abortar. Vive
+        aparte porque quien quiere PREGUNTAR no quiere que se le caiga la corrida —y
+        reconstruirlo por su cuenta seria la segunda definicion del alcance, que es
+        exactamente la errata nº 107.
+
+        El panel va primero por la misma razon que en `choices_for`: un inicio elegido
+        esta ademas en su sitio, y el `Choice` que manda es el que la seleccion escogio.
+        """
+        por_inicio = {c.start: c for c in self.selection.chosen}
+        for sitio in self.selection.sites:
+            for choice in sitio.choices:
+                por_inicio.setdefault(choice.start, choice)
+        return por_inicio
+
     def choices_for(self, starts) -> list[Choice]:
         """Los candidatos de esos inicios: del PANEL o de CUALQUIER sitio elegible.
 
@@ -717,10 +889,7 @@ class ReportSelection:
         Un inicio que no corresponda a NINGUNA ventana elegible aborta, y el motivo habla
         de ventanas elegibles y no del panel: el que pide no ha pedido nada raro.
         """
-        por_inicio = {c.start: c for c in self.selection.chosen}
-        for sitio in self.selection.sites:
-            for choice in sitio.choices:
-                por_inicio.setdefault(choice.start, choice)
+        por_inicio = self.resolvable_choices()
         faltan = sorted(set(int(s) for s in starts) - set(por_inicio))
         if faltan:
             # CON SU MARCO: aqui llegan `starts` pelados y este mensaje los NOMBRA. El
@@ -2332,7 +2501,14 @@ def blocking_fronts(
     #   - los que estan PENDIENTES DE DECISION (`G4_*`): tampoco se cierran con un
     #     fichero. Lo que les falta es que alguien decida su criterio, y eso no tiene
     #     ficha de obtencion — tiene una entrada en `justificacion.py`.
-    sin_frente = BIOPHYSICAL_FILTERS
+    #   - el HOMOPOLIMERO DE LA MOLECULA: tampoco se cierra consiguiendo nada. Sale
+    #     NOT_RUN en las ventanas que no superan los biofisicos —porque montar la
+    #     pasajera pliega y ahi no compensa— y esas ventanas ya no son elegibles por su
+    #     cuenta. Ponerlo en la lista de frentes haria que la app dijera «falta el
+    #     recurso» de un filtro que no tiene recurso, que es EXACTAMENTE el fallo que
+    #     este bloque describe arriba. Sin ViennaRNA hay un NOT_RUN de verdad, y ese ya
+    #     lo dice su propio motivo — y ademas `check_can_emit_dna` impide emitir ADN.
+    sin_frente = filtros_sin_frente()
     cerrados = dict(closed_by_panel or {})
     frentes = [
         BlockingFront(
@@ -2425,6 +2601,17 @@ def blocking_fronts(
     )
     marco = tiled_frame(report.anatomy)
     inmunes = len(selection.selection.chosen) - len(con_techo)
+    # CUANTOS CABEN se DERIVA (ver `inmunes_que_caben`): aqui habia un `cuatro` escrito
+    # que dejo de cuadrar con el numero de al lado en cuanto la cuota bajo a tres.
+    corte_inmune = derive_immune_cut(report)
+    caben = (
+        inmunes_que_caben(
+            [s for s in selection.selection.sites if s.best.start < corte_inmune],
+            selection.selection.config.min_spacing,
+        )
+        if corte_inmune is not None
+        else inmunes
+    )
     medido = getattr(report, "measured_apa", None)
     frentes.append(
         BlockingFront(
@@ -2438,8 +2625,11 @@ def blocking_fronts(
                 f"{len(selection.selection.chosen)} candidatos quedan por detrás del "
                 f"corte de {label(min(s.position for s in apa), marco)}: comparten "
                 f"UN ÚNICO MODO DE FALLO. Y el rebalanceo tiene tope: los sitios inmunes "
-                f"por tramo son {reparto} —{donde}— y el espaciado deja "
-                f"meter cuatro, que son los {inmunes} que ya están. "
+                f"por tramo son {reparto} —{donde}—; con el espaciado de "
+                f"{selection.selection.config.min_spacing} nt caben {caben} de esos "
+                f"sitios juntos y el panel lleva {inmunes}. Son DOS cantidades: la "
+                f"primera se mide sobre los sitios elegibles y no cambia al retirar un "
+                f"candidato del panel. "
                 f"POR QUE BLOQUEABA: si la fracción de isoforma corta es alta, esos "
                 f"{len(con_techo)} candidatos entran al cribado con un TECHO "
                 f"INDISTINGUIBLE DE UN shmiR MALO — un techo de 0,3 y una guía que no "
