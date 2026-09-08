@@ -133,11 +133,22 @@ def _rmsk(path, entry, contexto):
 
 
 def _transgen(path, entry, contexto):
+    # LA ESPECIE SE DECLARA AL CONECTAR. `species.required_files` dijo que ESTE fichero
+    # es el casete de ESTA especie, y esa es la declaracion: sin ella el casete llega
+    # sin especie y `check_cassette_species` no puede comparar nada — no haber podido
+    # comprobarlo sale dicho, pero no protege (errata nº 155).
     return load_database(
         path,
         name="casete del transgén",
         version=entry.date or entry.md5,
         expected_md5=entry.md5,
+        # EL SLUG, no `str(...)` de la especie. Con `str()` puesto, lo que llegaba era
+        # el `repr` del dataclass —«Species(scientific='Mus musculus', …)»— y
+        # `species.resolve` FABRICA una especie de cualquier cadena: el casete murino
+        # sobre un diseño murino abortaba, porque su slug era el repr entero. Es la
+        # errata nº 49 exacta, y la cazo el control adversario del test — sin el, «este
+        # guardia aborta siempre» y «este guardia acierta» dan el mismo verde.
+        species=getattr(contexto.get("species"), "slug", "") or "",
     )
 
 
@@ -323,7 +334,7 @@ def load_from_manifest(
     notas: list[str] = []
     # NINGUN cargador pide ya la diana: la unica forma de declararla es
     # `data/diana/variantes.toml`, y quien la lee es el filtro, no esto.
-    contexto: dict[str, object] = {}
+    contexto: dict[str, object] = {"species": species}
 
     for role, destino in DESTINOS:
         rol = disponibles.get(role)

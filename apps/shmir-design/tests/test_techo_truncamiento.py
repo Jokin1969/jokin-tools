@@ -385,12 +385,17 @@ class TestConSitiosMedidosElTechoDejaDeSerNone(unittest.TestCase):
     def setUpClass(cls):
         from shmir_design.apa import ApaSite, ApaSites
 
+        from shmir_design.reference import sequence_md5
+
         cls.utr3 = _utr3()
         cls.sitios = ApaSites(
             sites=(ApaSite(288, 0.35, "proximal"), ApaSite(1242, 0.65, "distal")),
             source="tabla de sonda para el test",
             version="sonda",
             checksum="0" * 32,
+            # DERIVADO del 3'UTR de este test. Obligatorio desde la errata nº 156: una
+            # tabla que no dice de que secuencia es no se aplica a ninguna.
+            utr3_md5=sequence_md5(cls.utr3),
             coords="3utr",
         )
 

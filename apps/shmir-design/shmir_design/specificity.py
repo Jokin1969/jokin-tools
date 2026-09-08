@@ -230,6 +230,11 @@ class SpecificityDatabase:
     version: str
     checksum: str
     records: dict[str, str]
+    #: La especie para la que esta base esta DECLARADA. `""` es «nadie lo ha dicho»,
+    #: y eso NO es «coincide»: sale escrito en `provenance` y lo dice
+    #: `check_cassette_species`. Con el casete es lo que separa un veredicto contra la
+    #: construccion terapeutica de uno contra la de otra especie (errata nº 155).
+    species: str = ""
 
     def __post_init__(self) -> None:
         for campo, valor in (
@@ -250,10 +255,63 @@ class SpecificityDatabase:
 
     @property
     def provenance(self) -> str:
+        # LA ESPECIE VA PEGADA A LA PROCEDENCIA, no en un campo aparte: la procedencia
+        # es lo que sale en el informe y en el motivo de cada veredicto, y una base sin
+        # especie declarada tiene que leerse como tal ALLI, no en el codigo.
+        from .species import resolve  # noqa: PLC0415
+
+        cual = (
+            f"{resolve(self.species).scientific}" if self.species
+            else CASSETTE_SPECIES_UNDECLARED
+        )
         return (
             f"{self.name}, versión {self.version}, checksum {self.checksum}, "
-            f"{len(self.records)} transcrito(s)"
+            f"{len(self.records)} transcrito(s), especie {cual}"
         )
+
+
+#: Lo que se dice cuando la base no declara de que especie es. NO es «coincide»: es la
+#: misma leccion del `.out` sin resumen — no haber podido comprobarlo es un tercer
+#: estado, y callarlo lo convierte en un comprobado silencioso.
+CASSETTE_SPECIES_UNDECLARED = "NO DECLARADA"
+
+
+def check_cassette_species(cassette, *, species: str) -> str | None:
+    """El casete tiene que ser el de la especie que se diseña. Si no, ABORTA.
+
+    Es `RepeatMask.query_length` un rol mas alla, y con la misma forma: se compara lo
+    que el fichero DECLARA ser contra lo que se le esta dando. La diferencia es que la
+    mascara tenia guardia desde el principio y el casete no, asi que un casete de otra
+    especie producia veredictos con la forma correcta y el significado equivocado —
+    medido: 415 PASS y 4 FAIL sobre ventanas humanas contra la construccion murina
+    (errata nº 155).
+
+    Devuelve `None` cuando cuadra y el AVISO cuando la especie del casete no esta
+    declarada: eso no bloquea —hay que poder trabajar con un casete sin registrar— pero
+    no se calla, porque no haber comprobado no es haber comprobado.
+    """
+    from .species import resolve  # noqa: PLC0415
+
+    if cassette is None:
+        return None
+    declarada = getattr(cassette, "species", "")
+    if not declarada:
+        return CASSETTE_SPECIES_UNDECLARED
+    suya = resolve(declarada)
+    diseño = resolve(species)
+    if suya.slug == diseño.slug:
+        return None
+    raise ShmirDesignError(
+        f"El casete del transgén está declarado para {suya.scientific} y esta corrida "
+        f"es de {diseño.scientific}: no son la misma. Se aborta el filtro del transgén. "
+        f"POR QUÉ IMPORTA: el escáner corre igual y emite PASS y FAIL con la forma "
+        f"correcta — medido, 415 PASS y 4 FAIL sobre ventanas humanas contra el casete "
+        f"murino—, así que un PASS contaría el frente como contestado y un FAIL "
+        f"retiraría un candidato, los dos contra una construcción que no es la de este "
+        f"experimento. Es el fallo de la biblioteca equivocada de RepeatMasker en el rol "
+        f"del transgén. Conecta el casete de {diseño.scientific} o corre sin casete: el "
+        f"frente queda NOT_RUN, que es la verdad."
+    )
 
 
 def _count_mismatches(pattern: str, window: str, limit: int) -> int | None:
@@ -876,6 +934,7 @@ def load_database(
     name: str,
     version: str,
     expected_md5: str | None = None,
+    species: str = "",
 ) -> SpecificityDatabase:
     """Carga un FASTA multi-registro de RefSeq RNA y anota su procedencia.
 
@@ -938,7 +997,8 @@ def load_database(
         records[identificador] = "".join(trozos)
 
     return SpecificityDatabase(
-        name=name, version=version, checksum=checksum, records=records
+        name=name, version=version, checksum=checksum, records=records,
+        species=species,
     )
 
 

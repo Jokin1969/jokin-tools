@@ -60,6 +60,16 @@ class ApaSites:
     source: str
     version: str
     checksum: str
+    #: DE QUE 3'UTR es esta tabla. `checksum` es el md5 del FICHERO —dice que el fichero
+    #: es el que dice ser— y esto es el md5 de la SECUENCIA: dice a QUE se puede aplicar.
+    #: Son cantidades distintas, como los tres checksums del manifiesto, y sin la
+    #: segunda unas posiciones murinas CABEN en el 3'UTR humano —1242 contra 1606— sin
+    #: salirse de rango y sin que salte ninguna alarma (errata nº 156).
+    #:
+    #: Es OBLIGATORIO y no tiene defecto: un `""` seria un tercer estado —«no se sabe de
+    #: que secuencia es»— y de ese estado no hay nada sensato que hacer, porque la tabla
+    #: no se puede aplicar a nada. Mejor que no se pueda construir (principio nº 58).
+    utr3_md5: str
     coords: str = "3utr"
 
     def __post_init__(self) -> None:
@@ -67,11 +77,15 @@ class ApaSites:
             ("source", self.source),
             ("version", self.version),
             ("checksum", self.checksum),
+            ("utr3_md5", self.utr3_md5),
         ):
             if not valor or not str(valor).strip():
                 raise ValueError(
                     f"Los sitios de APA necesitan {campo}: sin procedencia el dato no "
-                    f"es auditable y no puede sustituir a una predicción. Se aborta."
+                    f"es auditable y no puede sustituir a una predicción, y sin "
+                    f"`utr3_md5` no se sabe a que secuencia se refieren — sus "
+                    f"posiciones vienen ya convertidas, así que sobre otra caben y "
+                    f"describen otra cosa. Se aborta."
                 )
         if self.coords not in COORD_SYSTEMS:
             raise ValueError(
@@ -97,10 +111,46 @@ class ApaSites:
         return all(s.fraction is not None for s in self.sites)
 
 
+#: El formato, en el mensaje del aborto: un error que no dice como arreglarlo deja al
+#: usuario buscando, y lo que encuentra suele ser la salida equivocada.
+APA_SITES_FORMAT = (
+    "Formato de `apa_medido_<especie>.tsv`: cabecera de comentarios `# clave<TAB>valor` "
+    "con `utr3_md5` OBLIGATORIO —el md5 de la SECUENCIA canónica del 3'UTR al que se "
+    "refieren estas posiciones—, y luego una fila por sitio: "
+    "`posicion<TAB>fraccion<TAB>nombre`. Las posiciones van YA CONVERTIDAS a "
+    "coordenadas de 3'UTR."
+)
+
+
 def parse_apa_sites(
     text: str, *, source: str, version: str, checksum: str, coords: str = "3utr"
 ) -> ApaSites:
-    """Lee la tabla de sitios medidos. Cualquier linea mal formada aborta la carga."""
+    """Lee la tabla de sitios medidos. Cualquier linea mal formada aborta la carga.
+
+    **La cabecera declara de QUE 3'UTR es**, y sin eso se aborta. Es la misma condicion
+    que `polya_db_<especie>.tsv` lleva desde el principio: los dos ficheros producen un
+    techo de knockdown y solo uno decia sobre que secuencia. Las posiciones de este
+    llegan YA CONVERTIDAS, asi que aplicadas a otra especie caben, no dan error y
+    describen otra cosa (errata nº 156).
+    """
+    cabecera: dict[str, str] = {}
+    for linea in text.splitlines():
+        if not linea.lstrip().startswith("#"):
+            continue
+        cuerpo = linea.lstrip()[1:].strip()
+        if "\t" in cuerpo:
+            clave, valor = cuerpo.split("\t", 1)
+            cabecera[clave.strip()] = valor.strip()
+    if not cabecera.get("utr3_md5"):
+        raise ShmirDesignError(
+            f"{source}: a la cabecera le falta `utr3_md5`, así que esta tabla no dice a "
+            f"que secuencia se refiere y no se puede aplicar a ninguna. Sus posiciones "
+            f"vienen YA CONVERTIDAS a coordenadas de 3'UTR: sobre otra especie CABEN "
+            f"—el 3'UTR humano mide 1606 nt y el murino 1242— así que no se saldrian de "
+            f"rango y el techo de knockdown saldria con la forma correcta referido a "
+            f"otra cosa. Se aborta en vez de aplicarla a ciegas.\n\n{APA_SITES_FORMAT}"
+        )
+
     sitios: list[ApaSite] = []
     for numero, linea in enumerate(text.splitlines(), start=1):
         if not linea.strip() or linea.lstrip().startswith("#"):
@@ -142,6 +192,7 @@ def parse_apa_sites(
         version=version,
         checksum=checksum,
         coords=coords,
+        utr3_md5=cabecera["utr3_md5"],
     )
     total = sum(s.fraction for s in resultado.sites if s.fraction is not None)
     if total > 1.0 + 1e-9:
@@ -203,6 +254,37 @@ class ApaAssessment:
         if self.knockdown_ceiling is not None:
             return f"{self.knockdown_ceiling:.2f}"
         return f"prediccion:{'si' if self.risk else 'no'}"
+
+
+def apply_measured_sites(sites, sequence: str, *, anatomy=None):
+    """Los sitios medidos SI son de este 3'UTR; `None` si no, y `None` si no hay.
+
+    Es la puerta que faltaba, y la hermana de `apa.resolve_measured`: aquella aplica la
+    tabla de PolyA_DB por md5 del 3'UTR desde 2026-08-26 y esta no existia, asi que
+    `apa_assessment` recibia los sitios directamente y no habia ningun sitio donde
+    preguntar «¿son de esta secuencia?».
+
+    **Recibe la secuencia y la anatomia, no el 3'UTR ya recortado**, y con la MISMA
+    forma que `resolve_measured`: recortarlo en el llamador es exactamente donde nacen
+    los fallos de marco de este proyecto, y la regla de por donde empieza el 3'UTR tiene
+    que estar en un sitio.
+
+    Devolver `None` —y no abortar— es deliberado: una tabla de otra especie en el
+    deposito no es un fallo de la corrida, es un fichero que no aplica. Lo que no puede
+    pasar es que aplique.
+    """
+    from . import reference  # noqa: PLC0415
+
+    if sites is None:
+        return None
+    if anatomy is not None and getattr(anatomy, "utr3", None):
+        inicio, fin = anatomy.utr3
+        utr3 = sequence[inicio - 1:fin]
+    else:
+        utr3 = sequence
+    if reference.sequence_md5(utr3) != sites.utr3_md5:
+        return None
+    return sites
 
 
 def apa_assessment(

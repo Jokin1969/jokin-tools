@@ -333,6 +333,12 @@ class TilingReport:
     #: excluyo a proposito. Si el informe dijera lo mismo de los tres, nadie sabria si
     #: hay que subir un fichero o si el que hay es de otro gen.
     apa_missing_reason: str = ""
+    #: Por que los sitios medidos que SI llegaron no se aplicaron: son de otra
+    #: secuencia. Campo propio y no fundido con `apa_missing_reason`, porque son dos
+    #: causas que pueden darse A LA VEZ —no hay tabla de PolyA_DB Y ademas el
+    #: `apa_medido.tsv` del deposito es de otra especie— y cada una se arregla con una
+    #: cosa distinta (errata nº 156).
+    apa_sites_foreign_reason: str = ""
     #: Si la medida se EXCLUYO a proposito, el motivo escrito. Vacio = no se excluyo.
     #: Va aqui y no en una nota aparte porque tiene que viajar al veredicto: sin el,
     #: «se decidio no usarla» y «no habia» son el mismo `measured_apa=None`.
@@ -600,6 +606,15 @@ def tile_utr(
             f"{len(original)}; se aborta antes de etiquetar ninguna ventana con "
             f"coordenadas que no son las suyas."
         )
+    # EL CASETE TIENE QUE SER EL DE ESTA ESPECIE, y se comprueba AQUI —en la ingesta,
+    # al lado del guardia de la mascara— y no por ventana: si mordiera al emitir, las
+    # 415 ventanas humanas con PASS contra el casete murino ya estarian escritas cuando
+    # alguien lo leyera (errata nº 155). Devuelve un AVISO cuando la especie del casete
+    # no esta declarada; ese aviso no se pierde porque viaja en `provenance`.
+    from .specificity import check_cassette_species  # noqa: PLC0415
+
+    check_cassette_species(transgene_db, species=species)
+
     from .apa import (  # noqa: PLC0415
         POLYADB_FILENAME,
         ApaExcluded,
@@ -646,6 +661,25 @@ def tile_utr(
                     f"así que NO habla de ella y no se promueve nada. No es un fallo: "
                     f"unas coordenadas ancladas sobre otro 3'UTR anclarían ruido."
                 )
+
+    # LOS SITIOS MEDIDOS SE APLICAN SOLO A SU SECUENCIA, igual que la tabla de
+    # PolyA_DB. Sus posiciones vienen YA CONVERTIDAS a coordenadas de 3'UTR, asi que
+    # sobre otra especie CABEN y describirian otra cosa (errata nº 156).
+    from .apa import apply_measured_sites  # noqa: PLC0415
+
+    apa_ajenos = apa_sites is not None and apply_measured_sites(
+        apa_sites, original, anatomy=anatomy
+    ) is None
+    motivo_sitios_ajenos = ""
+    if apa_ajenos:
+        motivo_sitios_ajenos = (
+            f"La tabla de sitios medidos de {apa_sites.source} declara el 3'UTR "
+            f"{apa_sites.utr3_md5 or '(sin declarar)'} y no es el de esta secuencia, "
+            f"así que NO habla de ella y no se aplica ningún sitio. No es un fallo: sus "
+            f"posiciones vienen ya convertidas a coordenadas de 3'UTR y sobre otra "
+            f"secuencia caben sin salirse de rango."
+        )
+        apa_sites = None
 
     signals = find_polya_signals(original, flank=thresholds.polya_flank)
     if measured_apa is not None:
@@ -903,6 +937,7 @@ def tile_utr(
         measured_apa=measured_apa,
         apa_excluded_reason=motivo_exclusion,
         apa_missing_reason=motivo_sin_medida,
+        apa_sites_foreign_reason=motivo_sitios_ajenos,
         anatomy=anatomy,
         specificity_db=specificity_db,
         avisos=annotated.avisos,

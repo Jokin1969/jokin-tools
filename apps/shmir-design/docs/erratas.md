@@ -7869,3 +7869,70 @@ nº 18)— y lleva el control adversario: el ratón tiene que seguir recibiendo 
 porque desconectarlo todo también pasaría la primera mitad.
 
 **Y el ratón no se movió**: los ocho goldens salen idénticos.
+
+---
+
+## 156 — Los dos guardias de identidad que faltaban: el casete y `apa_medido.tsv`
+
+**Encontrados** el 2026-09-08, en la misma revisión que la nº 155 y por el mismo método:
+corriendo el camino humano. Ninguno lo ve la suite, porque los dos sólo se manifiestan
+con dos especies en juego.
+
+### El patrón, y por qué son la misma errata
+
+`RepeatMask.query_length` protege la máscara: **compara lo que el fichero declara ser
+contra lo que se le está dando, y aborta**. De los tres ficheros que se aplican a una
+secuencia, sólo ese tenía el guardia:
+
+| fichero | qué aplica | identidad |
+|---|---|---|
+| `rmsk_<especie>.out` | intervalos enmascarados | **`query_length`** — aborta |
+| `polya_db_<especie>.tsv` | promoción por medida y techo por tramos | **`utr3_md5`** — devuelve `None` |
+| `aav_casete<_especie>.fa` | filtro del transgén | **ninguna** |
+| `apa_medido_<especie>.tsv` | techo de knockdown | **ninguna** |
+
+### El casete: 415 `PASS` contra otra construcción
+
+Medido (ver errata nº 155): con el casete murino sobre un diseño humano, `transgen`
+emite **415 `PASS` y 4 `FAIL`** sobre ventanas humanas. Un `PASS` cuenta el frente como
+contestado; un `FAIL` retira un candidato.
+
+`SpecificityDatabase.species` + `check_cassette_species`, en la **ingesta**. Tres estados,
+y el tercero —`NO DECLARADA`— sale **en la procedencia**, que es lo que se imprime.
+
+### `apa_medido.tsv`: el que todavía no ha mordido
+
+`ApaSites` llevaba `source`, `version` y `checksum` **del fichero** y nada que dijera de
+qué secuencia son sus posiciones — que vienen **ya convertidas** a coordenadas de 3'UTR.
+Unas murinas sobre el 3'UTR humano **caben**: 1242 contra 1606, así que no se salen de
+rango y no salta ninguna alarma.
+
+Hoy es **latente**: el fichero no existe para ninguna especie. Y es exactamente el que la
+campaña humana necesita — `apa_medido_human.tsv` está en la lista de lo que falta. **La
+primera vez que se usara habría sido la primera vez que se probaba.**
+
+### Lo que enseña, y generaliza
+
+**Un guardia que existe para UN fichero no protege a los que llegan por el mismo sitio.**
+`query_length` se escribió con el motivo bien entendido —«la máscara de una especie
+aplicada al transcrito de la otra»— y no se preguntó qué OTROS ficheros se aplican a una
+secuencia. Es el principio nº 31 sobre guardias: un guardia protege su fichero; lo que
+protege a los siguientes es preguntarse **quién más entra por esta puerta**.
+
+Y la forma de encontrarlos no fue leer: fue **cambiar de especie**. Con una sola, los
+cuatro ficheros son siempre los correctos y ningún guardia puede fallar ni faltar.
+
+### Dos cosas que salieron ARREGLÁNDOLO, y las dos son de familias conocidas
+
+- **El CLI declaraba la especie al conectar y no al CARGAR**, así que el casete llegaba
+  `NO DECLARADA` y el guardia recién escrito no podía comparar nada — el guardia puesto y
+  la pregunta sin llegarle (principio nº 33). **Lo cazó el diff del golden**, una línea,
+  al día siguiente de que ese golden existiera.
+- **Un `str()` sobre la `Species`** al declararla hacía viajar el `repr` del dataclass, y
+  `species.resolve` fabrica una especie de cualquier cadena: el casete murino sobre un
+  diseño **murino** abortaba. Es la errata nº 49 exacta. Lo cazó el **control adversario**
+  —el test que exige que el ratón siga corriendo—, sin el cual «este guardia aborta
+  siempre» y «este guardia acierta» dan el mismo verde.
+- **Y el motivo de los sitios ajenos se calculaba y no llegaba a ninguna salida**, que es
+  el patrón de `page_run` por undécima vez. Se cazó preguntándose, antes de commitear,
+  quién lee lo que se acaba de calcular.

@@ -441,7 +441,7 @@
   Ningún alineador devuelve estos sitios — la especificidad compara la guía entera — así que un veredicto de especificidad limpio no dice nada sobre esto.
 
 ── Transgén terapeutico ──
-  Casete: casete del transgén, versión 2026-08-26, checksum e49521f7d7cdbd560122fbec2707e6c0, 1 transcrito(s)
+  Casete: casete del transgén, versión 2026-08-26, checksum e49521f7d7cdbd560122fbec2707e6c0, 1 transcrito(s), especie Mus musculus
   Parámetros: mismo motor que la especificidad (escaneo exhaustivo local, hasta 2 desapareamientos, guía y pasajera por separado). Aquí no hay gen diana que excluir: FAIL con 0 o 1 desapareamiento, aviso con 2.
   Ventanas que tocan el casete (FAIL): 3 de 2170.
   ⚠  El FASTA del casete se lee como la hebra sentido de lo que se transcribe, así que el sitio que cuenta es el ANTISENTIDO, igual que contra el transcriptoma. Los hits en sentido se cuentan y se listan, pero no condenan. En los tramos no transcritos (ITR, promotor) la orientacion no significa lo mismo: ahi el hit es una coincidencia que hay que mirar a mano, no un veredicto.
