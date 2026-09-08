@@ -6484,7 +6484,23 @@ salen ahí, con botón y con segunda vía.
 - **La hoja de pedido decía `sin_preguntar` en los once**: `fragment_bundle` se llamaba
   sin `tiling` ni `stores`, así que `candidate_fronts` no se calculaba. Esa hoja es lo que
   va al banco y existe para que un candidato sin BLAST no se cuele en una tanda de once
-  verificados.
+  verificados. **Es el principio nº 55**, con el matiz de mecanismo: no decía MENOS que la
+  pantalla — decía **lo mismo de los once**, con el campo relleno y una palabra honesta,
+  habiendo perdido lo único que lo hace útil, que es discriminar.
+
+### OJO CON LO QUE ESE CAMPO EMITE: NUNCA DICE `PASS`
+
+`fronts_field` tiene **tres** valores y ninguno es un veredicto: la **lista** de frentes
+sin contestar, **`ninguno`** cuando se preguntó y no falta nada, y **`sin_preguntar`**
+cuando nadie preguntó. Se llama `frentes_sin_correr` porque cuenta lo que FALTA, no lo que
+pasó.
+
+Así que lo que hay que comprobar tras el arreglo es que **`sin_preguntar` desaparece**:
+lo que salga en su sitio será `ninguno` en los candidatos con todos los frentes
+contestados, y la **lista** —`especificidad`, `offtarget_seed`, `seed_colision:guia`…— en
+los que aún tengan alguno abierto. Con el estado de hoy —`empalme_sitios` cubriendo 9 de
+11, `seed_colision` sin los tres del panel B, `offtarget_seed` sin catálogo— lo esperable
+es **lista en casi todos**, y eso **es** la hoja funcionando: para eso existe.
 
 **Ninguno de los tres daba error**: uno mandaba a otra pantalla, otro devolvía cadena
 vacía y el tercero rellenaba un campo con la palabra honesta para el caso equivocado. Un
