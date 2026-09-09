@@ -141,6 +141,64 @@ class TestElCaboSueltoDe131938392(unittest.TestCase):
         self.assertTrue("3'-end seq" in texto or "3-end seq" in texto)
 
 
+class TestLaObservacionDelHomologoHumano(unittest.TestCase):
+    """El homologo humano del PAS terminal, junto al cabo. Anotado, no concluyente.
+
+    Aportado por Joaquin Castilla el 2026-09-09 con las dos tablas de PolyA_DB v4 para
+    PRNP humano. La situacion es la INVERSA de la murina: alli el terminal conservado
+    (131938427) no tiene expresion medida y el peso se lo lleva 131938392, 35 nt aguas
+    arriba; en humano el terminal conservado (chr20:+:4701587) se lleva casi todo.
+
+    NO es evidencia sobre el raton —son especies y datos distintos— y el test lo exige
+    por escrito: una observacion de otra especie colocada al lado de un cabo abierto se
+    lee como si lo cerrara si nadie dice que no lo cierra.
+    """
+
+    def setUp(self):
+        from shmir_design.apa import CLUSTER_READING
+
+        self.cabo = CLUSTER_READING
+        self.texto = "\n".join(self.cabo.describe())
+
+    def test_el_cabo_la_trae(self):
+        self.assertIsNotNone(self.cabo.homologue)
+
+    def test_nombra_el_locus_humano_y_su_ensamblaje(self):
+        self.assertIn("chr20:+:4701587", self.texto)
+        self.assertIn("hg38", self.texto)
+
+    def test_dice_DE_QUE_locus_murino_es_homologo(self):
+        # Es homologo del TERMINAL (131938427), no del cabo (131938392). Confundirlos
+        # convertiria la observacion en una afirmacion sobre el sitio que NO lo es.
+        self.assertIn(self.cabo.terminal_locus, self.texto)
+        self.assertIn("homólog", self.texto.lower())
+
+    def test_trae_las_TRES_fuentes_y_no_solo_la_de_trabajo(self):
+        # La concordancia es lo que hace la observacion fuerte; sin las otras dos, el
+        # 93,7 % es un solo numero de una sola fuente.
+        self.assertIn("3'READS", self.texto)
+        self.assertIn("ENCODE.PB", self.texto)
+        self.assertIn("GTEx.ONT", self.texto)
+
+    def test_la_distancia_de_los_35_nt_se_DERIVA_de_los_dos_loci(self):
+        # Principio nº 13: no se transcribe. Si alguien cambia una coordenada, la
+        # distancia cambia con ella o el test cae.
+        from shmir_design.apa import CLUSTER_READING as c
+
+        esperado = int(c.terminal_locus.split(":")[-1]) - int(c.locus.split(":")[-1])
+        self.assertEqual(c.upstream_distance, esperado)
+        self.assertIn(f"{esperado} nt", self.texto)
+
+    def test_dice_EXPRESAMENTE_que_no_prueba_nada_sobre_el_raton(self):
+        bajo = self.texto.lower()
+        self.assertIn("no prueba nada", bajo)
+        self.assertIn("especies", bajo)
+
+    def test_y_el_cabo_SIGUE_sin_resolver(self):
+        self.assertFalse(self.cabo.resolved)
+        self.assertIn("NO RESUELTO", self.texto.upper())
+
+
 @unittest.skipUnless(fixture_available(RATON), "falta data/reference/NM_011170.3.fa")
 class TestLosDosSalenEnElINFORME(unittest.TestCase):
 

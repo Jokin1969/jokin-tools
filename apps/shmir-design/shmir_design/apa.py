@@ -1411,6 +1411,60 @@ def resolve_measured(
 
 
 @dataclass(frozen=True)
+class HomologueObservation:
+    """Lo MEDIDO en la otra especie para el homologo del PAS terminal.
+
+    Va pegada al cabo porque es donde se lee, y NO lo cierra: son especies y datos
+    distintos. Eso se dice en el propio texto y no se deja a quien lo lea — una
+    observacion de otra especie colocada al lado de una pregunta abierta se lee como si
+    la contestara si nadie escribe que no la contesta.
+
+    Las tres fuentes van las tres. La de trabajo es 3'READS, por coherencia con el
+    murino; las otras dos son la CONCORDANCIA, y sin ellas el 93,7 % es un solo numero
+    de una sola fuente. La distancia al cabo NO se transcribe: se deriva de los dos
+    loci (principio nº 13).
+    """
+
+    species: str
+    assembly: str
+    source: str
+    #: El locus humano, homologo del PAS TERMINAL murino — no del cabo.
+    locus: str
+    hexamer: str
+    #: Percentil de fuerza predicha que publica la base para ese PAS.
+    strength: float
+    #: PSE y AvgRPM en la fuente de trabajo, y el nombre de esa fuente.
+    working_source: str
+    pse: float
+    avgrpm: float
+    #: Las otras dos fuentes, con su PSE. Son la concordancia, no el dato de trabajo.
+    concordance: tuple[tuple[str, float], ...]
+
+    def describe(
+        self, *, upstream_locus: str, terminal_locus: str, upstream_distance: int
+    ) -> list[str]:
+        otras = ", ".join(f"{n} {v:.1%}" for n, v in self.concordance)
+        return [
+            f"  OBSERVACION EN {self.species.upper()}, ANOTADA — no cierra nada de lo "
+            f"de arriba. {self.source}, {self.assembly}:",
+            f"    {self.locus} ({self.hexamer}, fuerza predicha "
+            f"{self.strength:.1%}), homólogo del PAS terminal {terminal_locus},",
+            f"    se lleva casi toda la expresión: PSE {self.pse:.1%} y AvgRPM "
+            f"{self.avgrpm:.2f} en {self.working_source},",
+            f"    concordante en las otras dos fuentes ({otras}).",
+            f"    Es la situación INVERSA de la murina: aquí el terminal conservado "
+            f"tiene el peso; allí no",
+            f"    tiene expresión medida y se lo lleva {upstream_locus}, "
+            f"{upstream_distance} nt aguas arriba.",
+            "    NO PRUEBA NADA SOBRE EL RATON: son especies distintas y datos "
+            "distintos, y el cabo sigue",
+            "    abierto exactamente igual. Se anota porque la coincidencia de "
+            "arquitectura invita a leerlo",
+            "    como una respuesta, y conviene que quede escrito que no lo es.",
+        ]
+
+
+@dataclass(frozen=True)
 class ClusterReading:
     locus: str
     resolved: bool
@@ -1419,6 +1473,9 @@ class ClusterReading:
     terminal_locus: str
     conserved_block: tuple[int, int]
     external_site: int
+    #: Lo medido en la otra especie para el homologo del terminal. Opcional: hoy solo
+    #: existe para el humano, y un cabo sin homologo medido no es un cabo peor.
+    homologue: HomologueObservation | None = None
 
     def describe(self) -> list[str]:
         from .coords import Frame, label, span
@@ -1471,9 +1528,29 @@ class ClusterReading:
             "agrupamiento que use la propia",
             "  base para decidir si estos dos PAS son un racimo. Ninguna de las dos "
             "está aquí.",
-        ]
+        ] + (
+            self.homologue.describe(
+                upstream_locus=self.locus,
+                terminal_locus=self.terminal_locus,
+                upstream_distance=self.upstream_distance,
+            )
+            if self.homologue is not None
+            else []
+        )
+
+    @property
+    def upstream_distance(self) -> int:
+        """Cuanto separa al cabo del PAS terminal. Se DERIVA de los dos loci."""
+        return int(self.terminal_locus.rsplit(":", 1)[1]) - int(
+            self.locus.rsplit(":", 1)[1]
+        )
 
 
+#: La observacion humana va DENTRO del cabo, no en una constante aparte: es donde se
+#: lee, y una constante suelta al lado es justo lo que nadie emite (principio nº 15).
+#: Sus cifras salen de las dos tablas de PolyA_DB v4 para PRNP humano aportadas por
+#: Joaquin Castilla el 2026-09-09; ninguna se calcula aqui. La distancia al terminal NO
+#: se escribe: la deriva `upstream_distance` de los dos loci (principio nº 13).
 CLUSTER_READING = ClusterReading(
     locus="chr2:+:131938392",
     resolved=False,
@@ -1482,4 +1559,16 @@ CLUSTER_READING = ClusterReading(
     terminal_locus="chr2:+:131938427",
     conserved_block=(1138, 1163),
     external_site=1200,
+    homologue=HomologueObservation(
+        species="humano",
+        assembly="hg38",
+        source="PolyA_DB v4.1",
+        locus="chr20:+:4701587",
+        hexamer="AUUAAA",
+        strength=0.995,
+        working_source="3'READS",
+        pse=0.937,
+        avgrpm=156.20,
+        concordance=(("ENCODE.PB", 0.970), ("GTEx.ONT", 0.946)),
+    ),
 )

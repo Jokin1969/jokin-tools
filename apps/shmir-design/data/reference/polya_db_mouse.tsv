@@ -25,6 +25,21 @@
 # gen	Prnp
 # gen_id	19122
 # representante	NM_001278256.1
+# CRITERIO DE ENTRADA — que PAS estan en este fichero y cuales no.
+#
+# Entra todo PAS del gen cuya coordenada caiga DENTRO del 3'UTR del transcrito
+# que se tila, porque solo esos producen un corte que pueda quitarle la diana a
+# un candidato. Los de 5'UTR y CDS no entran: su corte cae fuera de la secuencia
+# y `anchor_polyadb` no los podria colocar. Los que estan dentro pero SIN
+# expresion entran igual, con `pse` y `avgrpm` vacios, porque son puntos de
+# apoyo del anclaje aunque no sumen a ninguna fraccion.
+#
+# OJO, LAS DOS CIFRAS DE ABAJO SON DEL GEN EN LA BASE, NO DE ESTE FICHERO.
+# `pas_totales` son los PAS que PolyA_DB anota para Prnp; `pas_con_expresion`,
+# los que traen 3'READS. Este fichero lleva 4 filas, 3 de ellas con expresion.
+# FALTAN POR LOCALIZAR 2 PAS CON EXPRESION: no se sabe si caen dentro o fuera
+# del 3'UTR, y de eso depende si mueven el denominador y la frontera de
+# inmunidad. Se cierra con el volcado murino completo. Errata nº 158.
 # pas_totales	15
 # pas_con_expresion	5
 # utr3_md5	19f5fa2a77a87892770e2affdc90e0e4

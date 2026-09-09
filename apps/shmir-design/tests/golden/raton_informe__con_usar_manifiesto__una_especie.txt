@@ -272,6 +272,15 @@
     moveria el de cualquier candidato que se pusiera por detrás de 3utr:1199-1207, y hoy no hay ninguno.
     QUE LO RESOLVERIA: 3'-end seq de cerebro murino, o la regla de agrupamiento que use la propia
     base para decidir si estos dos PAS son un racimo. Ninguna de las dos está aquí.
+    OBSERVACION EN HUMANO, ANOTADA — no cierra nada de lo de arriba. PolyA_DB v4.1, hg38:
+      chr20:+:4701587 (AUUAAA, fuerza predicha 99.5%), homólogo del PAS terminal chr2:+:131938427,
+      se lleva casi toda la expresión: PSE 93.7% y AvgRPM 156.20 en 3'READS,
+      concordante en las otras dos fuentes (ENCODE.PB 97.0%, GTEx.ONT 94.6%).
+      Es la situación INVERSA de la murina: aquí el terminal conservado tiene el peso; allí no
+      tiene expresión medida y se lo lleva chr2:+:131938392, 35 nt aguas arriba.
+      NO PRUEBA NADA SOBRE EL RATON: son especies distintas y datos distintos, y el cabo sigue
+      abierto exactamente igual. Se anota porque la coincidencia de arquitectura invita a leerlo
+      como una respuesta, y conviene que quede escrito que no lo es.
 
   ANTES DEL BANCO — mirar si la fracción ya está medida y publicada:
     1. PolyA_DB / PolyASite: ¿hay sitio anotado en este 3'UTR, y con que fracción de

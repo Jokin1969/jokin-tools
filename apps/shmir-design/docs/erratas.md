@@ -8084,3 +8084,67 @@ documento decía «falta el catálogo (rol `transcriptoma`)» donde el CLI dice
 No es un parámetro de los que prohíbe el principio nº 18: es la **IDENTIDAD de la
 entrada**, como `--name`, y estaba ya declarada dos líneas más abajo. Declarada a medias
 es peor que no declararla — el golden fija una salida que el marco de uso no produce.
+
+---
+
+## 158 — El fichero de PolyA_DB murino no dice CON QUÉ CRITERIO entraron sus filas
+
+Detectado el 2026-09-09, al preparar el equivalente humano. No lo encontró un test: lo
+encontró tener que **escribir el criterio para el humano** y buscar cuál era el del ratón.
+
+### El hecho
+
+`data/reference/polya_db_mouse.tsv` declara en su cabecera
+
+```
+# pas_totales          15
+# pas_con_expresion     5
+```
+
+y lleva **4 filas**, de las cuales **3** traen `pse` y `avgrpm`. El informe imprime
+literalmente «15 PAS en el gen, 5 con datos de expresión» y a continuación lista tres.
+Las dos cifras de la cabecera describen **el gen en la base**; las filas son **lo que se
+aportó**, y nada en el fichero dice que sean dos cosas distintas.
+
+Las tres cifras que sí están son correctas y el número publicado no se mueve: la
+ponderada 0.855834 y la sin ponderar 0.649606 salen de esas tres filas. **La errata no es
+un número mal calculado, es un número cuya completitud no se puede comprobar.**
+
+### Por qué importa
+
+De los 5 PAS con expresión del gen, en el repositorio están 3. Los otros 2 **nunca se
+nombraron** — no están en ningún mensaje ni en ningún fichero. Y de dónde caigan depende
+todo:
+
+- si caen **fuera del 3'UTR** (5'UTR, CDS), no producen ningún corte dentro del 3'UTR, no
+  entran al denominador y el 0.856 está completo;
+- si caen **dentro**, son cortes que hoy no existen para el modelo: cambian el
+  denominador y, sobre todo, pueden **adelantar la frontera de inmunidad**, que hoy está
+  en `3utr:251` y es una afirmación categórica — «la diana está en TODAS las isoformas».
+
+No se puede decidir desde aquí, y **suponer que caen fuera es exactamente el «Alu 0 %»**:
+una completitud dada por buena sin haberla mirado. El volcado humano da la única pista, y
+es solo eso: de sus 11 PAS, **5 caen fuera del 3'UTR**. Pista, no prueba — son especies
+distintas y anotaciones distintas.
+
+### Qué se cambia hoy, y qué no
+
+Hoy se cambia lo que se puede comprobar: **la cabecera dice cuál de las dos cifras es del
+gen y cuál del fichero**, y deja escrito que faltan 2 PAS con expresión por localizar.
+
+**No** se toca el veredicto del frente. Pasar la tabla murina a `pending` la sacaría del
+pipeline y movería el panel entero, y eso es una decisión del responsable del proyecto,
+no una consecuencia de haber escrito una errata. Lo que se pide es el volcado murino
+completo, igual que llegó el humano.
+
+### Lo que generaliza
+
+**Un fichero de datos que declara un total y lista otra cosa no está mintiendo: está
+callando el criterio**, y un criterio callado no se puede revisar ni se puede repetir en
+la siguiente especie. Es el principio nº 15 en la capa de los datos — el fichero se lee
+como completo porque nada dice que no lo sea.
+
+Y la contramedida es del principio nº 27: `pas_totales` y «filas de este fichero» son
+**dos cantidades distintas** que se estaban leyendo como una. Separadas y con el criterio
+escrito al lado, la pregunta «¿faltan PAS?» tiene respuesta; fundidas, ni siquiera se
+formula.
