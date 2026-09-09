@@ -102,8 +102,19 @@ class TestFormato(unittest.TestCase):
             parse_manifest(f"{CABECERA}\nsolo_nombre\n", source="s")
 
     def test_pedir_una_entrada_que_no_esta_aborta(self):
-        with self.assertRaises(KeyError):
+        # CON EL ERROR DEL PROYECTO, no con un `KeyError` pelado (2026-09-09). Este test
+        # fijaba el tipo, y el tipo era el fallo: un `KeyError` se salta TODAS las
+        # fronteras que este codigo tiene escritas —el `except ShmirDesignError` de
+        # `read_deposit` no capturaba nada— y subia hasta `main()`, que borraba la pagina
+        # entera. Un test que fija una decision se mueve con la decision (principio
+        # nº 56); lo que NO cambia es que abortar sea lo correcto.
+        with self.assertRaises(ShmirDesignError):
             parse_manifest(TABLA, source="s").entry("no_existe.fa")
+
+    def test_y_PREGUNTAR_si_esta_no_es_una_excepcion(self):
+        # `find` es la funcion con la que se pregunta un estado NORMAL. Preguntarlo con
+        # `entry` dentro de un try/except es lo que produjo el fallo de produccion.
+        self.assertIsNone(parse_manifest(TABLA, source="s").find("no_existe.fa"))
 
 
 class TestEstadoDelDirectorio(unittest.TestCase):

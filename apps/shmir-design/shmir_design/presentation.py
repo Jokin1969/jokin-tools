@@ -7430,6 +7430,60 @@ PROJECT_SLUG_RULE = (
 _SLUG_OK = re.compile(r"^[A-Za-z0-9._-]+$")
 
 
+#: LO QUE HAY QUE SABER DEL ICONO DE LA ESQUINA, dicho donde se usa. No se tapa: quien
+#: ya lo tenga en Descargas necesita poder identificar lo que bajo, y ademas a veces
+#: funciona. Lo que no puede es ser la unica via.
+TABLE_ICON_NOTE = (
+    "El icono de descarga que Streamlit pinta en la esquina de la tabla NO es de esta "
+    "app: genera el CSV en el navegador y a veces no llega a bajar nada. Ésta es la vía "
+    "que no depende de eso — se abre como texto en una pestaña y se guarda desde ahí."
+)
+
+
+def table_tsv(rows) -> str:
+    """Una tabla de la pantalla, en TSV, para poder LLEVARSELA.
+
+    **Por que existe** (2026-09-09): Streamlit pinta en la esquina de cada tabla un icono
+    de descarga que NO es nuestro —genera el CSV en el navegador y acaba en la misma
+    maquinaria de descarga que la errata nº 130 dejo sin causa asignada—. Es el principio
+    nº 59: no lo escribimos nosotros, pero lo servimos nosotros. Si ese icono es la unica
+    salida de una tabla, no hay salida.
+
+    Tres cosas que no son detalles:
+
+    · **la cabecera sale de TODAS las filas**, no de la primera. Derivarla de la primera
+      tiraria las columnas que solo aparecen despues, sin dar ningun error — la familia
+      del truncamiento silencioso;
+    · **una celda ausente va VACIA**, nunca a cero: no haber tenido ese campo y tenerlo a
+      cero son cosas distintas;
+    · **un tabulador o un salto DENTRO de una celda se neutralizan**. Con ellos crudos, la
+      fila se descuadra y los valores se corren a la columna de al lado, que es la tabla
+      descuadrada de `Block.__post_init__` un piso mas abajo y no da ningun error.
+
+    Una tabla vacia devuelve la cadena vacia y no una cabecera suelta: un fichero con solo
+    cabecera se lee como una tabla que salio sin filas.
+    """
+    filas = list(rows or [])
+    if not filas:
+        return ""
+    columnas: list[str] = []
+    for fila in filas:
+        for clave in fila:
+            if clave not in columnas:
+                columnas.append(str(clave))
+    lineas = ["\t".join(columnas)]
+    for fila in filas:
+        lineas.append("\t".join(
+            _celda_tsv(fila.get(c, "")) for c in columnas
+        ))
+    return "\n".join(lineas)
+
+
+def _celda_tsv(valor) -> str:
+    """El valor de una celda sin nada que descuadre la fila."""
+    return " ".join(str(valor).split("\t")).replace("\r\n", " ").replace("\n", " ")
+
+
 def check_project_slug(slug: str) -> str:
     """Valida el nombre de un proyecto o ABORTA. Ver `PROJECT_SLUG_RULE`."""
     limpio = str(slug).strip()

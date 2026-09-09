@@ -34,6 +34,8 @@ from shmir_design.offtarget import WHY_THE_EXPECTED_DIFFERS  # noqa: E402
 from shmir_design.masking import RepeatMask  # noqa: E402
 from shmir_design.polya import normalize_sequence  # noqa: E402
 from shmir_design.presentation import (  # noqa: E402
+    TABLE_ICON_NOTE,
+    table_tsv,
     ACCION_DISENAR,
     ACCION_ESTIMAR,
     BLAST_MODAL_NOTE,
@@ -561,9 +563,8 @@ def bloque_especie(nombre, transcrito, secuencia, anat, umbrales, config, seeds,
     semaforo(status_light(seleccion, resueltos=tuple(frentes_cerrados)))
 
     st.markdown("**Anatomía del transcrito**")
-    st.dataframe(
-        anatomy_rows(transcrito, utr3_length=len(utr3), anatomy=anat), hide_index=True
-    )
+    _tabla(
+        anatomy_rows(transcrito, utr3_length=len(utr3), anatomy=anat), hide_index=True, nombre="anatomy_rows.tsv", clave="tb_anatomy_rows")
 
     st.markdown("**Mapa del 3'UTR**")
     st.html(map_svg(tiling, seleccion, conservation=conservacion, species=nombre))
@@ -576,7 +577,7 @@ def bloque_especie(nombre, transcrito, secuencia, anat, umbrales, config, seeds,
     st.markdown("**Candidatos** — un estado por filtro, en columnas separadas")
     filas = candidate_rows(seleccion, species=nombre, stores=almacenes)
     if filas:
-        st.dataframe(filas, hide_index=True)
+        _tabla(filas, hide_index=True, nombre="candidatos_por_filtro.tsv", clave="tb_candidatos_por_filtro")
     else:
         st.info("Ningún candidato con estos umbrales.")
 
@@ -605,7 +606,7 @@ def bloque_especie(nombre, transcrito, secuencia, anat, umbrales, config, seeds,
 
     if referencia_carga["controles"]:
         st.markdown("**Controles biológicos** — la magnitud, no el percentil")
-        st.dataframe(referencia_carga["controles"], hide_index=True)
+        _tabla(referencia_carga["controles"], hide_index=True, nombre="controles_de_carga_de_seed.tsv", clave="tb_controles_de_carga_de_seed")
 
     # ── Todos los sitios elegibles, con UNA COLUMNA POR FRENTE ───────────────────
     # Es la vista que impide que vuelva a pasar lo de `offtarget_seed`: un frente sin
@@ -652,7 +653,7 @@ def bloque_especie(nombre, transcrito, secuencia, anat, umbrales, config, seeds,
             entrega["datos"], nombre=entrega["nombre"], clave=f"exp_sel_{nombre}",
         )
 
-        st.dataframe(
+        _tabla(
             # LOS ALMACENES VAN AQUI. La capacidad estaba cableada y probada desde
             # hacía días, y ESTA llamada —la única que se ejecuta— no la usaba: la celda
             # de `especificidad` seguía en NOT_RUN con la corrida guardada y en PASS.
@@ -660,8 +661,7 @@ def bloque_especie(nombre, transcrito, secuencia, anat, umbrales, config, seeds,
                 tiling, seleccion, species=nombre, selected=marcados,
                 stores=almacenes,
             ),
-            hide_index=True,
-        )
+            hide_index=True, nombre="site_table_rows.tsv", clave="tb_site_table_rows")
         for aviso in selection_warnings(tiling, seleccion, selected=marcados):
             (st.error if aviso["rojo"] else st.warning)(aviso["texto"])
 
@@ -687,9 +687,8 @@ def bloque_especie(nombre, transcrito, secuencia, anat, umbrales, config, seeds,
                                 if f["etiqueta"] == cual),
                 )
                 (st.warning if not plan["disponibles"] else st.info)(plan["texto"])
-                st.dataframe(
-                    plan["disponibles"] or plan["descartados"], hide_index=True,
-                )
+                _tabla(
+                    plan["disponibles"] or plan["descartados"], hide_index=True, nombre="sustitutos_inmunes.tsv", clave="tb_sustitutos_inmunes")
 
     # ── AQUI TERMINA EL PRIMER TRAMO, y hasta ahora no lo decia ─────────────────
     #
@@ -796,10 +795,9 @@ def bloque_especie(nombre, transcrito, secuencia, anat, umbrales, config, seeds,
     )
 
     with st.expander(f"Todas las ventanas de {nombre} ({len(tiling.windows)})"):
-        st.dataframe(
+        _tabla(
             window_rows(tiling, species=nombre, stores=almacenes),
-            hide_index=True,
-        )
+            hide_index=True, nombre="window_rows.tsv", clave="tb_window_rows")
 
     _panel_controles(seleccion, nombre, tiling, utr3)
 
@@ -834,9 +832,8 @@ def bloque_especie(nombre, transcrito, secuencia, anat, umbrales, config, seeds,
                 st.error(aviso_vector["texto"])
             else:
                 st.caption(aviso_vector["texto"])
-            st.dataframe(
-                block_rows(seleccion, scaffold, species=nombre), hide_index=True
-            )
+            _tabla(
+                block_rows(seleccion, scaffold, species=nombre), hide_index=True, nombre="block_rows.tsv", clave="tb_block_rows")
             st.caption(
                 "XhoI y EcoRI van DENTRO del módulo, heredadas de SGEP, y en el "
                 "plásmido final no son únicas: el clonaje va por NheI/SacI o por "
@@ -850,7 +847,7 @@ def bloque_especie(nombre, transcrito, secuencia, anat, umbrales, config, seeds,
             if not filas_fragmento:
                 st.info(FRAGMENT_NEEDS_CASSETTE)
             else:
-                st.dataframe(filas_fragmento, hide_index=True)
+                _tabla(filas_fragmento, hide_index=True, nombre="fragmento_de_sintesis.tsv", clave="tb_fragmento_de_sintesis")
                 st.caption(
                     "Se pega SOBRE la feature del intrón en SnapGene: el plásmido "
                     "crece lo que crece el intrón, sin digerir ni ensamblar. Los 15 nt "
@@ -1347,6 +1344,38 @@ def _segunda_via(texto: str, *, nombre: str, clave: str) -> None:
         st.code(texto, language=None)
 
 
+def _tabla(filas, *, nombre: str, clave: str, **kwargs) -> None:
+    """Pinta UNA tabla y deja su salida al lado. Es el ÚNICO sitio que llama a
+    `st.dataframe`.
+
+    **Por qué un pintor único y no un arreglo por tabla** (2026-09-09). Reportado: «el
+    botón de descarga de las tablas no descarga». Ese icono de la esquina **no es
+    nuestro**: lo pinta Streamlit y genera el CSV en el navegador, así que acaba en la
+    misma maquinaria de descarga que la errata nº 130 dejó SIN CAUSA ASIGNADA. No lo
+    podemos arreglar — es código de terceros que nosotros servimos (principio nº 59).
+
+    Lo que sí podemos es que no sea la ÚNICA vía. Y eso no se hace tabla por tabla: eran
+    **26 tablas en 6 funciones** y `_segunda_via` se llamaba 5 veces, todas para ficheros
+    enteros. Un arreglo repetido a mano es una costumbre, no un mecanismo (principio
+    nº 31), así que la salida va DONDE SE PINTA y una tabla nueva la trae por
+    construcción.
+
+    La conversión a TSV vive en `presentation.table_tsv`, no aquí (regla 6): decide qué
+    columnas salen y cómo se neutraliza un tabulador dentro de una celda, y eso sin test
+    es una decisión sin red.
+
+    Una tabla VACÍA se pinta y no ofrece salida: no hay nada que llevarse, y un enlace a
+    un fichero vacío se lee como una descarga hecha.
+    """
+    st.dataframe(filas, **kwargs)
+    texto = table_tsv(filas)
+    if not texto:
+        return
+    with st.expander(f"Llevarse esta tabla ({nombre})"):
+        st.caption(TABLE_ICON_NOTE)
+        _segunda_via(texto, nombre=nombre, clave=clave)
+
+
 def _descargar_todo(directorio) -> None:
     """La copia de seguridad ENTERA en un zip: depósito, manifiesto y proyectos.
 
@@ -1632,7 +1661,7 @@ def _panel_refinamiento(especie: str) -> None:
             expanded=bool(distintos),
         ):
             st.caption(comparacion["motivo"])
-            st.dataframe(comparacion["filas"], hide_index=True, width="stretch")
+            _tabla(comparacion["filas"], hide_index=True, width="stretch", nombre="casete_deposito_vs_versionado.tsv", clave="tb_casete_deposito_vs_versionado")
 
     _descargar_todo(directorio)
 
@@ -2598,8 +2627,34 @@ def _panel_deposito(tipo: str, nombre: str, *, clave: str) -> list[dict]:
 
     Devuelve las filas para que el modal sepa que sigue faltando; la SUBIDA solo se
     ofrece donde `ofrecer_subida` lo diga.
+
+    **LEER EL DEPOSITO NO PUEDE TUMBAR LA PAGINA** (2026-09-09). Un fichero requerido sin
+    linea en el manifiesto —el estado NORMAL de un deposito a medias, que es justo lo que
+    este panel existe para enseñar— hacia subir un `KeyError` hasta `main()`, que recoge
+    `ShmirDesignError`, y con el se iba todo lo de abajo: los modales, las descargas y el
+    paso 5 (errata nº 137). La causa esta arreglada donde tocaba —`Manifest.entry` lanza
+    el error del proyecto y `read_deposit` pregunta con `find`— y esta frontera es el
+    mecanismo: un panel que falla se queda en SU sitio y dice por que, en vez de borrar la
+    pagina por debajo.
     """
-    filas = deposit_for_run(tipo, species=nombre, directory=reference_dir())
+    try:
+        filas = deposit_for_run(tipo, species=nombre, directory=reference_dir())
+    except (ShmirDesignError, OSError) as exc:
+        # rule2-ok: FRONTERA de la interfaz. El motivo sale ENTERO y sin degradar —no se
+        # traga nada, se enseña— y lo que se gana es que el resto de la pagina siga
+        # pintandose. Los tipos van CONCRETOS, que es la regla 2: aqui abajo hay lectura
+        # de ficheros (`OSError`) y del manifiesto (`ShmirDesignError`), y desde hoy
+        # `Manifest.entry` lanza el del proyecto en vez de un `KeyError` pelado — o sea
+        # que la lista se puede acertar porque el tipo ajeno se corrigio en su sitio, no
+        # porque aqui se capture todo.
+        st.error(
+            f"**PARA** — no se ha podido leer el depósito para esta corrida: {exc}"
+        )
+        st.caption(
+            "El resto de la página sigue: esto es lo que el depósito tiene declarado, no "
+            "un veredicto. Si falta un fichero, se sube en «Ficheros de referencia»."
+        )
+        return []
     nota = deposit_note(tipo)
     if nota:
         st.caption(nota)
@@ -2808,10 +2863,9 @@ def _modal_seed(seleccion, nombre: str, maduros, proyecto=None,
     st.caption(seed_source_text(maduros))
 
     st.subheader("Lo que se va a comparar")
-    st.dataframe(
+    _tabla(
         seed_preview_rows(seleccion, species=nombre, params=SEED_DEFAULTS),
-        hide_index=True,
-    )
+        hide_index=True, nombre="seed_preview_rows.tsv", clave="tb_seed_preview_rows")
     st.caption(
         "Las filas con algo en «comparte» tienen el mismo heptámero: no son dos "
         "apuestas independientes en este eje."
@@ -2877,7 +2931,7 @@ def _modal_seed(seleccion, nombre: str, maduros, proyecto=None,
         if destacados["mir30"]["activo"]:
             st.error(destacados["mir30"]["texto"])
         st.info(destacados["pasajeras"]["texto"])
-        st.dataframe(seed_result_rows(scan), hide_index=True)
+        _tabla(seed_result_rows(scan), hide_index=True, nombre="seed_result_rows.tsv", clave="tb_seed_result_rows")
         bloque_seed = scan.export_block()
         nombre_seed = f"{nombre}_colision_seed.txt"
         st.download_button(
@@ -2941,7 +2995,7 @@ def _panel_controles(seleccion, nombre: str, tiling, diana: str) -> None:
         aviso = arms_warning(marcados)
         if aviso is not None:
             st.error(aviso["texto"])
-        st.dataframe(arms_rows(marcados), hide_index=True)
+        _tabla(arms_rows(marcados), hide_index=True, nombre="arms_rows.tsv", clave="tb_arms_rows")
 
         if not st.button(
             f"Construir los controles de {etiqueta_de[elegido]}",
@@ -2961,12 +3015,12 @@ def _panel_controles(seleccion, nombre: str, tiling, diana: str) -> None:
         for texto in panel["avisos"]:
             st.warning(texto)
         st.markdown(f"**shmiR scrambled** — derivado de {panel['origen']}")
-        st.dataframe(panel["scrambled"], hide_index=True)
+        _tabla(panel["scrambled"], hide_index=True, nombre="shmir_scrambled.tsv", clave="tb_shmir_scrambled")
         st.markdown("**shmiR con la seed rota** — las DOS versiones")
-        st.dataframe(panel["comparacion"], hide_index=True)
+        _tabla(panel["comparacion"], hide_index=True, nombre="scrambled_vs_original.tsv", clave="tb_scrambled_vs_original")
         for cambios, filas in panel["seed_mismatch"].items():
             st.caption(f"{cambios} cambios")
-            st.dataframe(filas, hide_index=True)
+            _tabla(filas, hide_index=True, nombre="seed_mismatch.tsv", clave="tb_seed_mismatch")
         for ficha in panel["fichas"]:
             st.code(ficha, language="text")
 
@@ -3033,7 +3087,7 @@ def _modal_empalme(seleccion, nombre: str, diana: str, casete, proyecto=None,
         #
         # La columna `empate` sale aunque el resultado repita en los diez: es lo único
         # que dirá algo el día que entre un candidato que NO empate.
-        st.dataframe(variant_rows(seleccion), width="stretch")
+        _tabla(variant_rows(seleccion), width="stretch", nombre="variant_rows.tsv", clave="tb_variant_rows")
         st.text(variant_proposal_for(seleccion))
 
     disponibles = [f["intron"] for f in splice_intron_rows() if f["estado"] is FilterState.PASS]
@@ -3113,7 +3167,7 @@ def _modal_empalme(seleccion, nombre: str, diana: str, casete, proyecto=None,
                    else f" (y {fila['motivos_distintos'] - 1} motivo(s) más)")
             )
     st.caption(splice_context_note(construcciones))
-    st.dataframe(splice_construction_rows(construcciones), width="stretch")
+    _tabla(splice_construction_rows(construcciones), width="stretch", nombre="splice_construction_rows.tsv", clave="tb_splice_construction_rows")
 
     # EL TEXTO Y EL NOMBRE SE CALCULAN UNA VEZ y los usan los DOS caminos —el botón y
     # el bloque copiable—. Antes el botón los construía dentro de su propia llamada, así
@@ -3160,8 +3214,8 @@ def _modal_empalme(seleccion, nombre: str, diana: str, casete, proyecto=None,
         if bloque["activo"]:
             st.info(bloque["texto"])
     st.markdown("**Contraste entre arquitecturas** — más desapareado es más disponible")
-    st.dataframe(folding_contrast_rows(filas_plegado), width="stretch")
-    st.dataframe(filas_plegado, width="stretch")
+    _tabla(folding_contrast_rows(filas_plegado), width="stretch", nombre="folding_contrast_rows.tsv", clave="tb_folding_contrast_rows")
+    _tabla(filas_plegado, width="stretch", nombre="plegado_del_intron.tsv", clave="tb_plegado_del_intron")
 
     st.subheader("Subir el resultado de SpliceAI")
     veredicto = upload_allowed(proyecto)
@@ -3203,7 +3257,7 @@ def _modal_empalme(seleccion, nombre: str, diana: str, casete, proyecto=None,
     for bloque in splice_highlights(scan).values():
         if bloque["activo"]:
             st.info(bloque["texto"])
-    st.dataframe(splice_result_rows(scan), width="stretch")
+    _tabla(splice_result_rows(scan), width="stretch", nombre="splice_result_rows.tsv", clave="tb_splice_result_rows")
 
     # EL HALLAZGO VA CON LAS DIEZ DELANTE. Un máximo y un mínimo no dejan ver si es una
     # sola construcción la que se sale, y eso cambia qué se hace con el dato. `None` en
@@ -3211,14 +3265,14 @@ def _modal_empalme(seleccion, nombre: str, diana: str, casete, proyecto=None,
     variables = splice_guide_dependent_rows(scan)
     if variables:
         st.subheader("Sitios que dependen de la guía")
-        st.dataframe(variables, width="stretch")
+        _tabla(variables, width="stretch", nombre="sitios_dependientes_de_la_guia.tsv", clave="tb_sitios_dependientes_de_la_guia")
 
     st.markdown("**La guía modula el donante legítimo**")
     st.caption(splice_modulation_note())
-    st.dataframe(splice_modulation_rows(scan), width="stretch")
+    _tabla(splice_modulation_rows(scan), width="stretch", nombre="splice_modulation_rows.tsv", clave="tb_splice_modulation_rows")
 
     st.subheader("Qué guías introducen crípticos que las otras no")
-    st.dataframe(splice_exclusive_rows(scan), width="stretch")
+    _tabla(splice_exclusive_rows(scan), width="stretch", nombre="splice_exclusive_rows.tsv", clave="tb_splice_exclusive_rows")
 
     _guardar_corrida(
         proyecto, nombre,
@@ -3383,16 +3437,16 @@ def _modal_offtarget(seleccion, nombre: str, maduros, diana: str,
             st.warning(destacados["isoformas"]["texto"])
 
         st.markdown("**Una columna por clase — nunca sumadas**")
-        st.dataframe(offtarget_result_rows(scan), hide_index=True)
+        _tabla(offtarget_result_rows(scan), hide_index=True, nombre="offtarget_result_rows.tsv", clave="tb_offtarget_result_rows")
         st.caption(destacados["nula"]["texto"])
 
         st.markdown("**Controles biológicos** — referencia de magnitud")
-        st.dataframe(offtarget_control_rows(scan), hide_index=True)
+        _tabla(offtarget_control_rows(scan), hide_index=True, nombre="offtarget_control_rows.tsv", clave="tb_offtarget_control_rows")
         st.caption(destacados["controles"]["texto"])
 
         st.markdown("**Autoconteo sobre la propia diana**")
         st.caption(WHY_THE_EXPECTED_DIFFERS)
-        st.dataframe(offtarget_self_count_rows(scan), hide_index=True)
+        _tabla(offtarget_self_count_rows(scan), hide_index=True, nombre="offtarget_self_count_rows.tsv", clave="tb_offtarget_self_count_rows")
         if destacados["autoconteo"]["activo"]:
             st.error(destacados["autoconteo"]["texto"])
 

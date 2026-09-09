@@ -736,13 +736,13 @@ def read_deposit(role: str, *, species: Species, directory: Path | str) -> Depos
     entrada = None
     manifiesto = directory / MANIFEST_NAME
     if manifiesto.is_file():
-        try:
-            entrada = load_manifest(manifiesto).entry(nombre)
-        except ShmirDesignError:
-            # rule2-ok: que el fichero no tenga linea es un HECHO sobre el deposito, no
-            # un fallo del paso — `Manifest.entry` aborta con el que no esta. La lectura
-            # sigue: `registered` lo dice, y `describe()` lo escribe.
-            entrada = None
+        # SE PREGUNTA CON `find`, QUE DEVUELVE `None`. Que el fichero no tenga linea es un
+        # HECHO sobre el deposito —el estado normal de uno a medias, que es justo lo que
+        # el panel existe para enseñar— y un estado normal no se pregunta con una
+        # excepcion. Aqui habia un `try/except ShmirDesignError` alrededor de `entry`, que
+        # lanzaba un `KeyError` pelado: el `except` no capturaba nada y la pagina entera
+        # se caia al abrir el modal con cualquier fichero requerido sin subir.
+        entrada = load_manifest(manifiesto).find(nombre)
 
     return DepositFile(
         role=role,

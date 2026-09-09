@@ -282,10 +282,22 @@ class Manifest:
         return None
 
     def entry(self, name: str) -> ManifestEntry:
+        """La linea de ese fichero, o ABORTA. Para preguntar SI esta, usa `find`.
+
+        LANZA EL ERROR DEL PROYECTO Y NO UN `KeyError` PELADO (2026-09-09). Lo lanzaba, y
+        un tipo ajeno se salta TODAS las fronteras que este codigo tiene escritas: el
+        `except ShmirDesignError` de `read_deposit` —cuyo comentario dice exactamente lo
+        correcto, que un fichero sin linea es un HECHO del deposito— no capturaba nada, y
+        el `KeyError` subia hasta `main()` y borraba la pagina entera. Principio nº 33: el
+        guardia estaba y la pregunta no le llegaba.
+
+        El mensaje ya era un mensaje del proyecto —dice cuales hay—; lo que no era del
+        proyecto era el TIPO.
+        """
         entrada = self.find(name)
         if entrada is None:
             disponibles = ", ".join(e.name for e in self.entries)
-            raise KeyError(
+            raise ShmirDesignError(
                 f"{self.source}: no hay ninguna entrada para {name!r}; las que hay: "
                 f"{disponibles}."
             )
