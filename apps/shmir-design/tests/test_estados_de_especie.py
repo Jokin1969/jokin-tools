@@ -156,18 +156,24 @@ class TestLaPaginaSePINTAconCADAespecieDECLARADA(unittest.TestCase):
         self.assertNotIn("aav_casete.fa", huecos)
         self.assertIn("refseq_rna.fa", huecos)
 
-    def test_y_apa_medido_CAMBIA_DE_ESTADO_con_la_especie(self):
-        """En ratón su frente ya lo cierra `polya_db_mouse.tsv`, así que sale NO USADO
-        —«no hace falta conseguirlo»—; en humano no hay tabla de PolyA_DB y sale FALTA.
+    def test_y_el_CASETE_CAMBIA_DE_ESTADO_con_la_especie(self):
+        """En ratón `aav_casete.fa` está versionado en git, así que su frente cierra y no
+        sale como hueco; en humano `aav_casete_human.fa` no existe y sale FALTA.
 
         Es uno de los cinco estados del panel de refinamiento cuyo otro lado sólo se
-        pinta cambiando de especie: sin este eje, `NO USADO` y `FALTA` de la misma fila
-        no se podían ver los dos.
+        pinta cambiando de especie: sin este eje, los dos lados de la misma fila no se
+        podían ver.
+
+        **EL EJEMPLO ERA `apa_medido` y CADUCÓ el 2026-09-09** (principio nº 56): valía
+        porque en humano no había tabla de PolyA_DB, y al llegar `polya_db_human.tsv` su
+        frente cierra también ahí, así que la fila sale `NO USADO` en las dos. Lo que
+        caducó es el EJEMPLO, no el eje — y el caso que lo sustituye es de la misma
+        forma: un fichero que existe para una especie y no para la otra.
         """
         with sin_proyectos():
             raton, humano = _huecos(pintada_como("mouse")), _huecos(pintada_como("human"))
-        self.assertNotIn("apa_medido.tsv", raton)
-        self.assertIn("apa_medido_human.tsv", humano)
+        self.assertNotIn("aav_casete.fa", raton)
+        self.assertIn("aav_casete_human.fa", humano)
 
 
 @unittest.skipUnless(STREAMLIT, "NOT_RUN: Streamlit no está instalado (pip install -r requirements-ui.txt)")

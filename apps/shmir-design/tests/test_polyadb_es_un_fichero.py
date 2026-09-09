@@ -175,9 +175,19 @@ class TestSinFicheroElFrenteQuedaNOT_RUN(unittest.TestCase):
             self.assertIsNone(find_polyadb(directory=tmp))
 
     def test_y_desde_el_de_verdad_SI(self):
-        from shmir_design.apa import find_polyadb
+        from shmir_design.apa import find_polyadb_all
 
-        self.assertIsNotNone(find_polyadb(directory=DIR))
+        self.assertTrue(find_polyadb_all(directory=DIR))
+
+    def test_y_con_DOS_tablas_y_SIN_especie_no_se_elige_por_cuenta_propia(self):
+        # Errata nº 159: devolver «la primera que encaja de forma» delegaba la decision
+        # en el alfabeto, y la tabla ajena DESPLAZABA a la buena. Quien elige es el md5,
+        # y eso no se sabe aqui.
+        from shmir_design.apa import find_polyadb, find_polyadb_all
+
+        self.assertGreater(len(find_polyadb_all(directory=DIR)), 1)
+        self.assertIsNone(find_polyadb(directory=DIR))
+        self.assertIsNotNone(find_polyadb(directory=DIR, species="raton"))
 
 
 class TestElHuecoDelGESTOR(unittest.TestCase):

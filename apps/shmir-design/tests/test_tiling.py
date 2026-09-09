@@ -240,7 +240,12 @@ class TestConteosDeReferencia(unittest.TestCase):
         # eso cuesta 17 ventanas y 4 sitios — exactamente `measured_promotion_cost`, que
         # `CLAUDE.md` ya registraba como «elegibles 287 → 270, sitios 90 → 86».
         self.assertEqual((raton.biofisicos_ok(), len(raton.sites_biofisicos())), (270, 86))
-        self.assertEqual((humano.biofisicos_ok(), len(humano.sites_biofisicos())), (309, 95))
+        # El HUMANO baja de 309/95 a 298/91 desde el 2026-09-09: con `polya_db_human.tsv`
+        # en el deposito su tabla tambien entra, y promueve el `AGTAAA` de 3utr:233 —una
+        # variante rara que por prediccion saldria OTRA—, asi que 11 ventanas que solapan
+        # ese hexamero pasan a FAIL por riesgo esterico. Es el mismo suceso que el
+        # `AATATA` murino de 3utr:236, en la otra especie.
+        self.assertEqual((humano.biofisicos_ok(), len(humano.sites_biofisicos())), (298, 91))
 
     def test_lo_que_separa_los_dos_juegos_es_SOLO_el_criterio_de_polyA(self):
         # Si esto falla, el cambio de cifras NO es el criterio de polyA y hay que buscar

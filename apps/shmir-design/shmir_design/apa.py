@@ -440,6 +440,18 @@ class AnchoredSite:
     #: empezado a discrepar. Principio nº 11.
     pse: float | None = None
     avgrpm: float | None = None
+    #: Cuanto mide el 3'UTR sobre el que se anclo. Hace falta AQUI porque la banda de
+    #: corte de un sitio TERMINAL se sale por el extremo —el corte cae 10-30 nt aguas
+    #: abajo de un hexamero que ya esta pegado al final— y esta clase es quien la emite.
+    #: Es OBLIGATORIO y sin defecto (principio nº 58): un 0 seria «no se sabe donde
+    #: acaba», y de ese estado no hay nada sensato que hacer con una banda.
+    utr3_length: int = 0
+
+    @property
+    def band_clipped(self) -> bool:
+        """La banda desbordaba el extremo del 3'UTR y se ha recortado."""
+        fin = self._unico()[0] + len(self._unico()[1]) - 1
+        return fin + polya.CLEAVAGE_MAX > self.utr3_length
 
     @property
     def ambiguous(self) -> bool:
@@ -460,8 +472,23 @@ class AnchoredSite:
 
     @property
     def cleavage_band(self) -> tuple[int, int]:
+        """La banda donde cae el corte, RECORTADA al extremo del 3'UTR.
+
+        Que se salga no es un error y no se aborta: es la geometria de un sitio
+        terminal. La regla del proyecto para esto ya estaba escrita en el mapa —«se
+        recorta a lo que hay y se CUENTA lo que se sale, en vez de abortar la conversion
+        con una posicion que no existe»— y protegia aquella linea y no esta. Aqui se
+        recorta, y `band_clipped` es lo que lo CUENTA: sin eso, una banda de 10 nt donde
+        el modelo pone 20 tiene la forma correcta y no se distingue de un extremo real.
+
+        Se recorta SOLO el final. El inicio no desborda —esta 20 nt mas aca— y moverlo
+        seria emitir otra cantidad.
+        """
         fin = self.hexamer_end
-        return (fin + polya.CLEAVAGE_MIN, fin + polya.CLEAVAGE_MAX)
+        return (
+            fin + polya.CLEAVAGE_MIN,
+            min(fin + polya.CLEAVAGE_MAX, self.utr3_length),
+        )
 
     def _unico(self) -> tuple[int, str]:
         if len(self.candidates) != 1:
@@ -497,6 +524,10 @@ class AnchoredSite:
             f"{label(self.hexamer_start, Frame.UTR3)}"
             + ("" if self.expression else "  (sin datos de expresión)")
             + self._medida()
+            + (
+                f"  [banda recortada en el extremo del 3'UTR, {self.utr3_length} nt]"
+                if self.band_clipped else ""
+            )
             + (f"  ← {self.note}" if self.note else "")
         )
 
@@ -654,6 +685,7 @@ def anchor_polyadb(
                 note=ancla.note,
                 pse=ancla.pse,
                 avgrpm=ancla.avgrpm,
+                utr3_length=len(secuencia),
             )
         )
 
@@ -1014,15 +1046,18 @@ def load_polyadb(path: Path | str, *, expected_md5: str | None = None) -> Measur
     return parse_polyadb(texto, source=str(path))
 
 
-def find_polyadb(*, directory=None, species: str = "") -> MeasuredFraction | None:
-    """Busca la tabla en el directorio de referencia y la carga. `None` si no esta.
+def find_polyadb_all(*, directory=None, species: str = "") -> tuple[MeasuredFraction, ...]:
+    """TODAS las tablas que hay, no la primera. Vacio si no hay ninguna.
 
-    `None` significa NO HAY FICHERO, y el frente queda NOT_RUN. Es distinto de que la
-    tabla exista y no hable de esta secuencia —eso lo decide `resolve_measured` por
-    md5— y las dos cosas se dicen distinto en el informe.
+    QUIEN ELIGE ES EL md5, y por eso se devuelven todas. `find_polyadb` paraba en la
+    primera y su docstring daba eso por seguro —«la tabla se aplica por md5 de todos
+    modos, asi que una de otra especie no puede colarse»—: cierto a medias. Una tabla
+    ajena no se puede APLICAR, pero DESPLAZA a la buena, porque la busqueda se detiene
+    en ella y la que si cuadraba no se llega a mirar. El sintoma no es un numero
+    equivocado: es la medida perdida, con el frente volviendo a NOT_RUN.
 
-    Sin especie se prueban todos los nombres que haya: la tabla se aplica por md5 de
-    todos modos, asi que una de otra especie no puede colarse.
+    Y el orden lo decidia el alfabeto (`human` antes que `mouse`), asi que esto no
+    podia fallar mientras hubiera una sola especie en el deposito.
     """
     from . import reference as _ref  # noqa: PLC0415
 
@@ -1034,11 +1069,29 @@ def find_polyadb(*, directory=None, species: str = "") -> MeasuredFraction | Non
     # que llegue da `polya_db_raton.tsv`, que no existe. Lo cazo el golden: la tabla
     # dejo de encontrarse y el informe volvio a las cifras de antes de la promocion.
     slugs = _slugs_de(species) if species else _known_slugs()
+    encontradas: list[MeasuredFraction] = []
     for carpeta in directorios:
         for slug in slugs:
             ruta = Path(carpeta) / POLYADB_FILENAME.format(slug=slug)
             if ruta.is_file() and ruta.stat().st_size:
-                return load_polyadb(ruta)
+                encontradas.append(load_polyadb(ruta))
+    return tuple(encontradas)
+
+
+def find_polyadb(*, directory=None, species: str = "") -> MeasuredFraction | None:
+    """La tabla de UNA especie. `None` si no esta.
+
+    `None` significa NO HAY FICHERO, y el frente queda NOT_RUN. Es distinto de que la
+    tabla exista y no hable de esta secuencia —eso lo decide `resolve_measured` por
+    md5— y las dos cosas se dicen distinto en el informe.
+
+    SIN ESPECIE NO SE ELIGE POR CUENTA PROPIA: con varias en el deposito, quien tiene
+    que decidir es el md5 del 3'UTR, y eso no se sabe aqui. Se devuelve la unica que
+    haya, o `None`; el camino que si sabe la secuencia usa `find_polyadb_all`.
+    """
+    encontradas = find_polyadb_all(directory=directory, species=species)
+    if len(encontradas) == 1:
+        return encontradas[0]
     return None
 
 

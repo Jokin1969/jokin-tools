@@ -623,7 +623,7 @@ def tile_utr(
     from .apa import (  # noqa: PLC0415
         POLYADB_FILENAME,
         ApaExcluded,
-        find_polyadb,
+        find_polyadb_all,
         resolve_measured,
     )
 
@@ -646,7 +646,19 @@ def tile_utr(
         # bandera; el DATO entra por el gestor, y en otra especie basta con subir el
         # suyo. Hasta 2026-08-27 esto leia `apa.POLYA_DB_PRNP`, asi que fuera del raton
         # no habia forma de meter los numeros sin editar el modulo.
-        tabla = find_polyadb(directory=reference_dir, species=species)
+        # TODAS las que haya, y decide el md5. Coger la primera dejaba que una tabla
+        # de otra especie DESPLAZARA a la buena —la busqueda paraba en ella— y el
+        # sintoma era la medida perdida, no un numero equivocado.
+        tablas = find_polyadb_all(directory=reference_dir, species=species)
+        tabla = None
+        for candidata in tablas:
+            if resolve_measured(original, candidata, anatomy=anatomy) is not None:
+                tabla = candidata
+                break
+        if tabla is None and tablas:
+            # Ninguna habla de esta secuencia. Se nombra la primera para el motivo: lo
+            # que hay que decir es que la que hay no es la de esta secuencia.
+            tabla = tablas[0]
         if tabla is None:
             motivo_sin_medida = (
                 f"No hay tabla de PolyA_DB en el directorio de referencia "

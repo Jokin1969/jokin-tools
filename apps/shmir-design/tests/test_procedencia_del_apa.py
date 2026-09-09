@@ -6,13 +6,21 @@ Hoy se llaman igual, y no lo son:
 
   · el `AATATA` de `3utr:236` del ratón lo es por **uso medido** (PolyA_DB v4.1, PSE
     21,1 %) y no por canonicidad;
-  · las dos `ATTAAA` del 3'UTR **humano** —`3utr:955` y `3utr:1167`— lo son por
-    canonicidad y **sin un solo dato de uso**: la tabla medida es de Prnp murino y no
-    habla de esa secuencia. Son un SUPUESTO, y el informe ya usa esa palabra.
+  · las dos `ATTAAA` del 3'UTR **humano** —`3utr:955` y `3utr:1167`— lo eran por
+    canonicidad y **sin un solo dato de uso**, porque la tabla medida era de Prnp murino
+    y no hablaba de esa secuencia.
 
-Con el ratón las dos señales `APA_POSIBLE` están medidas —el `AATAAA` de `3utr:288` es
-uno de los tres sitios anclados—, así que el caso «canónico, asumido» hay que buscarlo
-en el humano. Ésa es la razón de que este test use los dos fixtures y no uno.
+**ESO CAMBIO EL 2026-09-09**, y el test se mueve con la decisión en vez de bloquearla
+(principio nº 56): con `polya_db_human.tsv` en el depósito, las dos `ATTAAA` humanas
+están **CONFIRMADAS por medida** y el `AGTAAA` de `3utr:233` entra **promovido** por
+uso. O sea que **el caso «canónico, asumido» ya no existe en ninguna especie con
+fixture**: sobre los dos transcritos del repositorio, las cinco señales `APA_POSIBLE`
+salen medidas.
+
+Que no exista ningún caso vivo NO es que la distinción sobre. Es lo contrario: la
+etiqueta sigue teniendo que saber decirlo, y quien lo comprueba son los tests de unidad
+de abajo, que construyen la señal a mano. Un caso que sólo existe ahí es un caso que hay
+que fijar ahí — si no, el día que entre una especie sin tabla nadie sabría qué se emite.
 
 El campo `evidence` ya distinguía las dos vías. Lo que faltaba es que la distinción
 VIAJE PEGADA a la clasificación, que es lo que alguien copia a un correo. Es la misma
@@ -56,21 +64,24 @@ class TestLaEtiquetaLLEVALaVia(unittest.TestCase):
             with self.subTest(posicion):
                 self.assertEqual(self.raton[posicion].evidence, "medida")
 
-    def test_la_canonica_sin_dato_dice_ASUMIDO_y_esa_es_HUMANA(self):
+    def test_la_HUMANA_ya_NO_dice_asumido_porque_hay_medida(self):
         if not HAY_HUMANO:
             self.skipTest("NOT_RUN: falta el fixture humano")
         etiqueta = self.humano[955].classification_label
         self.assertIn("APA_POSIBLE", etiqueta)
-        self.assertIn("canónico", etiqueta)
-        self.assertIn("asumido", etiqueta)
+        self.assertIn("medido", etiqueta)
+        self.assertNotIn("asumido", etiqueta)
 
-    def test_y_las_dos_etiquetas_NO_son_la_misma(self):
+    def test_NINGUNA_señal_con_fixture_queda_ya_en_ASUMIDO(self):
+        # Es el hecho que hace caducar la premisa de este fichero, y se fija para que
+        # se vea: si mañana alguien retira una tabla, este test lo dice.
         if not HAY_HUMANO:
             self.skipTest("NOT_RUN: falta el fixture humano")
-        self.assertNotEqual(
-            self.raton[236].classification_label,
-            self.humano[955].classification_label,
-        )
+        for nombre, señales in (("raton", self.raton), ("humano", self.humano)):
+            for pos, s in señales.items():
+                if s.classification is SignalClass.APA_POSSIBLE:
+                    with self.subTest(especie=nombre, pos=pos):
+                        self.assertEqual(s.evidence, "medida")
 
     def test_las_dos_son_la_MISMA_clase(self):
         # Que es justo el problema: la clase no distingue, así que la etiqueta tiene que.
@@ -126,12 +137,18 @@ class TestLLEGAALaSALIDA(unittest.TestCase):
         texto = self._tabla(RATON)
         self.assertIn("APA_POSIBLE (medido, PolyA_DB v4.1)", texto)
 
-    def test_y_el_del_humano_dice_ASUMIDO(self):
+    def test_y_el_del_humano_dice_MEDIDO_y_por_QUE_VIA(self):
+        # Las dos vias siguen distinguiendose en el texto, que es todo el punto: una
+        # señal SUBIDA por medida («por predicción saldria OTRA») no dice lo mismo que
+        # una canonica que la medida CONFIRMA. Fundirlas en «medido» a secas perderia
+        # cual de las dos cambio de veredicto al llegar el dato.
         if not HAY_HUMANO:
             self.skipTest("NOT_RUN: falta el fixture humano")
         texto = self._tabla(HUMANO)
-        self.assertIn("APA_POSIBLE (canónico, asumido)", texto)
-        self.assertNotIn("medido", texto)
+        self.assertIn("APA_POSIBLE (medido, PolyA_DB v4.1)", texto)
+        self.assertNotIn("asumido", texto)
+        self.assertIn("SUBIDA aquí por MEDIDA de uso", texto)
+        self.assertIn("por canonicidad, CONFIRMADA por medida de uso", texto)
 
 
 if __name__ == "__main__":

@@ -8148,3 +8148,124 @@ Y la contramedida es del principio nº 27: `pas_totales` y «filas de este fiche
 **dos cantidades distintas** que se estaban leyendo como una. Separadas y con el criterio
 escrito al lado, la pregunta «¿faltan PAS?» tiene respuesta; fundidas, ni siquiera se
 formula.
+
+---
+
+## 159 — Una tabla de PolyA_DB de OTRA especie DESPLAZABA a la buena
+
+Detectado el 2026-09-09, minutos después de escribir `polya_db_human.tsv`. No lo
+encontró un test ni una revisión: lo encontró **el diff de un golden que no tenía que
+haber cambiado** — `pagina_raton.txt` pasó de `390` a `407` ventanas elegibles al añadir
+un fichero que no habla del ratón.
+
+### Lo que pasaba
+
+`find_polyadb` recorría los nombres posibles y **devolvía la primera tabla que
+encontraba**. Sin especie declarada, el orden lo ponía el alfabeto:
+
+```python
+_known_slugs()  →  ['human', 'mouse']
+```
+
+Así que a partir del momento en que existió una segunda tabla, **toda consulta sin
+especie devolvía la humana** — y `resolve_measured` la rechazaba por md5, correctamente,
+dejando el frente en `NOT_RUN` con el motivo «la tabla es de PRNP y su md5 de 3'UTR no es
+el de esta secuencia». Impecable, y sobre la tabla equivocada: la murina, que sí cuadraba,
+**no se llegaba a mirar**.
+
+### La frase que lo autorizaba estaba en el propio docstring
+
+> *«Sin especie se prueban todos los nombres que haya: la tabla se aplica por md5 de
+> todos modos, así que una de otra especie no puede colarse.»*
+
+Es cierta **a medias**, y la mitad que falta es la que importa: una tabla ajena no se
+puede **APLICAR**, pero sí **DESPLAZAR** — porque la búsqueda **se detiene en ella**. El
+razonamiento cubría el riesgo de un número equivocado y no el de la medida perdida, que
+es el que se materializó.
+
+### Por qué no podía verse antes, y por qué el síntoma engaña
+
+Mientras hubo **una sola** especie en el depósito, cualquier orden acertaba. Es el mismo
+patrón que `rmsk_mouse.out` conectado por su rol: algo que funciona callado y que sólo
+falla el día que hay una segunda especie.
+
+Y el síntoma **apunta al sitio equivocado**: lo que se ve es un fichero HUMANO cambiando
+una cuenta MURINA. La cifra de más —**17 ventanas**— es exactamente
+`measured_promotion_cost`, o sea la promoción del `AATATA` de `3utr:236` que dejaba de
+aplicarse. Un `407` en la pantalla no se lee como «falta una tabla»: se lee como que la
+piscina creció.
+
+### Dónde salía, y por qué ahí
+
+En `cost_text`, que **no recibe especie**. Así que la ESTIMACIÓN decía 407 y la CORRIDA
+daba 390 — las dos sobre el mismo transcrito, en la misma pantalla. Es exactamente la
+errata que hizo obligatoria la anatomía en esa misma función («la estimación y la corrida,
+sobre el MISMO conjunto»), reaparecida sobre **otro eje**: entonces faltaba la frontera,
+ahora la especie.
+
+### El arreglo va en el buscador, no en el llamador
+
+Pasarle la especie a `cost_text` habría tapado ese emisor y dejado el mecanismo intacto
+para el siguiente — principio nº 31. Lo que se cambia es quién elige:
+
+- **`find_polyadb_all` devuelve TODAS**, y `tile_utr` se queda con la primera que
+  `resolve_measured` acepte. **Quien elige es el md5**, que es lo que el docstring
+  afirmaba y no hacía nadie;
+- **`find_polyadb` deja de adivinar**: devuelve la única que haya, o `None`. Con varias y
+  sin especie no elige por su cuenta, porque desde ahí no se puede saber.
+
+Medido: con las dos tablas en el depósito, tilar el 3'UTR murino **sin declarar especie**
+vuelve a aplicar la murina, y da el mismo número de elegibles que declarándola.
+
+### Lo que generaliza
+
+**Una búsqueda que devuelve «el primero que encaja de forma» delega la decisión en el
+orden del alfabeto.** Mientras hay un solo candidato eso no se distingue de haber elegido
+bien, y por eso el fallo espera al segundo. La regla: cuando lo que decide es una
+comprobación posterior —aquí el md5—, la búsqueda **no puede quedarse con uno**; tiene que
+entregar los candidatos y dejar que decida quien sabe.
+
+Y el corolario, que es del principio nº 24: **el producto de este fallo era un mensaje
+correcto**. «Esta tabla no habla de esta secuencia» es verdad de la tabla que se miró, y
+no dice nada de la que no se miró. Un motivo bien redactado sobre el objeto equivocado no
+se distingue de uno bien redactado sobre el objeto correcto.
+
+---
+
+## 160 — La banda de corte de un PAS terminal se salía del 3'UTR, y abortaba
+
+Mismo día, y es lo que impedía que el fichero humano llegara siquiera a emitirse.
+
+`AnchoredSite.cleavage_band` es `hexámero + 10 .. hexámero + 30`. En un sitio **terminal**
+el hexámero ya está pegado al final, así que la banda **desborda el extremo anotado** —
+que no es un error, es la geometría: el corte de una señal terminal cae aguas abajo del
+final del transcrito.
+
+- **humano**: hexámero en `3utr:1582`, banda hasta **1617**, sobre un 3'UTR de **1606**;
+- **murino**: hexámero en `3utr:1214`, banda hasta **1249**, sobre un 3'UTR de **1242**.
+
+O sea que **el murino se salía desde el primer día**. Pasaba porque `coords.max_utr3()`
+deriva su techo del 3'UTR **más largo del proyecto**, que es el humano (1606): 1249 cabe
+ahí y 1617 no. **El invariante caza lo imposible, no lo equivocado** — y aquí lo
+«imposible» dependía de que existiera otra especie con un 3'UTR más largo.
+
+### La regla ya estaba escrita, y protegía una línea
+
+En el mapa del 3'UTR, palabra por palabra:
+
+> *«LA BANDA DE CORTE PUEDE SALIRSE DEL TRANSCRITO, y no es un error… Se recorta a lo que
+> hay y se CUENTA lo que se sale, en vez de abortar la conversión con una posición que no
+> existe.»*
+
+**Principio nº 31 otra vez**: el comentario protegió su línea y el emisor de al lado no
+tenía nada. Ahora la banda se recorta al extremo —**sólo el final**; el inicio no desborda
+y moverlo sería emitir otra cantidad— y `band_clipped` es lo que lo **cuenta**: sin eso,
+una banda de 10 nt donde el modelo pone 20 tiene la forma correcta y no se distingue de un
+extremo real.
+
+Se dice **sólo donde ocurre**: un aviso que sale siempre deja de leerse.
+
+**No mueve ninguna cifra.** El recorte es de emisión: las dos fracciones murinas siguen en
+0,855834 y 0,649606, y los tramos de techo no cambian —se construyen con los PROXIMALES, y
+ninguno desborda—. Lo único que cambia en el golden murino es una banda que decía
+`3utr:1229-1249` sobre un 3'UTR de 1242 nt: una posición que no existe.

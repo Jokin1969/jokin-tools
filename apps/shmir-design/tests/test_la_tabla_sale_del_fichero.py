@@ -83,18 +83,33 @@ class TestSinFicheroElFrenteQuedaNOT_RUN(unittest.TestCase):
 )
 class TestConFicheroQueNOHablaDeEstaSecuencia(unittest.TestCase):
 
+    #: EL CONTROL NECESITA UN DEPOSITO CON UNA SOLA TABLA. Desde el 2026-09-09 el
+    #: humano tiene la suya (`polya_db_human.tsv`), asi que sobre el deposito real ya
+    #: no hay ninguna secuencia sin tabla propia — y el caso que este test fija, «hay
+    #: fichero y NO habla de esta secuencia», dejaria de ejercitarse en silencio. Se
+    #: monta con la MURINA sola delante del 3'UTR humano, que es exactamente ese caso.
+    def _solo_la_murina(self):
+        import shutil
+
+        tmp = TemporaryDirectory()
+        self.addCleanup(tmp.cleanup)
+        shutil.copy(DIR / "polya_db_mouse.tsv", Path(tmp.name) / "polya_db_mouse.tsv")
+        return tmp.name
+
     def test_el_humano_no_promueve_nada(self):
-        informe = tile_utr(load_3utr(HUMANO))
+        informe = tile_utr(load_3utr(HUMANO), reference_dir=self._solo_la_murina())
         self.assertIsNone(informe.measured_apa)
 
     def test_pero_el_motivo_es_OTRO(self):
-        informe = tile_utr(load_3utr(HUMANO))
+        informe = tile_utr(load_3utr(HUMANO), reference_dir=self._solo_la_murina())
         self.assertIn("md5", informe.apa_missing_reason.lower())
 
     def test_y_los_dos_motivos_NO_son_el_mismo_texto(self):
         with TemporaryDirectory() as tmp:
             sin = tile_utr(load_3utr(RATON), reference_dir=tmp).apa_missing_reason
-        otra = tile_utr(load_3utr(HUMANO)).apa_missing_reason
+        otra = tile_utr(
+            load_3utr(HUMANO), reference_dir=self._solo_la_murina()
+        ).apa_missing_reason
         self.assertNotEqual(sin, otra)
 
 

@@ -1,0 +1,61 @@
+# Sitios de poliadenilación MEDIDOS — tabla de PolyA_DB para una especie.
+#
+# Este fichero es DATO y entra por el gestor. La REGLA sobre que hacer con el —que
+# un hexamero con uso medido se trate como funcional— vive en el codigo y no lleva
+# bandera. Las dos cosas van separadas a proposito.
+#
+# Sale de PolyA_DB v4: tabla «PAS Summary» (coordenadas y clase) y tabla «PAS
+# Expression». De los TRES pares de columnas de expresion que trae la tabla humana
+# —3'READS, ENCODE.PB y GTEx.ONT— el dato de trabajo es 3'READS, por coherencia con
+# el murino y porque es el mismo ensayo. Los otros dos van en una reserva CON SUS
+# CIFRAS, no como prosa: la concordancia se comprueba, no se afirma. Y la
+# concordancia esta en el PSE, no en el AvgRPM: para el mismo sitio 3'READS da
+# 156,20 y GTEx.ONT 22,40, que son escalas distintas y promediarlas no significaria
+# nada.
+#
+# LAS CIFRAS NO SE REPITEN EN LA NOTA. `pse` y `avgrpm` van en sus columnas y el
+# informe las IMPRIME de ahi (`PasAnchor.pse`/`avgrpm`). La nota lleva la LECTURA, no
+# la cifra.
+#
+# OJO: las coordenadas son GENOMICAS. La app las ancla contra la secuencia exigiendo
+# que TODAS aterricen a la vez con el mismo desfase sobre un hexamero de la clase
+# declarada — nunca con una resta, que es un solo punto de apoyo y siempre cuadra.
+# Comprobado el 2026-09-09: las CUATRO anclan bajo «PAS = corte»; bajo «PAS =
+# hexamero» no ancla mas de UNA.
+#
+# CRITERIO DE ENTRADA — que PAS estan en este fichero y cuales no.
+#
+# Entra todo PAS del gen cuya coordenada caiga DENTRO del 3'UTR del transcrito que
+# se tila, porque solo esos producen un corte que pueda quitarle la diana a un
+# candidato. Los de 5'UTR y CDS no entran: su corte cae fuera de la secuencia y
+# `anchor_polyadb` no los podria colocar. Los que estan dentro pero SIN expresion
+# entran igual, con `pse` y `avgrpm` vacios, porque son puntos de apoyo del anclaje
+# aunque no sumen a ninguna fraccion.
+#
+# De los 11 PAS del gen, 6 caen en el 3'UTR y 5 fuera (2 en 5'UTR, 3 en CDS). De
+# esos 6 entran 4: los dos que faltan no declaran hexamero y hoy no se pueden
+# construir. Ver la reserva.
+#
+# LAS DOS CIFRAS DE ABAJO SON DEL GEN EN LA BASE, NO DE ESTE FICHERO.
+# `pas_totales` son los PAS que PolyA_DB anota para PRNP; `pas_con_expresion`, los
+# que traen 3'READS — que aqui son los once. Este fichero lleva 4 filas, las 4 con
+# expresion.
+# fuente	PolyA_DB
+# version	v4.1
+# fecha	2025-09-15
+# ensamblaje	hg38
+# gen	PRNP
+# gen_id	5621
+# pas_totales	11
+# pas_con_expresion	11
+# utr3_md5	f7fdb4a88d4834dbbf9a23edf9ec85dc
+# tejido	TODOS LOS TEJIDOS, no cerebro
+# reserva	4700115 (None, PSE 1,4 %, AvgRPM 0,57) cae en 3utr:128-134; 4701453 (None, PSE 1,6 %, AvgRPM 0,28) cae en 3utr:1466-1472. Ninguno entra: PasAnchor('None') bloquea antes del anclaje. El tramo 3utr:1-248 NO se declara INMUNE hasta que exista CutOnlySite con banda derivada del desfase resuelto. Pendiente: errata nº 158 (murino, pas_totales/pas_con_expresion) requiere el volcado murino completo para cerrar.
+# reserva	CONCORDANCIA de las otras dos fuentes, en PSE, para las cuatro filas: 4700235 ENCODE.PB 3,0 % y GTEx.ONT 18,5 %; 4700961 32,6 % y 29,3 %; 4701170 5,9 % y 18,5 %; 4701587 97,0 % y 94,6 %. El terminal concuerda en las tres; los tres proximales pesan poco en las tres, y GTEx.ONT los da sistematicamente mas altos. No se promedian: el dato de trabajo es 3'READS.
+# reserva	El valor `<0,1 %` que aparece en la tabla de expresion sale SOLO en PSE.ENCODE.PB (4687520) y PSE.GTEx.ONT (4690141), nunca en 3'READS, y los dos son PAS de 5'UTR que no entran aqui. Es un LIMITE SUPERIOR y no un numero: si llegara al cargador, `_fraccion` aborta. Convertirlo a 0,001 seria inventarse una medida.
+# reserva	El transcrito REPRESENTATIVO que usa PolyA_DB para PRNP no viene declarado en las tablas aportadas, asi que `representante` va vacio. El fichero se aplica por `utr3_md5`, no por el nombre del transcrito, asi que eso no afecta a ningun veredicto.
+pas_id	coordenada	clase	pse	avgrpm	distal	nota
+chr20:+:4700235	4700235	Other	0.041	0.26	no	el mas proximal de los cuatro; homologo de chr2:+:131937444 segun la propia base
+chr20:+:4700961	4700961	AUUAAA	0.418	0.67	no	nuestro ATTAAA de 3utr:955, hasta hoy clasificado por canonicidad y sin dato de uso
+chr20:+:4701170	4701170	AUUAAA	0.008	0.19	no	nuestro ATTAAA de 3utr:1167, hasta hoy clasificado por canonicidad y sin dato de uso
+chr20:+:4701587	4701587	AUUAAA	0.937	156.20	si	terminal conservado; homologo de chr2:+:131938427, que en raton NO tiene expresion. Situacion inversa, anotada en apa.CLUSTER_READING

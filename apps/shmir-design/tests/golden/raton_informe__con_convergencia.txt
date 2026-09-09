@@ -236,7 +236,7 @@
       chr2:+:131937444  Other   → corte 3utr:251-271, hexámero AATATA en 3utr:236  PSE 21.1%, AvgRPM 0.55  ← TERCER sitio de corte, el proximal MÁS USADO de los tres
       chr2:+:131937504  AAUAAA  → corte 3utr:303-323, hexámero AATAAA en 3utr:288  PSE 23.5%, AvgRPM 0.34  ← nuestro AATAAA de 3utr:288
       chr2:+:131938392  Other   → AMBIGUO: 2 hexámeros de su clase en la banda (TATAAA en 3utr:1178, TATAAA en 3utr:1189). Ancla, pero NO entra al modelo con banda propia.
-      chr2:+:131938427  AUUAAA  → corte 3utr:1229-1249, hexámero ATTAAA en 3utr:1214  (sin datos de expresión)  ← fuerza 99,9 %, conservado en humano y rata; SIN expresión, así que no entra en la fracción — solo ancla
+      chr2:+:131938427  AUUAAA  → corte 3utr:1229-1242, hexámero ATTAAA en 3utr:1214  (sin datos de expresión)  [banda recortada en el extremo del 3'UTR, 1242 nt]  ← fuerza 99,9 %, conservado en humano y rata; SIN expresión, así que no entra en la fracción — solo ancla
   
     TECHO POR TRAMOS. Con tres sitios de corte medidos el techo ya no es UNO: la pregunta
     de un candidato no es cuanta isoforma larga hay, es que fracción de transcritos conserva
