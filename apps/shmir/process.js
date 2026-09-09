@@ -31,6 +31,20 @@ const BASE_PATH = '/shmir';
 // Cuánto se espera a que conteste tras lanzarlo. Streamlit importa pandas y pyarrow,
 // así que el primer arranque no es instantáneo ni en una máquina rápida.
 const READY_TIMEOUT_MS = Number(process.env.SHMIR_READY_TIMEOUT_MS || 60000);
+// TECHO DE SUBIDA, EN MB, DECLARADO. Sin declararlo vale el defecto de Streamlit —200—
+// y el widget rechaza en el navegador con una X roja: sin numero, sin motivo y sin
+// salida. Un limite que rechaza sin decir cual es no se distingue de una app rota.
+//
+// El valor lo fija el fichero legitimo MAS GRANDE que el gestor pide: el catalogo de
+// 3'UTR del transcriptoma, que en humano son ~160 MB y queda a un pelo de los 200. Se
+// deja holgura para que un catalogo de otra especie no vuelva a chocar.
+//
+// OJO: esto NO decide si un fichero SIRVE. Que quepa en la subida y que el filtro pueda
+// con el son dos preguntas: el escaner por ventana tiene su propio techo medido
+// (`specificity.MAX_SCANNABLE_NT`, 5,45 MB) y una base de RefSeq de verdad lo pasa por
+// mucho aunque suba entera. Subir 320 MB para que el filtro los rechace despues es la
+// errata nº 40 —la contradiccion cobrada DESPUES de la descarga— por la otra puerta.
+const MAX_UPLOAD_MB = Number(process.env.SHMIR_MAX_UPLOAD_MB || 400);
 const POLL_MS = 300;
 // Tope de reintentos. Sin tope, un fallo permanente —falta Streamlit— daría un bucle de
 // arranques que llenaría los logs y no arreglaría nada.
@@ -42,6 +56,15 @@ let starting = null;
 let restarts = 0;
 let lastError = '';
 let lastOutput = '';
+// EL MOTIVO del ultimo arranque fallido —cual de las TRES cosas paso: se murio, contesta
+// otro en el puerto, o no contesto a tiempo—. Va APARTE de `lastError` porque el
+// manejador de `exit` del hijo salta DESPUES de nuestro propio `kill('SIGTERM')` y pisa
+// `lastError` con «el proceso termino ... (señal SIGTERM)». Ese texto describe NUESTRA
+// REACCION, no la causa, y era lo unico que llegaba al mensaje de MAX_RESTARTS.
+let lastReason = '';
+// ¿El ultimo SIGTERM lo mandamos nosotros? Un SIGTERM sin dueño se lee como una causa
+// externa —la plataforma, un OOM— y manda a mirar donde no hay nada.
+let killedByUs = false;
 //: Qué dijo la última comprobación de identidad. Empieza sin comprobar, que es la
 //: verdad mientras no se haya lanzado nada.
 let lastIdentity = 'NO_COMPROBABLE';
@@ -57,6 +80,7 @@ function buildArgs({ port = PORT, basePath = BASE_PATH } = {}) {
     `--server.baseUrlPath=${basePath}`,
     '--server.headless=true',
     '--server.fileWatcherType=none',
+    `--server.maxUploadSize=${MAX_UPLOAD_MB}`,
     '--browser.gatherUsageStats=false',
     // OBLIGATORIO aquí, y sólo se ve en el despliegue. Streamlit decide si está en modo
     // desarrollo con `"site-packages" not in __file__`, y `pip install --target=` deja
@@ -186,8 +210,51 @@ function failureText(output, encabezado = '') {
   ].filter(Boolean).join('\n');
 }
 
+// EL MENSAJE QUE VE QUIEN ABRE LA APP CAIDA. Lleva las TRES cosas, y ninguna sobra:
+//
+//   · el MOTIVO —cual de los tres fallos fue—, que es lo que se perdia;
+//   · la salida del proceso TAL CUAL, o que no escribio nada, que tambien informa: un
+//     fallo de import deja traza, asi que cero lineas lo descarta;
+//   · como se REARMA. Sin eso, el contador se queda en el tope —solo baja con un
+//     arranque bueno— y la app se queda caida hasta que alguien adivine que hay que
+//     reiniciar el hub.
+function exhaustedText() {
+  const motivo = lastReason
+    ? `Motivo del último intento: ${lastReason}.`
+    : 'El motivo del último intento NO se llegó a registrar, que no es lo mismo que no '
+      + 'haberlo tenido.';
+  // La aclaracion del SIGTERM sale SOLO si la propia salida lo nombra, que es la regla
+  // de `diagnose`: una pista que no se apoya en la evidencia manda a mirar donde no hay
+  // nada. Y aqui SI es nuestro: a esta rama solo se llega tras fallar `waitUntilReady`,
+  // y ese camino siempre pasa por `killedByUs = true; child.kill('SIGTERM')`.
+  const duenno = /SIGTERM/.test(lastError)
+    ? ' El SIGTERM lo mandó el hub al dar el arranque por fallido, así que NO es la '
+      + 'causa: es la reacción.'
+    : '';
+  return failureText(
+    lastError,
+    `El proceso de shmir-design ha fallado ${restarts} veces seguidas y no se vuelve a `
+    + `intentar automáticamente: reintentar en bucle llenaría los logs y no arreglaría `
+    + `nada. ${motivo}${duenno} El contador sólo baja con un arranque bueno, así que para volver `
+    + `a intentarlo hay que reiniciar el hub.`
+  );
+}
+
 function _recordFailure(message) {
   lastError = String(message || '').slice(0, 4000);
+}
+
+function _recordReason(reason) {
+  lastReason = String(reason || '').slice(0, 500);
+}
+
+// Para los tests: deja la supervision como recien arrancada. No lo llama la app.
+function _resetSupervision() {
+  lastError = '';
+  lastOutput = '';
+  lastReason = '';
+  killedByUs = false;
+  restarts = 0;
 }
 
 function status() {
@@ -201,6 +268,7 @@ function status() {
     pid: child ? child.pid : null,
     identidad: lastIdentity,
     restarts,
+    lastReason,
     lastError,
     lastOutput: lastOutput.slice(-2000),
   };
@@ -390,8 +458,12 @@ function spawnChild({ referenceDir, projectDir }) {
   });
   proc.on('exit', (code, signal) => {
     if (code !== 0) {
+      const duenno = (signal === 'SIGTERM' && killedByUs)
+        ? ' — lo mandó el hub al dar el arranque por fallido, así que NO es la causa'
+        : '';
       _recordFailure(
-        `el proceso terminó con código ${code}${signal ? ` (señal ${signal})` : ''}. `
+        `el proceso terminó con código ${code}`
+        + `${signal ? ` (señal ${signal}${duenno})` : ''}. `
         + `Últimas líneas:\n${lastOutput.slice(-1500)}`
       );
     }
@@ -411,15 +483,7 @@ async function ensureRunning({ referenceDir = '', projectDir = '' } = {}) {
 
   starting = (async () => {
     if (restarts >= MAX_RESTARTS) {
-      return {
-        ok: false,
-        reason: failureText(
-          lastError,
-          `El proceso de shmir-design ha fallado ${restarts} veces seguidas y no se `
-          + `vuelve a intentar automáticamente: reintentar en bucle llenaría los logs y `
-          + `no arreglaría nada.`
-        ),
-      };
+      return { ok: false, reason: exhaustedText() };
     }
     lastOutput = '';
     try {
@@ -437,6 +501,8 @@ async function ensureRunning({ referenceDir = '', projectDir = '' } = {}) {
     lastIdentity = listo.identidad;
     if (!listo.ok) {
       restarts += 1;
+      _recordReason(listo.reason);
+      killedByUs = true;
       if (child) child.kill('SIGTERM');
       // EL ENCABEZADO DICE CUÁL DE LAS TRES COSAS PASÓ —se murió, contesta otro, o no
       // contestó a tiempo— en vez de las tres bajo el mismo texto. Un «no llegó a
@@ -469,7 +535,8 @@ function stop() {
 
 module.exports = {
   ensureRunning, stop, status, probe, waitUntilReady, portOwner,
-  buildArgs, buildEnv, diagnose, failureText, _recordFailure,
+  buildArgs, buildEnv, diagnose, failureText, exhaustedText,
+  _recordFailure, _recordReason, _resetSupervision,
   IDENTIDAD, MOTIVO_MURIO, MOTIVO_AJENO,
-  PORT, BASE_PATH, SHMIR_ROOT, APP_FILE, PYTHON_BIN,
+  PORT, BASE_PATH, SHMIR_ROOT, APP_FILE, PYTHON_BIN, MAX_UPLOAD_MB,
 };

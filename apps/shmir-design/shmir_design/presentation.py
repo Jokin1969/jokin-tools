@@ -47,6 +47,7 @@ from .resources import ResourceSet
 from .scaffold import ScaffoldSpec, build_hairpin
 from .polya import POLYA_COLUMNS, cleavage_band, normalize_sequence
 from .selection import ReportSelection
+from .specificity import MAX_SCANNABLE_NT
 from .tiling import TiledWindow, TilingReport
 
 VERDE = "verde"
@@ -5061,6 +5062,33 @@ def _estado_de(fila, cerrado_por, presentes) -> str:
     return "FALTA"
 
 
+#: Frentes que se cierran con una CORRIDA GUARDADA que la app NO ejecuta. La distincion
+#: no es «tener almacen» —los cuatro lo tienen— sino DONDE se corre: el BLAST lo lanza
+#: quien diseña, fuera de aqui (`blast.Disabled`), asi que su fichero no hace falta para
+#: cerrar el frente. Los de seed y off-targets los calcula la app y para eso SI necesita
+#: su fichero. Se DECLARA en vez de deducirse: la diferencia decide si la pantalla manda
+#: a conseguir cientos de MB o no.
+FRENTES_QUE_CIERRA_UNA_CORRIDA_DE_FUERA = {
+    "especificidad": (
+        "el BLAST lo lanzas tú, fuera de la app —este backend no tiene red saliente—, "
+        "así que lo que cierra el frente es el `-outfmt 6` que subes al modal, no el "
+        "fichero"
+    ),
+}
+
+
+#: El techo del escaner por ventana, con su cifra DERIVADA de donde se mide (principio
+#: nº 13). Transcrita, envejeceria sola el dia que el escaner se acelere y el techo suba.
+_TECHO_MB = f"{MAX_SCANNABLE_NT / 1e6:.2f}".replace(".", ",")
+SCANNER_CEILING_NOTE = (
+    f"Y OJO CON EL TAMAÑO: el filtro de la ventana barre la base ENTERA por cada "
+    f"ventana elegible, así que tiene techo medido en {_TECHO_MB} MB. Una base de "
+    f"RefSeq de verdad lo pasa por mucho: se conecta —de ella sale la procedencia— y el "
+    f"filtro sale NOT_RUN con el motivo. Subirla para eso es pagar la descarga y "
+    f"quedarse igual."
+)
+
+
 def _por_que(fila, estado: str, cerrado_por) -> str:
     """Por que esta fila esta en ese estado, con el nombre del fichero que lo decide."""
     if estado == "CERRADO":
@@ -5090,6 +5118,20 @@ def _por_que(fila, estado: str, cerrado_por) -> str:
         return (
             f"Su frente ya está cerrado por {', '.join(otros)}. Es una ALTERNATIVA que "
             f"no hace falta conseguir, no algo pendiente."
+        )
+    # UN FRENTE QUE CIERRA CON UNA CORRIDA DE FUERA NO «NECESITA» SU FICHERO, y decir
+    # que si es lo que mandaba a subir cientos de MB inservibles. La frase gemela de
+    # `blast_readiness` se corrigio el 2026-09-04 y esta se quedo: principio nº 31.
+    de_fuera = [
+        FRENTES_QUE_CIERRA_UNA_CORRIDA_DE_FUERA[f]
+        for f in fila["frentes"]
+        if f in FRENTES_QUE_CIERRA_UNA_CORRIDA_DE_FUERA
+    ]
+    if de_fuera and len(de_fuera) == len(fila["frentes"]):
+        return (
+            f"Falta, y su frente NO depende de él: {fila['que_desbloquea']} se cierra "
+            f"con una CORRIDA GUARDADA que cubra todo el panel — {de_fuera[0]}. "
+            f"{SCANNER_CEILING_NOTE}"
         )
     return f"Falta, y sin él no se puede cerrar: {fila['que_desbloquea']}."
 
