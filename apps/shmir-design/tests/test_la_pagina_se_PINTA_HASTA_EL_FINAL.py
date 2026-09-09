@@ -114,7 +114,7 @@ def _proyecto_con_una_corrida(base: Path) -> str:
         species="Mus musculus",
         starts=tuple(presentation.chosen_starts(corrida.selection)),
         guides=True, passengers=True, target=corrida.utr3,
-        target_label="3'UTR de Mus musculus",
+        target_label="3'UTR de Mus musculus", background="mouse",
     )
     presentation.save_offtarget_run(
         almacen,

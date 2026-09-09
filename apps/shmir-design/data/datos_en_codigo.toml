@@ -299,3 +299,29 @@ no dan el mismo conteo», «que se hizo con las isoformas». Mismo tipo que \
 que se viera en el diff, y lo que se leeria distinto es el texto que decide si alguien \
 pone el ensamblaje bueno o el de otra especie — que es el modo de fallo que estas cuatro \
 columnas existen para cerrar. El VALOR que se escribe si es dato, y va al manifiesto."""
+
+[[constante]]
+simbolo = "species.WHY_TWO_CATALOGUES"
+categoria = "declaracion"
+motivo = """\
+POR QUE los dos catalogos de off-target no se funden en un numero. No es dato de ninguna \
+especie —no cambia al pasar de raton a conejo— y no describe el material sino el \
+CRITERIO: los conteos no son sumables porque un gen conservado aparece en los dos, y \
+cada percentil sale de una nula de SU catalogo, asi que agrupado no se refiere a nada. \
+Es `WHY_NOT_SUMMED` un piso mas arriba, y por la misma razon vive en codigo: en un \
+fichero se podria relajar sin que se viera en el diff, y lo que cambiaria es la lectura \
+de todos los informes a la vez. Ademas es la razon de que `off_target_catalogues` \
+devuelva una tupla y no una especie, asi que vive pegada a lo que gobierna."""
+
+[[constante]]
+simbolo = "species.HOW_TO_DECLARE_BACKGROUND"
+categoria = "declaracion"
+motivo = """\
+COMO se declara el fondo genetico de una especie, en un solo sitio. No es dato de \
+ninguna especie: es la instruccion que dan los DOS sitios donde ese hueco se nota —el \
+aborto de `off_target_catalogues` y el `NOT_RUN` de \
+`offtarget_store.verdict_without_catalogue`—, y esta aqui justamente para que no se \
+escriba dos veces: escrita dos veces, el dia que el campo se renombre una de las dos \
+sigue diciendo lo de siempre y manda a tocar algo que ya no existe (principio nº 13). \
+Mismo tipo que `presentation.HOW_TO_DECLARE`, que dice como se declara la especie \
+entera."""

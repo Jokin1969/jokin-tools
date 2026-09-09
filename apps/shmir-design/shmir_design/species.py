@@ -38,6 +38,20 @@ class Species:
     #: Ensamblaje de UCSC (`mm39`). Vacio si no se conoce: dos ensamblajes distintos dan
     #: coordenadas distintas, asi que este NO se adivina tampoco.
     ucsc_assembly: str = ""
+    #: EL FONDO GENETICO DEL MODELO en el que se prueban los candidatos de esta especie,
+    #: por slug. NO es la especie diana: la diana es la del TRANSCRITO y esto es el
+    #: organismo del experimento.
+    #:
+    #: El caso que lo obliga (2026-09-08): el modelo del humano es un RATON HUMANIZADO
+    #: —BAC de PRNP humana, `Prnp` murino noqueado—, asi que el transcrito diana es
+    #: humano y el transcriptoma que se expresa en el animal es el MURINO. Una corrida
+    #: humana contra un solo catalogo mide la mitad, y la mitad que mide es la del
+    #: PACIENTE, no la del experimento.
+    #:
+    #: `None` es NO DECLARADO y `()` es «se ha mirado y no hay ninguno mas»: son dos
+    #: cosas, y el defecto que saldria decide contra que se barren los off-targets
+    #: (principio nº 58). El raton declara `()` porque su modelo es el mismo raton.
+    model_backgrounds: tuple[str, ...] | None = None
 
     @property
     def known(self) -> bool:
@@ -47,8 +61,16 @@ class Species:
 #: Las que este proyecto conoce. Añadir una especie es añadir una linea AQUI con sus
 #: identificadores verificados, no deducirlos del nombre.
 SPECIES: dict[str, Species] = {
-    "mouse": Species("Mus musculus", "mouse", "mmu-", "txid10090", "mm39"),
-    "human": Species("Homo sapiens", "human", "hsa-", "txid9606", "hg38"),
+    # El raton se estudia EN UN RATON: `()` dice que se ha mirado y no hay fondo aparte.
+    "mouse": Species(
+        "Mus musculus", "mouse", "mmu-", "txid10090", "mm39", model_backgrounds=(),
+    ),
+    # EL MODELO DEL HUMANO ES UN RATON HUMANIZADO. Ver `Species.model_backgrounds` y
+    # `off_target_catalogues`.
+    "human": Species(
+        "Homo sapiens", "human", "hsa-", "txid9606", "hg38",
+        model_backgrounds=("mouse",),
+    ),
 }
 
 #: Como se llama cada especie EN ESTE PROYECTO, ademas de por su nombre cientifico.
@@ -104,6 +126,88 @@ def resolve(name) -> Species:
     return Species(scientific=limpio, slug=_slugify(limpio))
 
 
+#: POR QUE SON DOS CATALOGOS Y NO UN NUMERO FUNDIDO. Va aqui porque es la razon de que
+#: `off_target_catalogues` devuelva una tupla y no una especie.
+WHY_TWO_CATALOGUES = (
+    "Los dos catálogos describen ORGANISMOS DISTINTOS —el murino, el ratón humanizado "
+    "donde se hace el experimento; el humano, el paciente al que va la terapia— y un "
+    "número fundido no describe a ninguno de los dos. Además los conteos NO SON "
+    "SUMABLES: un gen conservado aparece en los dos catálogos, así que sumarlo lo "
+    "cuenta dos veces. Y el percentil se calcula contra una nula del MISMO catálogo, "
+    "así que agrupado no se refiere a nada. Es `WHY_NOT_SUMMED` un piso más arriba: "
+    "allí eran las cuatro clases de sitio, aquí son dos catálogos."
+)
+
+
+#: COMO SE DECLARA EL FONDO GENETICO, en un solo sitio. Lo dicen el aborto de
+#: `off_target_catalogues` y el `NOT_RUN` de `offtarget_store.verdict_without_catalogue`,
+#: que son los dos sitios donde el hueco se nota: escrito dos veces, una de las dos se
+#: queda vieja el dia que el campo cambie de nombre (principio nº 13).
+HOW_TO_DECLARE_BACKGROUND = (
+    "Se declara en `species.SPECIES` (en `shmir_design/species.py`), junto a los demás "
+    "identificadores, con `model_backgrounds`: `()` si el modelo es la propia especie, "
+    "o los slugs de los fondos genéticos si no — el humano declara `(\"mouse\",)` porque "
+    "su modelo es un ratón humanizado."
+)
+
+
+def off_target_catalogues(species: Species) -> tuple[Species, ...]:
+    """Contra QUE transcriptomas se barren los off-targets de esta especie.
+
+    La DIANA primero —es la pregunta del paciente— y detras los fondos geneticos del
+    modelo, que son los del experimento. El orden no es cosmetico: invierte que se lee
+    primero. Ver `WHY_TWO_CATALOGUES` para por que son dos celdas y no una suma.
+
+    ABORTA si la especie no declara `model_backgrounds`: no haberlo declarado y no tener
+    ninguno son cosas distintas, y el defecto decidiria contra que se barre.
+    """
+    fondos = species.model_backgrounds
+    if fondos is None:
+        raise ShmirDesignError(
+            f"{species.scientific} no declara `model_backgrounds`, así que no se sabe en "
+            f"qué fondo genético se prueban sus candidatos y no se puede decir contra "
+            f"qué transcriptomas hay que barrer los off-targets. "
+            f"{HOW_TO_DECLARE_BACKGROUND} Se aborta en vez de suponer que es sólo la "
+            f"suya — que es medir la mitad sin decirlo."
+        )
+    catalogos = [species]
+    for slug in fondos:
+        if slug == species.slug:
+            continue
+        fondo = SPECIES.get(slug)
+        if fondo is None:
+            raise ShmirDesignError(
+                f"{species.scientific} declara el fondo genético {slug!r} y esa especie "
+                f"no está en `species.SPECIES`. Sin sus identificadores no se puede "
+                f"nombrar su catálogo ni su prefijo, así que decir que se barre sería "
+                f"decir que se hace algo que no se puede hacer. Se aborta."
+            )
+        if fondo not in catalogos:
+            catalogos.append(fondo)
+    return tuple(catalogos)
+
+
+def off_target_catalogue_slugs(species) -> tuple[str, ...]:
+    """Los catalogos de off-target de esta especie, por SLUG. DIANA primero.
+
+    Es la forma que piden las columnas y las claves de consulta, y vive aqui —no en
+    `presentation`— porque la ficha, la tabla y el export la necesitan por igual: dos
+    definiciones de esta lista son dos formas de nombrar la misma celda.
+
+    **TRES estados y el tercero NO es «uno»** (principio nº 58 por su lado bueno). Una
+    especie SIN DECLARAR devuelve `()`, que es «no hay eje que derivar»: sus
+    identificadores no estan, asi que no se puede nombrar ningun catalogo y decir «uno»
+    seria inventarlo. Una especie DECLARADA que no diga en que fondo genetico se prueba
+    **aborta** en `off_target_catalogues`: ahi el hueco es del codigo, y suponer que su
+    fondo es ella misma es medir la mitad sin decirlo.
+    """
+    if not str(species).strip():
+        return ()
+    especie = resolve(species)
+    if not especie.known:
+        return ()
+    return tuple(c.slug for c in off_target_catalogues(especie))
+
 # ─── Que FICHEROS necesita esta especie ──────────────────────────────────────
 #
 # Esta es la vista POR FICHERO, y es la UNICA fuente de los nombres. `fixture_report`
@@ -150,6 +254,100 @@ def _por_especie(base: str, extension: str, slug: str, *, sin_sufijo: tuple[str,
     return f"{base}{extension}" if slug in sin_sufijo else f"{base}_{slug}{extension}"
 
 
+#: LOS DOS ROLES DEL EJE DE CATALOGO, declarados donde se construyen las filas. Los
+#: transcribia `insumos.CONSUMIDOS` y los transcribiria `manifest.ROLES`: escritos en
+#: tres sitios, el dia que uno se renombre los otros dos siguen diciendo lo de siempre y
+#: la comparacion de md5 pregunta por una clave que ya no esta — que es la errata nº 47
+#: exacta (principio nº 13).
+ROL_CATALOGO_DIANA = "transcriptoma"
+ROL_CATALOGO_FONDO = "transcriptoma_fondo"
+
+
+def catalogue_role(species, background: str) -> str:
+    """El ROL del fichero del catalogo contra el que se corrio. Se DERIVA, no se escribe.
+
+    Una corrida de carga de off-targets consume UN catalogo —el que declara en su
+    `background`— y no los dos: son dos corridas. Sin esta funcion, la tabla de insumos
+    tendria que declarar los dos ficheros para la misma corrida, y entonces la del
+    catalogo de la diana saldria OBSOLETA en cuanto alguien reemplazara el del fondo —
+    con la forma correcta y sin que nadie lo decidiera.
+
+    Un `background` que la especie no declara ABORTA: nombrar el fichero de un catalogo
+    que este diseño no barre es inventarse la procedencia de un veredicto.
+    """
+    especie = resolve(species)
+    if not isinstance(background, str):
+        # EL SLUG ES UNA CADENA, y `str()` sobre otra cosa fabrica un catalogo de su
+        # `repr` — con la forma correcta y sin ningun error. Es la errata nº 50, que
+        # nacio de `Species(scientific=str(name))`.
+        raise ShmirDesignError(
+            f"`catalogue_role` espera el SLUG del catálogo —una cadena— y ha recibido "
+            f"un {type(background).__name__}. Se aborta en vez de resolver sobre su "
+            f"texto: eso nombraría un catálogo inventado con la forma correcta."
+        )
+    fondo = background.strip()
+    if not fondo:
+        raise ShmirDesignError(
+            f"Esa corrida de carga de off-targets no declara contra qué catálogo se "
+            f"contó, así que no se puede decir qué fichero consumió. No haberlo "
+            f"declarado no es «es el de la especie diana»: es que no se sabe. Se aborta "
+            f"en vez de nombrar el de {especie.scientific}."
+        )
+    if fondo == especie.slug:
+        return ROL_CATALOGO_DIANA
+    declarados = [c.slug for c in off_target_catalogues(especie)]
+    if fondo not in declarados:
+        raise ShmirDesignError(
+            f"La corrida dice haberse contado contra el catálogo de {fondo!r}, y "
+            f"{especie.scientific} sólo barre contra {', '.join(declarados)}. Se aborta "
+            f"en vez de nombrar un fichero que este diseño no usa: eso daría una "
+            f"procedencia con la forma correcta refiriéndose a otra cosa."
+        )
+    return ROL_CATALOGO_FONDO
+
+
+def _catalogo_del_fondo(species: Species) -> tuple[RequiredFile, ...]:
+    """La fila del catalogo del FONDO GENETICO, si la especie declara alguno.
+
+    UNA fila como mucho, y con rol propio: `read_deposit` busca el PRIMER fichero con
+    ese rol, asi que dos filas con `transcriptoma` darian una respuesta silenciosamente
+    equivocada. Con mas de un fondo hace falta un rol por fondo y las tablas estaticas
+    —`manifest.ROLES`, `insumos.CONSUMIDOS`— no lo admiten hoy: se ABORTA diciendo que
+    hay que tocarlas, en vez de coger uno y callar el otro.
+    """
+    if not species.model_backgrounds:
+        return ()
+    fondos = [c for c in off_target_catalogues(species) if c.slug != species.slug]
+    if not fondos:
+        return ()
+    if len(fondos) > 1:
+        raise ShmirDesignError(
+            f"{species.scientific} declara {len(fondos)} fondos genéticos "
+            f"({', '.join(f.slug for f in fondos)}) y hoy sólo hay UN rol para el "
+            f"catálogo del fondo (`transcriptoma_fondo`). Con dos harían falta un rol "
+            f"por fondo en `manifest.ROLES` y en `insumos.CONSUMIDOS`; se aborta en vez "
+            f"de coger uno y callar el otro, que sería medir menos sin decirlo."
+        )
+    fondo = fondos[0]
+    return (
+        RequiredFile(
+            role=ROL_CATALOGO_FONDO,
+            filename=_por_especie(
+                "transcriptoma_3utr", ".fa", fondo.slug, sin_sufijo=("mouse",)
+            ),
+            what=(
+                f"carga de off-targets por seed (paso 10b) — el catálogo del FONDO "
+                f"genético del modelo ({fondo.scientific}), que es lo que se expresa en "
+                f"el animal del experimento. No es la especie diana y no se funde con "
+                f"ella"
+            ),
+            ficha="offtarget_seed",
+            fronts=("offtarget_seed",),
+            extensions=("fa", "fasta", "txt"),
+        ),
+    )
+
+
 def required_files(species: Species) -> tuple[RequiredFile, ...]:
     """Los ficheros de referencia que necesita esta especie, uno por fila.
 
@@ -187,15 +385,19 @@ def required_files(species: Species) -> tuple[RequiredFile, ...]:
             extensions=("txt", "tsv"),
         ),
         RequiredFile(
-            role="transcriptoma",
+            role=ROL_CATALOGO_DIANA,
             filename=_por_especie(
                 "transcriptoma_3utr", ".fa", slug, sin_sufijo=("mouse",)
             ),
-            what="carga de off-targets por seed (paso 10b)",
+            what=(
+                "carga de off-targets por seed (paso 10b) — el catálogo de la especie "
+                "DIANA, que es la pregunta del paciente"
+            ),
             ficha="offtarget_seed",
             fronts=("offtarget_seed",),
             extensions=("fa", "fasta", "txt"),
         ),
+        *_catalogo_del_fondo(species),
         RequiredFile(
             role="expresion",
             filename=_por_especie(

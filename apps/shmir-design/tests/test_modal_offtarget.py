@@ -179,6 +179,9 @@ class TestElResultado(unittest.TestCase):
             passengers=True,
             target=cls.utr3,
             target_label="3'UTR de Prnp (raton)",
+            # CONTRA QUE CATALOGO. Va declarado en cada corrida desde el eje del
+            # 2026-09-09; sin el, `run_scan` aborta a proposito.
+            background="mouse",
         )
 
     def test_una_columna_POR_CLASE_y_ningun_total(self):

@@ -111,7 +111,7 @@ def auditar() -> Informe:
              "polyA_hexamero": hexamero},
         ),
         "site_table_rows": (
-            presentation.site_table_rows(informe, seleccion),
+            presentation.site_table_rows(informe, seleccion, species="mouse"),
             {"guia": guia, "pasajera": guia},
         ),
         "window_rows": (

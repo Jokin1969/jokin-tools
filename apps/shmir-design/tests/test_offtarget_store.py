@@ -36,41 +36,16 @@ HUMANO = REFERENCES["NM_000311.5"]
 HAY = MATURE.is_file() and fixture_available(RATON) and fixture_available(HUMANO)
 
 
-def _corrida():
-    from shmir_design.mirna import load_mature_fa
-    from shmir_design.selection import SelectionConfig, select_from_report
-    from shmir_design.tiling import tile_utr
+#: EL CATALOGO CONTRA EL QUE SE CUENTA. Es el del raton porque la corrida es murina;
+#: `tests/corrida_offtarget.py` lo construye igual para el test del eje, asi que hay UN
+#: constructor y no dos que puedan dejar de parecerse (principio nº 13).
+FONDO = "mouse"
 
-    utr3 = load_3utr(RATON)
-    seleccion = select_from_report(
-        tile_utr(utr3), SelectionConfig(n_candidates=10)
-    )
-    catalogo = offtarget.build_catalog(
-        [
-            ("NM_011170.3_utr3", utr3),
-            ("NM_000311.5_utr3", load_3utr(HUMANO)),
-        ],
-        provenance=offtarget.Provenance(
-            source="fixtures del proyecto (NO es el transcriptoma)",
-            assembly="n/a — dos 3'UTR de referencia, no un ensamblaje",
-            table="data/reference/NM_011170.3.fa + NM_000311.5.fa",
-            table_date="2026-08-26",
-            representative="uno por gen porque solo hay dos genes",
-            version="fixtures-2026-08-26",
-            md5="0" * 32,
-        ),
-    )
-    return seleccion, offtarget.run_scan(
-        seleccion,
-        catalog=catalogo,
-        mature=load_mature_fa(MATURE, version="23"),
-        species="raton",
-        starts=(seleccion.selection.chosen[0].start,),
-        guides=True,
-        passengers=True,
-        target=utr3,
-        target_label="3'UTR de Prnp (raton)",
-    )
+
+def _corrida():
+    from tests.corrida_offtarget import corrida  # noqa: PLC0415
+
+    return corrida(background=FONDO)
 
 
 class TestElNombreDelFrente(unittest.TestCase):
@@ -81,7 +56,7 @@ class TestElNombreDelFrente(unittest.TestCase):
 
     def test_sin_corrida_el_veredicto_es_NOT_RUN_y_nombra_el_fichero(self):
         almacen = offtarget_store.OfftargetStore()
-        veredicto = almacen.verdict_for(Q(10), species="raton")
+        veredicto = almacen.verdict_for(Q(10), species="raton", background=FONDO)
         self.assertIs(veredicto.state, FilterState.NOT_RUN)
         self.assertIn(offtarget.missing_file("raton"), veredicto.reason)
 
@@ -89,13 +64,13 @@ class TestElNombreDelFrente(unittest.TestCase):
         # «El fichero de la especie que sea» no significa nada, y el defecto que saldria
         # es el del caso base — el fallo con otro disfraz (errata nº 157).
         almacen = offtarget_store.OfftargetStore()
-        motivo = almacen.verdict_for(Q(10)).reason
+        motivo = almacen.verdict_for(Q(10), background=FONDO).reason
         self.assertIn(offtarget.MISSING_ROLE, motivo)
         self.assertNotIn(offtarget.missing_file("raton"), motivo)
 
     def test_y_NOT_RUN_no_es_cero(self):
         almacen = offtarget_store.OfftargetStore()
-        texto = almacen.verdict_for(Q(10)).reason.lower()
+        texto = almacen.verdict_for(Q(10), background=FONDO).reason.lower()
         self.assertIn("no es cero", texto)
 
     def test_NO_existe_un_veredicto_por_candidato(self):
@@ -142,13 +117,13 @@ class TestElAlmacen(unittest.TestCase):
         )
         consulta = self.scan.results[0].query
         self.assertEqual(len(almacen.history(consulta)), 2)
-        self.assertEqual(almacen.latest(consulta).run_id, "OT-2")
+        self.assertEqual(almacen.latest(consulta, background=FONDO).run_id, "OT-2")
 
     def test_el_veredicto_NUNCA_es_FAIL(self):
         almacen = offtarget_store.OfftargetStore()
         almacen.add(self._run())
         for resultado in self.scan.results:
-            veredicto = almacen.verdict_for(resultado.query)
+            veredicto = almacen.verdict_for(resultado.query, background=FONDO)
             self.assertIsNot(
                 veredicto.state, FilterState.FAIL,
                 "Este frente es DESEMPATE, no filtro: no puede excluir a nadie.",
@@ -158,7 +133,7 @@ class TestElAlmacen(unittest.TestCase):
     def test_el_veredicto_trae_LAS_CUATRO_clases_con_su_percentil(self):
         almacen = offtarget_store.OfftargetStore()
         almacen.add(self._run())
-        motivo = almacen.verdict_for(self.scan.results[0].query).reason
+        motivo = almacen.verdict_for(self.scan.results[0].query, background=FONDO).reason
         for clase in offtarget.SITE_CLASSES:
             self.assertIn(clase, motivo)
         self.assertIn("p", motivo)
@@ -166,20 +141,20 @@ class TestElAlmacen(unittest.TestCase):
     def test_y_trae_el_aviso_de_LIMITE_SUPERIOR(self):
         almacen = offtarget_store.OfftargetStore()
         almacen.add(self._run())
-        motivo = almacen.verdict_for(self.scan.results[0].query).reason.lower()
+        motivo = almacen.verdict_for(self.scan.results[0].query, background=FONDO).reason.lower()
         self.assertIn("límite superior", motivo)
 
     def test_y_dice_que_es_DESEMPATE(self):
         almacen = offtarget_store.OfftargetStore()
         almacen.add(self._run())
-        motivo = almacen.verdict_for(self.scan.results[0].query).reason.lower()
+        motivo = almacen.verdict_for(self.scan.results[0].query, background=FONDO).reason.lower()
         self.assertIn("desempate", motivo)
 
     def test_una_consulta_que_no_esta_en_la_corrida_sigue_NOT_RUN(self):
         almacen = offtarget_store.OfftargetStore()
         almacen.add(self._run())
         self.assertIs(
-            almacen.verdict_for(Q(99999)).state, FilterState.NOT_RUN
+            almacen.verdict_for(Q(99999), background=FONDO).state, FilterState.NOT_RUN
         )
 
     def test_el_md5_del_resultado_y_la_procedencia_del_fichero_quedan_guardados(self):
@@ -194,7 +169,7 @@ class TestElAlmacen(unittest.TestCase):
         """Un conteo sobre un fichero con isoformas repetidas no se presenta a secas."""
         almacen = offtarget_store.OfftargetStore()
         almacen.add(self._run())
-        motivo = almacen.verdict_for(self.scan.results[0].query).reason
+        motivo = almacen.verdict_for(self.scan.results[0].query, background=FONDO).reason
         self.assertIn("comprobar", motivo.lower())
 
     def test_unos_ajustes_modificados_VIAJAN_con_el_veredicto(self):
@@ -208,7 +183,7 @@ class TestElAlmacen(unittest.TestCase):
         )
         almacen = offtarget_store.OfftargetStore()
         almacen.add(corrida)
-        motivo = almacen.verdict_for(scan.results[0].query).reason
+        motivo = almacen.verdict_for(scan.results[0].query, background=FONDO).reason
         self.assertIn("MODIFICADOS", motivo)
         self.assertIn("null_seed", motivo)
 

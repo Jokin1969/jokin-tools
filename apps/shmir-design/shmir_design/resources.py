@@ -80,6 +80,16 @@ def _transcriptoma(path, entry, contexto):
     return load_utr3_set(path, version=entry.date or entry.md5, expected_md5=entry.md5)
 
 
+def _transcriptoma_fondo(path, entry, contexto):
+    """El catalogo del FONDO GENETICO del modelo. MISMO formato, OTRO organismo.
+
+    Comparte cargador con el de la diana a proposito —es un catalogo de 3'UTR igual— y
+    va a OTRO destino: fundirlos en `utr3_set` dejaria una corrida contando sobre el
+    catalogo que se cargara el ultimo, con la forma correcta y sin decirlo.
+    """
+    return load_utr3_set(path, version=entry.date or entry.md5, expected_md5=entry.md5)
+
+
 def _expresion(path, entry, contexto):
     if contexto.get("utr3_set") is None:
         raise _Omitir(
@@ -201,6 +211,7 @@ LOADERS = {
     "mirbase": _mirbase,
     "abundancia": _abundancia,
     "transcriptoma": _transcriptoma,
+    "transcriptoma_fondo": _transcriptoma_fondo,
     "expresion": _expresion,
     "rmsk": _rmsk,
     "transgen": _transgen,
@@ -216,6 +227,7 @@ DESTINOS = (
     ("mirbase", "mature"),
     ("abundancia", "abundance"),
     ("transcriptoma", "utr3_set"),
+    ("transcriptoma_fondo", "utr3_set_fondo"),
     ("expresion", "expression"),
     ("refseq", "specificity_db"),
     ("transgen", "transgene_db"),
@@ -234,6 +246,10 @@ class ResourceSet:
     mature: object | None = None
     abundance: object | None = None
     utr3_set: object | None = None
+    #: El catalogo del FONDO GENETICO del modelo, APARTE del de la diana. Ver
+    #: `species.WHY_TWO_CATALOGUES`: los conteos no se suman y cada percentil sale de
+    #: una nula de SU catalogo, asi que no pueden compartir sitio.
+    utr3_set_fondo: object | None = None
     expression: object | None = None
     mask: object | None = None
     apa_sites: object | None = None
@@ -245,7 +261,17 @@ class ResourceSet:
     status: DirectoryStatus | None = None
 
     def as_kwargs(self) -> dict[str, object]:
-        """Los campos que `tile_utr` entiende, y solo esos."""
+        """Los campos que `tile_utr` entiende, y solo esos.
+
+        **`utr3_set_fondo` NO esta aqui, y no es un olvido.** El catalogo del fondo
+        genetico lo consume el MODAL de carga de off-targets, que corre una segunda vez
+        contra el —dos corridas, no una con dos ficheros—; `tile_utr` no lo usa. Lo que
+        `tile_utr` cuenta con `utr3_set` es la columna comparativa `tilado_<clase>`, que
+        es del catalogo de la DIANA y lo dice en su nombre.
+
+        Pasarselo habria sido darle un fichero que no sabe leer; sumarlo a `utr3_set`,
+        el colapso que `species.WHY_TWO_CATALOGUES` prohibe.
+        """
         return {
             "specificity_db": self.specificity_db,
             "transgene_db": self.transgene_db,

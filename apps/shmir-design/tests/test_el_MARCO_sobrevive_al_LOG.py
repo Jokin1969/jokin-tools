@@ -115,7 +115,7 @@ class TestElMarcoSobreviveAlLog(unittest.TestCase):
             cls.corrida.selection, catalog=catalogo, mature=maduros,
             params=OFFTARGET_DEFAULTS, species="raton", starts=cls.starts,
             guides=True, passengers=True, target=cls.corrida.utr3,
-            target_label="3'UTR de raton",
+            target_label="3'UTR de raton", background="mouse",
         )
         cls.marcos_al_crear = {r.frame for r in escaneo.results}
         presentation.save_offtarget_run(
@@ -216,7 +216,7 @@ class TestUnaCorridaVIEJASinMarcoNoSeLoINVENTA(unittest.TestCase):
                 params=OFFTARGET_DEFAULTS, species="raton",
                 starts=tuple(presentation.chosen_starts(corrida.selection))[:2],
                 guides=True, passengers=False, target=corrida.utr3,
-                target_label="3'UTR de raton",
+                target_label="3'UTR de raton", background="mouse",
             )
             presentation.save_offtarget_run(
                 almacen,

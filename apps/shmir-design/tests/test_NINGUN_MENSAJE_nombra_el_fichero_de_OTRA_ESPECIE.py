@@ -65,8 +65,21 @@ class TestLoQueSeEmiteEnHumano(unittest.TestCase):
 
     def test_los_nombres_ajenos_se_DERIVAN_y_no_estan_vacios(self):
         # Control: con el conjunto vacio el guardia daria verde sin mirar nada.
-        self.assertIn("transcriptoma_3utr.fa", self.ajenos)
+        self.assertTrue(self.ajenos)
+        self.assertIn("rmsk_mouse.out", self.ajenos)
         self.assertNotIn("transcriptoma_3utr_human.fa", self.ajenos)
+
+    def test_y_el_CATALOGO_MURINO_ya_NO_es_ajeno_en_humano(self):
+        # SE MUEVE CON LA DECISION (2026-09-09). Era el ejemplo de este control, y desde
+        # el eje de catalogo `transcriptoma_3utr.fa` es el catalogo del FONDO GENETICO
+        # de un diseño humano: nombrarlo en una corrida humana es CORRECTO, y prohibirlo
+        # dejaria el segundo barrido sin fichero que pedir. Lo que sigue siendo ajeno es
+        # todo lo demas del raton.
+        self.assertNotIn("transcriptoma_3utr.fa", self.ajenos)
+        pedidos = {
+            f.filename for f in required_files(resolve("humano"))
+        }
+        self.assertIn("transcriptoma_3utr.fa", pedidos)
 
     def _sin_ajenos(self, textos, donde: str):
         colados = sorted(

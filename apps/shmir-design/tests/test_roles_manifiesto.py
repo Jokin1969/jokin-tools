@@ -44,9 +44,25 @@ class TestLaTablaDeRoles(unittest.TestCase):
     #:     COORDENADAS escritas. O sea que este rol no sustituye nada: lo que hace es
     #:     dar entrada por el gestor a un fichero que no la tenia.
     #:
+    #:   - `transcriptoma_fondo`: el catalogo del FONDO genetico del modelo. Nunca
+    #:     hubo flag porque hasta el eje de catalogo (2026-09-08) no habia mas que un
+    #:     catalogo por diseño: no sustituye nada, ABRE un segundo barrido.
+    #:
     #: Una excepcion que crece sin que nadie la mire deja de ser una excepcion, y por eso
     #: el test de abajo exige que el conjunto sea EXACTAMENTE este.
-    SIN_FLAG_PREVIA = {"polyadb", "plasmido_andamio"}
+    SIN_FLAG_PREVIA = {"polyadb", "plasmido_andamio", "transcriptoma_fondo"}
+
+    #: EL UNICO ROL QUE COMPARTE FICHERO CON OTRO, y por que no es una ambiguedad que se
+    #: pueda quitar (2026-09-09). El catalogo del FONDO genetico de un diseño humano ES
+    #: el catalogo de la especie diana de un diseño murino: `transcriptoma_3utr.fa`
+    #: visto desde el otro lado. No hay dos ficheros — hay uno con dos papeles, y cual
+    #: de los dos juega lo decide LA ESPECIE QUE SE DISEÑA, no el nombre.
+    #:
+    #: Por eso el camino de la app es `deposito.role_for(species, filename)`, que
+    #: pregunta por especie, y `manifest.role_of(filename)` sigue contestando el del CASO
+    #: BASE —el manifiesto murino, donde ese fichero es el de la diana—. Fijado abajo
+    #: para que reordenar `ROLES` no pueda cambiar la respuesta en silencio.
+    MISMO_FICHERO = {"transcriptoma_fondo": "transcriptoma"}
 
     def test_cada_rol_declara_fichero_y_para_que_sirve(self):
         for rol in ROLES:
@@ -64,9 +80,25 @@ class TestLaTablaDeRoles(unittest.TestCase):
         ids = [r.role for r in ROLES]
         self.assertEqual(len(ids), len(set(ids)))
 
-    def test_los_ficheros_no_se_repiten(self):
-        nombres = [r.filename for r in ROLES]
+    def test_los_ficheros_no_se_repiten_SALVO_los_declarados(self):
+        # Un nombre repetido hace que `role_of` conteste el primero que encuentre, y eso
+        # no da ningun error. La unica repeticion admitida esta declarada arriba con su
+        # motivo — y la excepcion tiene que seguir siendo EXACTAMENTE esa.
+        nombres = [r.filename for r in ROLES if r.role not in self.MISMO_FICHERO]
         self.assertEqual(len(nombres), len(set(nombres)))
+        for rol, comparte_con in self.MISMO_FICHERO.items():
+            with self.subTest(rol):
+                fondo = next(r for r in ROLES if r.role == rol)
+                diana = next(r for r in ROLES if r.role == comparte_con)
+                self.assertEqual(fondo.filename, diana.filename)
+
+    def test_y_role_of_contesta_el_del_CASO_BASE_no_el_primero_que_pille(self):
+        # Sin esto, reordenar `ROLES` cambiaria la respuesta de `role_of` sobre el
+        # fichero compartido sin que nada fallara.
+        for rol, comparte_con in self.MISMO_FICHERO.items():
+            with self.subTest(rol):
+                fichero = next(r for r in ROLES if r.role == rol).filename
+                self.assertEqual(role_of(fichero).role, comparte_con)
 
     def test_todo_rol_tiene_su_linea_en_el_manifiesto(self):
         """Si alguien añade un rol y olvida el manifiesto, esto lo caza."""

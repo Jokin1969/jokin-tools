@@ -52,7 +52,8 @@ revalida = "Los cargadores de `resources.py`, que reciben `expected_md5` del man
 guardia = "Cada cargador reverifica el md5 del fichero que abre"
 implementa = [
   "resources._refseq", "resources._mirbase", "resources._abundancia",
-  "resources._transcriptoma", "resources._rmsk", "resources._transgen",
+  "resources._transcriptoma", "resources._transcriptoma_fondo",
+  "resources._rmsk", "resources._transgen",
   "resources._apa", "resources._polyadb", "resources._plasmido_andamio",
   "mirna.load_mature_fa", "mirna.load_abundance_list", "mirna._read",
   "seed_load.load_utr3_set", "specificity.load_database",

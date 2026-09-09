@@ -161,6 +161,20 @@ ROLES: tuple[Role, ...] = (
             "--transcriptoma-md5",
         ),
     ),
+    # EL CATALOGO DEL FONDO GENETICO DEL MODELO. Rol propio y no una segunda fila de
+    # `transcriptoma`: `read_deposit` busca el PRIMER fichero con ese rol, asi que dos
+    # filas con el mismo darian una respuesta silenciosamente equivocada. El nombre que
+    # aparece aqui es el del caso base —el manifiesto murino que ya existe— y el de cada
+    # especie lo pone `species.required_files`, como con todos los demas.
+    Role(
+        role="transcriptoma_fondo",
+        filename="transcriptoma_3utr.fa",
+        what=(
+            "carga de off-targets por seed (paso 10b) — el catálogo del FONDO genético "
+            "del modelo, que no es la especie diana y no se funde con ella"
+        ),
+        replaces=(),
+    ),
     Role(
         role="expresion",
         filename="expresion_cerebro.tsv",
@@ -209,7 +223,15 @@ ROLES: tuple[Role, ...] = (
 
 
 def role_of(filename: str) -> Role | None:
-    """El rol de un fichero, o `None` si no tiene ninguno. No adivina."""
+    """El rol de un fichero EN EL CASO BASE, o `None` si no tiene ninguno. No adivina.
+
+    **Por NOMBRE, así que contesta el del manifiesto murino.** Hay un fichero con dos
+    papeles —`transcriptoma_3utr.fa` es el catálogo de la DIANA en un diseño murino y el
+    del FONDO genético en uno humano—, y cuál juega lo decide la especie que se diseña,
+    no el nombre. Quien necesite esa respuesta pregunta por `deposito.role_for(species,
+    filename)`, que sí tiene la especie delante; esto sigue contestando el caso base, que
+    es lo que sus dos llamadores quieren.
+    """
     for rol in ROLES:
         if rol.filename == filename:
             return rol

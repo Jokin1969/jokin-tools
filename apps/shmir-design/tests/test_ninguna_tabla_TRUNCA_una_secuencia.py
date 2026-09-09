@@ -97,7 +97,7 @@ class TestLasTablasDeLaPagina(unittest.TestCase):
 
     def test_la_tabla_de_sitios_con_una_columna_por_frente(self):
         audit.check_no_truncation(
-            presentation.site_table_rows(self.informe, self.seleccion),
+            presentation.site_table_rows(self.informe, self.seleccion, species="mouse"),
             expected={"guia": self.guia},
             table="site_table_rows",
         )

@@ -182,6 +182,8 @@ from shmir_design.presentation import (  # noqa: E402
     informe_state_text,
     obtencion_rows,
     offtarget_catalog_from_deposit,
+    offtarget_catalog_options,
+    WHY_TWO_CATALOGUES,
     blast_database_from_deposit,
     deposit_for_run,
     deposit_note,
@@ -2935,7 +2937,10 @@ def _modal_seed(seleccion, nombre: str, maduros, proyecto=None,
     # La HUELLA del panel y los ajustes. Ver `WHY_A_RUN_FINGERPRINT`: sin ella, cambiar
     # la selección o un ajuste dejaba en pantalla el resultado viejo y lo ofrecía para
     # guardar — una corrida con una procedencia que no era la suya.
-    huella = run_fingerprint(tuple(starts), params)
+    # EL CATALOGO ENTRA EN LA HUELLA. Sin el, cambiar de catalogo dejaria en pantalla
+    # el resultado del anterior y lo ofreceria para guardar — una procedencia falsa, que
+    # es justo por lo que existe la huella (`WHY_A_RUN_FINGERPRINT`).
+    huella = run_fingerprint(tuple(starts), params, fondo)
     if st.button(f"Buscar colisiones — {nombre}", key=f"seed_go_{nombre}"):
         # El scan se guarda en `session_state` para que sobreviva al rerun que provoca
         # el boton de guardar. Es ESTADO, no una decision: la pagina sigue sin decidir.
@@ -3335,12 +3340,37 @@ def _modal_offtarget(seleccion, nombre: str, maduros, diana: str,
     filas = _panel_deposito("corrida_offtarget", nombre, clave="ot")
     st.caption(offtarget_route_text(nombre))
 
+    # CONTRA QUE CATALOGO. Con un fondo genetico declarado son DOS corridas —el murino
+    # mide el experimento y el humano el paciente— y sus cifras no se suman
+    # (`species.WHY_TWO_CATALOGUES`). El selector existe para que se VEA que falta la
+    # segunda: sin el, contar una y ver el frente sin cerrar no dice que falta.
+    opciones = offtarget_catalog_options(species=nombre, directory=reference_dir())
+    elegido = opciones[0] if opciones else None
+    if len(opciones) > 1:
+        st.subheader("Contra qué catálogo")
+        st.caption(WHY_TWO_CATALOGUES)
+        elegido = st.selectbox(
+            "Catálogo de esta corrida",
+            options=opciones,
+            format_func=lambda o: (
+                f"{o['etiqueta']} — `{o['nombre']}`"
+                + ("" if o["presente"] else "  ⚠ no está en el depósito")
+            ),
+            key=f"ot_cat_{nombre}",
+        )
+    if elegido is None:
+        st.warning(offtarget_placeholder(None)["texto"])
+        return
+    fondo = str(elegido["catalogo"])
+
     catalogo = offtarget_catalog_from_deposit(
-        species=nombre, directory=reference_dir()
+        species=nombre, directory=reference_dir(), role=str(elegido["rol"]),
     )
     if catalogo is None:
         # SOLO se ofrece subida si el fichero NO esta. `presentation` lo decide.
-        if not any(f["ofrecer_subida"] for f in filas):
+        if not any(
+            f["ofrecer_subida"] and f["nombre"] == elegido["nombre"] for f in filas
+        ):
             st.warning(offtarget_placeholder(None)["texto"])
             return
         st.subheader("Subir el catálogo")
@@ -3352,7 +3382,16 @@ def _modal_offtarget(seleccion, nombre: str, maduros, diana: str,
         if not veredicto["permitido"]:
             st.error(veredicto["motivo"])
             return
-        fila = next(f for f in filas if f["ofrecer_subida"])
+        # EL DEL CATALOGO ELEGIDO, no «el primero que falte»: con dos catalogos, coger
+        # el primero pediria el de la diana estando en el del fondo — y lo escribiria
+        # con el nombre del otro.
+        fila = next(
+            (f for f in filas if f["ofrecer_subida"] and f["nombre"] == elegido["nombre"]),
+            None,
+        )
+        if fila is None:
+            st.warning(offtarget_placeholder(None)["texto"])
+            return
         subido = st.file_uploader(
             f"Soltar aquí `{fila['nombre']}`",
             key=_clave_de_subida(f"ot_up_{nombre}"),
@@ -3434,22 +3473,27 @@ def _modal_offtarget(seleccion, nombre: str, maduros, diana: str,
     starts = _selector_de_alcance(
         seleccion, nombre, tipo="corrida_offtarget", clave="ot"
     )
-    huella = run_fingerprint(tuple(starts), params)
+    # EL CATALOGO ENTRA EN LA HUELLA. Sin el, cambiar de catalogo dejaria en pantalla
+    # el resultado del anterior y lo ofreceria para guardar — una procedencia falsa, que
+    # es justo por lo que existe la huella (`WHY_A_RUN_FINGERPRINT`).
+    huella = run_fingerprint(tuple(starts), params, fondo)
     permiso = run_allowed(proyecto)
     if not permiso["permitido"]:
         st.error(permiso["motivo"])
         return
-    if st.button(f"Contar off-targets — {nombre}", key=f"ot_go_{nombre}"):
+    if st.button(
+        f"Contar off-targets — {nombre} contra {fondo}", key=f"ot_go_{nombre}",
+    ):
         # Mismo motivo que en el modal de seed: el scan tiene que sobrevivir al rerun.
         # Y con la misma HUELLA, por el mismo motivo: ver `WHY_A_RUN_FINGERPRINT`.
-        st.session_state[f"ot_scan_{nombre}"] = (huella, offtarget_run(
+        st.session_state[f"ot_scan_{nombre}_{fondo}"] = (huella, offtarget_run(
             seleccion, catalog=catalogo, mature=maduros, params=params,
             species=nombre, starts=tuple(starts), guides=True, passengers=True,
-            target=diana, target_label=f"3'UTR de {nombre}",
+            target=diana, target_label=f"3'UTR de {nombre}", background=fondo,
         ))
     # La pagina NO decide si lo cacheado sirve: lo decide `cached_run`. Estaba aqui,
     # copiado en los dos modales, y por tanto sin test y pudiendo divergir.
-    cacheado = cached_run(st.session_state.get(f"ot_scan_{nombre}"), huella)
+    cacheado = cached_run(st.session_state.get(f"ot_scan_{nombre}_{fondo}"), huella)
     scan = cacheado["resultado"]
     if cacheado["caducado"]:
         st.info(cacheado["aviso"])
@@ -3475,14 +3519,14 @@ def _modal_offtarget(seleccion, nombre: str, maduros, diana: str,
             st.error(destacados["autoconteo"]["texto"])
 
         bloque_ot = scan.export_block()
-        nombre_ot = f"{nombre}_carga_offtarget.txt"
+        nombre_ot = f"{nombre}_carga_offtarget_{fondo}.txt"
         st.download_button(
             "Descargar el bloque para el documento",
             data=bloque_ot,
             file_name=nombre_ot,
-            key=f"ot_dl_{nombre}",
+            key=f"ot_dl_{nombre}_{fondo}",
         )
-        _segunda_via(bloque_ot, nombre=nombre_ot, clave=f"ot_{nombre}")
+        _segunda_via(bloque_ot, nombre=nombre_ot, clave=f"ot_{nombre}_{fondo}")
         _guardar_corrida(
             proyecto, nombre,
             construir=lambda fecha, quien: offtarget_run_from_scan(

@@ -349,26 +349,48 @@ def build_dossier(
     # `offtarget_seed` se PARTE igual, y por el mismo motivo. Ademas es el frente que
     # estuvo invisible: si la ficha lo enseñara como una sola fila por candidato, la
     # mitad de las consultas volveria a no verse.
-    from .offtarget_store import OfftargetStore
+    from .offtarget_store import OfftargetStore, verdict_without_catalogue
 
     cargas = offtarget_store or OfftargetStore()
     estados.pop("offtarget_seed", None)
     procedencia_de.pop("offtarget_seed", None)
     fecha_de.pop("offtarget_seed", None)
+    # Y SE PARTE ADEMAS POR CATALOGO (2026-09-09). Los candidatos de una especie cuyo
+    # modelo tiene fondo genetico se barren contra DOS transcriptomas, y las celdas no se
+    # funden: ver `species.WHY_TWO_CATALOGUES`. Los slugs se DERIVAN de la especie; si no
+    # declara ninguno —especie sin declarar— queda una sola fila sin sufijo, que es la
+    # verdad: ahi no se sabe contra que se barrio.
+    from .species import off_target_catalogue_slugs
+
+    catalogos = off_target_catalogue_slugs(species) or ("",)
     for hebra in ("guia", "pasajera"):
-        nombre = f"offtarget_seed:{hebra}"
-        consulta_hebra = query_name(species, start, hebra)
-        # LA ESPECIE VIAJA: sin ella el NOT_RUN nombra el rol y no el fichero que el
-        # gestor pide para esta especie (errata nº 157).
-        resultado_hebra = cargas.verdict_for(consulta_hebra, species=species)
-        corrida = cargas.latest(consulta_hebra)
-        estados[nombre] = (resultado_hebra.state, resultado_hebra.reason)
-        procedencia_de[nombre] = (
-            f"corrida {corrida.run_id} ({corrida.scan.provenance.assembly}, "
-            f"{corrida.scan.provenance.table_date})" if corrida
-            else "sin corrida en el almacen"
-        )
-        fecha_de[nombre] = corrida.date if corrida else SIN_FECHA
+        for catalogo in catalogos:
+            partes = ["offtarget_seed", hebra, catalogo]
+            nombre = ":".join(p for p in partes if p)
+            consulta_hebra = query_name(species, start, hebra)
+            # LA ESPECIE VIAJA: sin ella el NOT_RUN nombra el rol y no el fichero que el
+            # gestor pide para esta especie (errata nº 157). Y EL CATALOGO TAMBIEN: una
+            # corrida contra el transcriptoma del fondo contestando a la pregunta de la
+            # diana es el colapso que este eje existe para impedir.
+            resultado_hebra = (
+                cargas.verdict_for(
+                    consulta_hebra, species=species, background=catalogo,
+                ) if catalogo
+                # SIN CATALOGO QUE NOMBRAR no se pregunta: `verdict_for` aborta a
+                # proposito. La respuesta honesta es un NOT_RUN que dice que el hueco
+                # esta en la DECLARACION de la especie, no en un fichero.
+                else verdict_without_catalogue(species)
+            )
+            corrida = (
+                cargas.latest(consulta_hebra, background=catalogo) if catalogo else None
+            )
+            estados[nombre] = (resultado_hebra.state, resultado_hebra.reason)
+            procedencia_de[nombre] = (
+                f"corrida {corrida.run_id} ({corrida.scan.provenance.assembly}, "
+                f"{corrida.scan.provenance.table_date})" if corrida
+                else "sin corrida en el almacen"
+            )
+            fecha_de[nombre] = corrida.date if corrida else SIN_FECHA
 
     # El CUARTO modal. Su veredicto va por PAR candidato x intron, asi que la ficha saca
     # una fila por intron consultado — colapsarlo por candidato perderia justo lo que se

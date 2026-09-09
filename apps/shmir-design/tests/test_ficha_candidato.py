@@ -72,9 +72,17 @@ class TestLaFicha(unittest.TestCase):
         esperados.discard("seed_colision")
         esperados |= {"seed_colision:guia", "seed_colision:pasajera"}
         # `offtarget_seed` se PARTE por lo mismo, y ademas es el frente que llego a
-        # estar invisible: una sola fila por candidato volveria a esconder la mitad.
+        # estar invisible: una sola fila por candidato volveria a esconder la mitad. Y
+        # DESDE EL 2026-09-09 se parte tambien por CATALOGO: los slugs se piden a la
+        # especie, no se escriben (principio nº 13).
+        from shmir_design.species import off_target_catalogue_slugs
+
         esperados.discard("offtarget_seed")
-        esperados |= {"offtarget_seed:guia", "offtarget_seed:pasajera"}
+        esperados |= {
+            f"offtarget_seed:{hebra}:{catalogo}"
+            for hebra in ("guia", "pasajera")
+            for catalogo in off_target_catalogue_slugs("raton")
+        }
         # `empalme_sitios` se PARTE POR INTRON, no por hebra: la unidad de ese frente es
         # el par candidato x intron, y colapsarlo por candidato perderia justo lo que se
         # quiere comparar — el mismo modulo dentro de dos intrones distintos. Salen los
@@ -93,10 +101,13 @@ class TestLaFicha(unittest.TestCase):
             self.assertTrue(frente.date, frente.name)
 
     def test_los_dos_frentes_de_off_target_van_SEPARADOS(self):
+        from shmir_design.species import off_target_catalogue_slugs
+
         nombres = [f.name for f in self.ficha.fronts]
         self.assertIn("especificidad", nombres)
-        self.assertIn("offtarget_seed:guia", nombres)
-        self.assertIn("offtarget_seed:pasajera", nombres)
+        for hebra in ("guia", "pasajera"):
+            for catalogo in off_target_catalogue_slugs("raton"):
+                self.assertIn(f"offtarget_seed:{hebra}:{catalogo}", nombres)
 
     def test_sin_corrida_de_BLAST_la_especificidad_es_NOT_RUN_VISIBLE(self):
         frente = next(f for f in self.ficha.fronts if f.name == "especificidad")
@@ -195,12 +206,12 @@ class TestLaFichaConCorridaDeBLAST(unittest.TestCase):
         self.assertEqual(frente.date, "2026-08-26")
 
     def test_el_otro_frente_SIGUE_en_NOT_RUN(self):
-        # Una corrida de BLAST no cubre el off-target por seed. Nunca.
-        for hebra in ("guia", "pasajera"):
-            frente = next(
-                f for f in self.ficha.fronts if f.name == f"offtarget_seed:{hebra}"
-            )
-            self.assertIs(frente.state, FilterState.NOT_RUN)
+        # Una corrida de BLAST no cubre el off-target por seed. Nunca — ni contra el
+        # catalogo de la diana ni contra el del fondo.
+        for frente in self.ficha.fronts:
+            if frente.name.startswith("offtarget_seed"):
+                with self.subTest(frente.name):
+                    self.assertIs(frente.state, FilterState.NOT_RUN)
 
 
 if __name__ == "__main__":
@@ -233,7 +244,10 @@ class TestUnFrenteCERRADONoSaleComoNOT_RUN(unittest.TestCase):
         self.assertIn("CERRADO", frente.source)
 
     def test_los_demas_siguen_abiertos(self):
+        from shmir_design.species import off_target_catalogue_slugs
+
         abiertos = [f.name for f in self.ficha.fronts if f.state is FilterState.NOT_RUN]
         self.assertIn("especificidad", abiertos)
-        self.assertIn("offtarget_seed:guia", abiertos)
-        self.assertIn("offtarget_seed:pasajera", abiertos)
+        for hebra in ("guia", "pasajera"):
+            for catalogo in off_target_catalogue_slugs("raton"):
+                self.assertIn(f"offtarget_seed:{hebra}:{catalogo}", abiertos)

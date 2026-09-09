@@ -32,10 +32,11 @@ from __future__ import annotations
 from dataclasses import dataclass, field
 
 from .errors import ShmirDesignError
+from .species import ROL_CATALOGO_DIANA
 
 __all__ = [
     "CONSUMIDOS", "Insumo", "fichero_de", "insumos_de", "md5_de", "md5s_de_corrida",
-    "obsoleta",
+    "obsoleta", "rol_de", "roles_de",
 ]
 
 
@@ -54,6 +55,15 @@ class Insumo:
     porque: str
     #: Un insumo opcional puede no estar; su ausencia no marca nada obsoleto.
     opcional: bool = False
+    #: De donde sale, DENTRO DEL REGISTRO, el slug del catalogo contra el que se corrio.
+    #: Con esto el rol se DERIVA de la propia corrida en vez de escribirse.
+    #:
+    #: Existe porque desde el eje de catalogo (2026-09-09) una corrida de carga de
+    #: off-targets consume UN catalogo —el que declara— y no los dos: son DOS corridas.
+    #: Declarar los dos ficheros para la misma corrida marcaria la del catalogo de la
+    #: diana como OBSOLETA en cuanto alguien reemplazara el del fondo, con la forma
+    #: correcta y sin que nadie lo decidiera.
+    catalogo_desde: tuple[str, ...] = ()
     #: Campos del registro que NO son md5 de un insumo pero acompañan (version, etc.).
     contexto: tuple[str, ...] = field(default_factory=tuple)
 
@@ -83,11 +93,17 @@ CONSUMIDOS: dict[str, tuple[Insumo, ...]] = {
     ),
     "corrida_offtarget": (
         Insumo(
-            rol="transcriptoma",
+            rol=ROL_CATALOGO_DIANA,
             ruta=("provenance", "md5"),
+            catalogo_desde=("background",),
             porque=(
                 "El catalogo sobre el que se cuentan los sitios. Su ensamblaje y su "
-                "fecha van al lado, pero lo que compara la app es el md5."
+                "fecha van al lado, pero lo que compara la app es el md5. CUAL de los "
+                "dos catalogos es se DERIVA del `background` de la propia corrida: una "
+                "corrida barre UNO —el de la especie diana o el del fondo genetico del "
+                "modelo— y son dos corridas, no una con dos ficheros. Sus conteos no se "
+                "suman: un gen conservado aparece en los dos, y cada percentil sale de "
+                "una nula de SU catalogo (`species.WHY_TWO_CATALOGUES`)."
             ),
         ),
         Insumo(
@@ -152,22 +168,76 @@ def md5_de(payload, insumo: Insumo) -> str | None:
     return actual if isinstance(actual, str) and actual else None
 
 
-def fichero_de(insumo: Insumo, especie) -> str:
+def rol_de(insumo: Insumo, payload, especie) -> str:
+    """El ROL de ese insumo PARA ESA CORRIDA. Casi siempre el declarado; a veces derivado.
+
+    Un insumo con `catalogo_desde` no tiene un rol fijo: lo decide contra que catalogo
+    se corrio, que la propia corrida declara. Sin payload no se puede preguntar y se
+    ABORTA — un defecto ahi nombraria el fichero de la especie diana para una corrida
+    que pudo ser del fondo (principio nº 58).
+    """
+    if not insumo.catalogo_desde:
+        return insumo.rol
+    from .species import catalogue_role  # noqa: PLC0415
+
+    actual = payload
+    for clave in insumo.catalogo_desde:
+        if not isinstance(actual, dict) or clave not in actual:
+            actual = ""
+            break
+        actual = actual[clave]
+    return catalogue_role(especie, str(actual or ""))
+
+
+def roles_de(tipo: str, especie) -> tuple[str, ...]:
+    """Los roles de fichero que ESE tipo de corrida puede consumir en ESA especie.
+
+    No es lo mismo que `rol_de`, y la diferencia es la del eje entero: `rol_de` contesta
+    «¿cuál consumió ESTA corrida?» —uno— y esto contesta «¿cuáles hacen falta para que
+    el frente se pueda cerrar?» —los que la especie declare—. Con el humano son DOS
+    catálogos y dos corridas; con el ratón, uno.
+
+    Lo usa el panel del modal, que tiene que enseñar los dos ficheros: enseñar sólo el
+    de la corrida que ya se hizo dejaría el segundo sin pedir, y el frente sin poder
+    cerrarse por un fichero que nadie ha nombrado.
+    """
+    from .species import catalogue_role, off_target_catalogue_slugs  # noqa: PLC0415
+
+    roles: list[str] = []
+    for insumo in insumos_de(tipo):
+        if not insumo.catalogo_desde:
+            candidatos = [insumo.rol]
+        else:
+            candidatos = [
+                catalogue_role(especie, slug)
+                for slug in off_target_catalogue_slugs(especie)
+            ] or [insumo.rol]
+        for rol in candidatos:
+            if rol not in roles:
+                roles.append(rol)
+    return tuple(roles)
+
+
+def fichero_de(insumo: Insumo, especie, payload=None) -> str:
     """El NOMBRE del fichero de ese insumo para esa especie. Se deriva, no se escribe.
 
     La unica fuente de los nombres del deposito es `species.required_files`, y esta
     funcion es la que ata la tabla de insumos a ella. Un rol que el gestor no declare
     ABORTA: devolver un nombre inventado dejaria la comparacion de md5 preguntando por
     una clave que nunca esta, que es literalmente la errata nº 47.
+
+    `payload` sólo hace falta para un insumo cuyo rol se DERIVA de la corrida
+    (`catalogo_desde`); para los demas se ignora.
     """
     from .species import required_files, resolve  # noqa: PLC0415
 
     resuelta = resolve(especie) if isinstance(especie, str) else especie
+    rol = rol_de(insumo, payload, resuelta)
     for pedido in required_files(resuelta):
-        if pedido.role == insumo.rol:
+        if pedido.role == rol:
             return pedido.filename
     raise ShmirDesignError(
-        f"El insumo declara el rol {insumo.rol!r} y `species.required_files` no lo pide "
+        f"El insumo declara el rol {rol!r} y `species.required_files` no lo pide "
         f"para {resuelta.scientific}; los roles que hay son "
         f"{', '.join(sorted(p.role for p in required_files(resuelta)))}. Se aborta en "
         f"vez de inventar un nombre de fichero: uno inventado no da un error, deja la "
@@ -178,7 +248,7 @@ def fichero_de(insumo: Insumo, especie) -> str:
 def md5s_de_corrida(tipo: str, payload, *, especie) -> dict[str, str | None]:
     """Fichero → md5 registrado. `None` donde el registro no lo trae."""
     return {
-        fichero_de(i, especie): md5_de(payload, i) for i in insumos_de(tipo)
+        fichero_de(i, especie, payload): md5_de(payload, i) for i in insumos_de(tipo)
     }
 
 
@@ -201,7 +271,7 @@ def obsoleta(
     """
     motivos = []
     for ins in insumos_de(tipo):
-        fichero = fichero_de(ins, especie)
+        fichero = fichero_de(ins, especie, payload)
         registrado = md5_de(payload, ins)
         de_hoy = actuales.get(fichero)
         if registrado is None:

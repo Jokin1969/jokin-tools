@@ -48,6 +48,11 @@ ROLE_INVALIDATES = MappingProxyType(
         "mirbase": ("corrida_seed",),
         "abundancia": ("corrida_seed",),
         "transcriptoma": ("corrida_offtarget",),
+        # El catalogo del FONDO GENETICO invalida las MISMAS corridas que el de la
+        # diana, y por la misma razon: son corridas de carga de off-targets contadas
+        # contra ese fichero. Que sean DOS catalogos no cambia que reemplazar cualquiera
+        # de los dos deja sin valer lo contado con el anterior.
+        "transcriptoma_fondo": ("corrida_offtarget",),
         "expresion": ("corrida_offtarget",),
         "refseq": ("corrida_blast",),
         "transgen": ("corrida_blast",),

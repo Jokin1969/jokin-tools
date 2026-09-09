@@ -769,6 +769,9 @@ def save_offtarget_run(store: ProjectStore, run) -> Record:
             # de maduros. Ver `insumos.CONSUMIDOS`.
             "mature_md5": scan.mature_md5,
             "mature_version": scan.mature_version,
+            # CONTRA QUE CATALOGO se conto. Sin esto, al releer el log dos corridas
+            # sobre catalogos distintos vuelven indistinguibles y la ultima gana.
+            "background": scan.background,
             "params": {
                 "null_draws": scan.params.null_draws,
                 "null_seed": scan.params.null_seed,
@@ -887,6 +890,9 @@ def load_offtarget_store(store: ProjectStore):
                 for consulta, s in datos["self_counts"].items()
             },
             raw=datos["raw"],
+            # "" = la corrida NO declaro su catalogo, que no es «es el de la diana».
+            # `OfftargetStore.verdict_for` lo dice y no contesta por ninguno.
+            background=datos.get("background", ""),
             # Mismo criterio que en la corrida de seed: "" = la corrida no lo guardo.
             mature_md5=datos.get("mature_md5", ""),
             mature_version=datos.get("mature_version", ""),

@@ -72,6 +72,18 @@ class FichaFile:
     name: str
     why: str
     required: bool = True
+    #: EL ROL DEL QUE DEPENDE ESTA ENTRADA. Vacio = la ficha la nombra siempre. Con un
+    #: rol declarado, la entrada aparece SOLO si esa especie pide ese fichero.
+    #:
+    #: El caso que lo obliga (2026-09-09): el catalogo del FONDO GENETICO del modelo
+    #: existe para el humano —su modelo es un raton humanizado— y NO para el raton, cuyo
+    #: modelo es el mismo raton. Sin esto, la ficha nombraba un marcador que en raton no
+    #: existe y ABORTABA al renderizarse; y dejarlo escrito para todos diria que hace
+    #: falta un fichero que esa especie no necesita.
+    #:
+    #: No esconde nada: `tests/test_ficha_contra_gestor.py` cruza las DOS listas en las
+    #: dos direcciones, asi que una entrada que sobre o que falte hace fallar la suite.
+    solo_si_rol: str = ""
 
 
 @dataclass(frozen=True)
@@ -197,7 +209,10 @@ class Ficha:
 #: Los ficheros de datos van en castellano, como el resto del proyecto; los dataclasses
 #: en ingles, como el resto del codigo. La correspondencia va AQUI y explicita: con
 #: `**fila` a pelo, un campo mal escrito en el TOML seria un TypeError sin contexto.
-_FILE_KEYS = {"nombre": "name", "por_que": "why", "obligatorio": "required"}
+_FILE_KEYS = {
+    "nombre": "name", "por_que": "why", "obligatorio": "required",
+    "solo_si_rol": "solo_si_rol",
+}
 _META_KEYS = {"nombre": "name", "por_que": "why"}
 
 
@@ -337,6 +352,13 @@ def _values(species) -> dict[str, str]:
     }
 
 
+def _roles_de(species) -> frozenset[str]:
+    """Los roles que ESTA especie pide. Sale del gestor, que es la unica fuente."""
+    from .species import required_files  # noqa: PLC0415
+
+    return frozenset(f.role for f in required_files(species))
+
+
 def _ficheros_de(species) -> dict[str, str]:
     """Marcadores `{fichero_<rol>}` y `{hermano_<rol>}`, sacados de `required_files`.
 
@@ -463,8 +485,14 @@ def resolve_ficha(front: str, *, species) -> Ficha:
         validation=sub(ficha.validation),
         steps=tuple(sub(p) for p in ficha.steps),
         files=tuple(
-            FichaFile(name=sub(f.name), why=sub(f.why), required=f.required)
+            FichaFile(
+                name=sub(f.name), why=sub(f.why), required=f.required,
+                solo_si_rol=f.solo_si_rol,
+            )
             for f in ficha.files
+            # LA ENTRADA CONDICIONADA A UN ROL sale solo si esta especie pide ese
+            # fichero. Ver `FichaFile.solo_si_rol`.
+            if not f.solo_si_rol or f.solo_si_rol in _roles_de(species)
         ),
         metadata=tuple(
             Metadato(name=sub(m.name), why=sub(m.why)) for m in ficha.metadata

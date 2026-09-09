@@ -41,6 +41,12 @@ por_que = "Los 3'UTR sobre los que se cuentan los sitios de seed. Un transcrito 
 obligatorio = true
 
 [[ficheros]]
+nombre = "{fichero_transcriptoma_fondo}"
+solo_si_rol = "transcriptoma_fondo"
+por_que = "El catálogo del FONDO GENÉTICO del modelo, cuando la especie declara uno. Se baja EXACTAMENTE igual que el de arriba, cambiando la especie y el ensamblaje en el Table Browser. NO es opcional y NO se funde con el otro: el del fondo mide el organismo del EXPERIMENTO y el de la diana mide el PACIENTE, así que son dos corridas y dos celdas. Sus conteos no se suman —un gen conservado aparece en los dos catálogos— y cada percentil sale de una nula de SU catálogo."
+obligatorio = true
+
+[[ficheros]]
 nombre = "{fichero_expresion}"
 por_que = "OPCIONAL y REFINA, no cierra: una tabla `transcrito<TAB>valor` de expresión en el tejido. Sin ella el conteo sigue saliendo, pero sin ponderar — un sitio en un gen que la neurona no expresa cuenta igual que uno en un gen abundante. Es una de las tres limitaciones que hacen del número un LÍMITE SUPERIOR, y la única de las tres que un fichero puede quitar."
 obligatorio = false

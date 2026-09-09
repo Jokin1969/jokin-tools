@@ -1366,6 +1366,14 @@ class OfftargetScan:
     #: errata nº 12. Ver `insumos.CONSUMIDOS`.
     mature_md5: str = ""
     mature_version: str = ""
+    #: CONTRA QUE CATALOGO se conto, por slug de especie. Sin esto, una corrida contra el
+    #: transcriptoma humano y otra contra el murino son INDISTINGUIBLES en el almacen —la
+    #: clave de consulta no lleva catalogo— y la ultima gana: el veredicto sale con la
+    #: forma correcta refiriendose a un catalogo que nadie eligio.
+    #:
+    #: Vacio = NO DECLARADO, que NO es «es el de la diana»: una corrida de antes de este
+    #: eje no sabe contra cual se hizo, y eso se dice. Ver `species.WHY_TWO_CATALOGUES`.
+    background: str = ""
 
     def for_strand(self, strand: str) -> tuple[LoadResult, ...]:
         return tuple(r for r in self.results if r.strand == strand)
@@ -1428,8 +1436,31 @@ class OfftargetScan:
 def run_scan(selection, *, catalog: Catalog | None, mature,
              params: OfftargetParams = DEFAULTS, species: str, starts,
              guides: bool, passengers: bool, target: str,
-             target_label: str) -> OfftargetScan:
-    """Corre el conteo. Ejecuta: es subcadena contra un fichero ya cargado."""
+             target_label: str, background: str) -> OfftargetScan:
+    """Corre el conteo. Ejecuta: es subcadena contra un fichero ya cargado.
+
+    `background` es el slug de la especie CUYO CATALOGO se esta barriendo, y va SIN
+    valor por defecto (principio nº 58): el que saldria decide contra que se entiende
+    contado el resultado, y ese es justo el eje que la decision del 2026-09-08 abre.
+    Para la diana es la propia especie; para el fondo genetico del modelo, la suya.
+    """
+    if not isinstance(background, str):
+        # Misma razon que en `species.catalogue_role`: `str()` sobre otra cosa fabrica un
+        # slug de su `repr`, y la corrida quedaria declarando un catalogo inventado
+        # (errata nº 50).
+        raise ShmirDesignError(
+            f"`run_scan` espera el SLUG del catálogo —una cadena— en `background` y ha "
+            f"recibido un {type(background).__name__}. Se aborta: sobre su texto la "
+            f"corrida declararía un catálogo que no existe, con la forma correcta."
+        )
+    if not background.strip():
+        raise ShmirDesignError(
+            "Una corrida de carga de off-targets tiene que declarar CONTRA QUE CATALOGO "
+            "se cuenta (`background`, el slug de la especie del transcriptoma). Sin el, "
+            "dos corridas sobre catálogos distintos son indistinguibles en el almacén y "
+            "la última gana: el veredicto saldría con la forma correcta refiriéndose a "
+            "un catálogo que nadie eligió. Se aborta."
+        )
     if catalog is None:
         raise ShmirDesignError(
             f"No hay catalogo de 3'UTR cargado, así que la carga de off-targets por seed "
@@ -1546,4 +1577,5 @@ def run_scan(selection, *, catalog: Catalog | None, mature,
         self_counts=autoconteos,
         raw="\n".join(crudas) + "\n",
         mature_md5=mature.checksum, mature_version=mature.version,
+        background=background.strip(),
     )

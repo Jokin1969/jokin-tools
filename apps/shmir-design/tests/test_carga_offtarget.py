@@ -592,6 +592,10 @@ class TestLaCorridaEntera(unittest.TestCase):
             passengers=True,
             target=cls.utr3,
             target_label="3'UTR de Prnp (raton)",
+            # CONTRA QUE CATALOGO se cuenta. Va declarado en cada corrida desde el eje
+            # del 2026-09-09: sin el, dos corridas sobre catalogos distintos son
+            # indistinguibles en el almacen.
+            background="mouse",
         )
 
     def test_guia_y_pasajera_van_SEPARADAS(self):
@@ -619,7 +623,7 @@ class TestLaCorridaEntera(unittest.TestCase):
                 self.seleccion, catalog=None, mature=self.maduros, species="raton",
                 starts=(self.seleccion.selection.chosen[0].start,),
                 guides=True, passengers=False,
-                target=self.utr3, target_label="x",
+                target=self.utr3, target_label="x", background="mouse",
             )
         self.assertIn(offtarget.missing_file("raton"), str(caja.exception))
 
@@ -667,9 +671,16 @@ class TestLaFichaDelCandidato(unittest.TestCase):
         )
 
     def test_sale_PARTIDO_en_guia_y_pasajera_como_la_colision(self):
+        # Y ADEMAS POR CATALOGO desde el 2026-09-09. Los slugs se piden a la especie:
+        # escritos aqui, este test no podria ver un eje emitido mal.
+        from shmir_design.species import off_target_catalogue_slugs
+
         nombres = {f.name for f in self.ficha.fronts}
-        self.assertIn("offtarget_seed:guia", nombres)
-        self.assertIn("offtarget_seed:pasajera", nombres)
+        catalogos = off_target_catalogue_slugs("raton")
+        self.assertTrue(catalogos)
+        for hebra in ("guia", "pasajera"):
+            for catalogo in catalogos:
+                self.assertIn(f"offtarget_seed:{hebra}:{catalogo}", nombres)
 
     def test_y_NO_sale_como_un_frente_unico_por_candidato(self):
         nombres = {f.name for f in self.ficha.fronts}

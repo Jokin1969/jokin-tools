@@ -72,15 +72,45 @@ class _AlmacenFalso:
         )
 
 
+class _AlmacenPorCatalogo(_AlmacenFalso):
+    """El de un frente CON EJE DE CATALOGO: contesta sólo por los que ha barrido.
+
+    Un doble que conteste que sí a cualquier catálogo daría verde a un frente cubierto a
+    medias — que es exactamente lo que este eje existe para impedir.
+    """
+
+    def __init__(self, consultas, *, frente, catalogos):
+        super().__init__(consultas, frente=frente)
+        self._catalogos = frozenset(catalogos)
+
+    def verdict_for(self, consulta, *, background):
+        if background not in self._catalogos:
+            return FilterResult(
+                name=self._frente, state=FilterState.NOT_RUN,
+                reason=f"no se contó contra el catálogo de {background!r}",
+            )
+        return super().verdict_for(consulta)
+
+
 PANEL = (10, 60, 143)
 
 
-def _columnas_de(frente: str) -> tuple[str, ...]:
-    """Las columnas de un frente, DERIVADAS de su declaración. Una, o una por hebra."""
+def _catalogos_de(frente: str, especie: str) -> tuple[str, ...]:
     declarado = presentation.STORE_FOR_FRONT[frente]
-    if declarado["por_hebra"]:
-        return tuple(f"{frente}:{hebra}" for hebra in presentation.STRANDS)
-    return (frente,)
+    if not declarado.get("por_catalogo"):
+        return ("",)
+    return presentation.catalogue_slugs(especie)
+
+
+def _columnas_de(frente: str, especie: str = "raton") -> tuple[str, ...]:
+    """Las columnas de un frente, DERIVADAS de su declaración: hebra x catálogo."""
+    declarado = presentation.STORE_FOR_FRONT[frente]
+    hebras = presentation.STRANDS if declarado["por_hebra"] else ("",)
+    return tuple(
+        ":".join(p for p in (frente, hebra, catalogo) if p)
+        for hebra in hebras
+        for catalogo in _catalogos_de(frente, especie)
+    )
 
 
 def _hebras_de(frente: str) -> tuple[str, ...]:
@@ -88,13 +118,22 @@ def _hebras_de(frente: str) -> tuple[str, ...]:
     return presentation.STRANDS if declarado["por_hebra"] else ("guia",)
 
 
-def _almacenes(frente: str, *, hebras, starts=PANEL):
+def _almacenes(frente: str, *, hebras, starts=PANEL, especie="raton", catalogos=None):
     declarado = presentation.STORE_FOR_FRONT[frente]
     consultas = [
-        presentation.query_name("raton", inicio, hebra)
+        presentation.query_name(especie, inicio, hebra)
         for inicio in starts for hebra in hebras
     ]
-    return {declarado["almacen"]: _AlmacenFalso(consultas, frente=frente)}
+    if not declarado.get("por_catalogo"):
+        return {declarado["almacen"]: _AlmacenFalso(consultas, frente=frente)}
+    barridos = (
+        _catalogos_de(frente, especie) if catalogos is None else tuple(catalogos)
+    )
+    return {
+        declarado["almacen"]: _AlmacenPorCatalogo(
+            consultas, frente=frente, catalogos=barridos,
+        )
+    }
 
 
 class TestTodoFrenteConAlmacenSePuedeCerrar(unittest.TestCase):
@@ -162,6 +201,70 @@ class TestTodoFrenteConAlmacenSePuedeCerrar(unittest.TestCase):
                     presentation.fronts_closed_over_panel(estados, starts=PANEL, frame=Frame.UTR3),
                     f"{frente}: cierra con {len(PANEL) - 1} de {len(PANEL)} candidatos.",
                 )
+
+
+class TestElEjeDeCATALOGO(unittest.TestCase):
+    """Un frente por catálogo se cierra CON LOS DOS, o no se cierra.
+
+    Se corre sobre el HUMANO porque es la única especie declarada con fondo genético: en
+    el ratón hay un solo catálogo y «los dos» y «el suyo» son lo mismo, así que ahí este
+    eje no puede fallar y tampoco puede demostrarse.
+    """
+
+    ESPECIE = "human"
+
+    def _por_catalogo(self):
+        return [
+            f for f, d in presentation.STORE_FOR_FRONT.items()
+            if d.get("por_catalogo")
+        ]
+
+    def test_el_humano_declara_DOS_catalogos_y_algun_frente_los_usa(self):
+        # CONTROL: sin esto, una especie con un solo catálogo —o ningún frente con el
+        # eje— dejaría el resto de la clase pasando sin comprobar nada.
+        self.assertEqual(len(presentation.catalogue_slugs(self.ESPECIE)), 2)
+        self.assertTrue(self._por_catalogo())
+
+    def test_con_LOS_DOS_catalogos_el_frente_se_CIERRA(self):
+        for frente in self._por_catalogo():
+            with self.subTest(frente=frente):
+                estados = presentation.store_states_by_front(
+                    _almacenes(
+                        frente, hebras=_hebras_de(frente), especie=self.ESPECIE,
+                    ),
+                    species=self.ESPECIE, starts=PANEL,
+                )
+                self.assertIn(
+                    frente,
+                    presentation.fronts_closed_over_panel(
+                        estados, starts=PANEL, frame=Frame.UTR3,
+                    ),
+                )
+
+    def test_con_UNO_SOLO_no_se_cierra(self):
+        """La mitad adversaria del eje, y la razón de que exista.
+
+        El murino mide el EXPERIMENTO y el humano el PACIENTE: cerrar con uno daría por
+        contestada una pregunta que nadie ha hecho.
+        """
+        for frente in self._por_catalogo():
+            catalogos = presentation.catalogue_slugs(self.ESPECIE)
+            for uno in catalogos:
+                with self.subTest(frente=frente, catalogo=uno):
+                    estados = presentation.store_states_by_front(
+                        _almacenes(
+                            frente, hebras=_hebras_de(frente), especie=self.ESPECIE,
+                            catalogos=(uno,),
+                        ),
+                        species=self.ESPECIE, starts=PANEL,
+                    )
+                    self.assertNotIn(
+                        frente,
+                        presentation.fronts_closed_over_panel(
+                            estados, starts=PANEL, frame=Frame.UTR3,
+                        ),
+                        f"{frente}: cierra con sólo el catálogo de {uno!r}.",
+                    )
 
 
 class TestLasDosMitadesSIGUENsiendoCorrectas(unittest.TestCase):

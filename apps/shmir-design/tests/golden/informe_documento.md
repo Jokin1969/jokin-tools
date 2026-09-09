@@ -654,7 +654,7 @@ CARGA DE SEED SIN REFERENCIA — NOT_RUN. Los conteos por clase del tilado (`til
 
 Todos, no sólo los seleccionados: la selección es una propuesta y esta tabla es el conjunto sobre el que se hizo. Una columna por frente, derivada de los frentes que el informe conoce.
 
-| elegido | sitio | inicio | tercio | asimetria | rango | empalme_intron | empalme_sitios | especificidad | fraccion_isoforma_larga | offtarget_seed:guia | offtarget_seed:pasajera | repeticion_polimorfica | repeticiones | seed | seed_colision:guia | seed_colision:pasajera | transgen | veredicto | guia |
+| elegido | sitio | inicio | tercio | asimetria | rango | empalme_intron | empalme_sitios | especificidad | fraccion_isoforma_larga | offtarget_seed:guia:mouse | offtarget_seed:pasajera:mouse | repeticion_polimorfica | repeticiones | seed | seed_colision:guia | seed_colision:pasajera | transgen | veredicto | guia |
 |---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|
 | True | 3utr:1018 | 1018 | NO_FIABLE | 7.65 | 1 | NOT_RUN | NOT_RUN | NOT_RUN | PASS | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | INCOMPLETE | UUUAGUACUGGAUGGAACGGCC |
 | True | 3utr:553 | 553 | NO_FIABLE | 5.86 | 2 | NOT_RUN | NOT_RUN | NOT_RUN | PASS | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | INCOMPLETE | UUAAAGAUCAUUCUAGUGCCCU |
@@ -1004,8 +1004,8 @@ Una ficha por candidato seleccionado, con el veredicto de CADA frente, su proced
   empalme_sitios:mvm_sin_criptico NOT_RUN   —            sin corrida en el almacen
   especificidad                   NOT_RUN   —            sin corrida en el almacen
   fraccion_isoforma_larga         PASS      —            frente CERRADO del informe
-  offtarget_seed:guia             NOT_RUN   —            sin corrida en el almacen
-  offtarget_seed:pasajera         NOT_RUN   —            sin corrida en el almacen
+  offtarget_seed:guia:mouse       NOT_RUN   —            sin corrida en el almacen
+  offtarget_seed:pasajera:mouse   NOT_RUN   —            sin corrida en el almacen
   repeticion_polimorfica          NOT_RUN   —            frente abierto del informe
   repeticiones                    NOT_RUN   —            frente abierto del informe
   seed                            NOT_RUN   —            frente abierto del informe

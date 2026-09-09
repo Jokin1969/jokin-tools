@@ -6632,26 +6632,96 @@ allí eran las cuatro clases de sitio, aquí son dos catálogos.
 Dos frentes serían **dos definiciones del mismo criterio**, con dos sitios donde
 arreglarlo. Lo que este proyecto ya tiene para esto es un eje, y hay dos precedentes:
 `seed_colision:guia`/`:pasajera` y `empalme_sitios` por intrón. La unidad pasa a ser
-**candidato × hebra × transcriptoma**, con **una celda por transcriptoma**, y
-`PAIR_UNIT_FRONTS` decidiendo que **el frente cierra sólo si están los dos**.
+**candidato × hebra × transcriptoma**, con **una celda por transcriptoma**, y el frente
+cerrándose **sólo si están las cuatro** — que es la regla que ya tenía
+`fronts_closed_over_panel`: un frente se cierra cuando TODAS sus columnas están
+contestadas en TODO el panel. No hizo falta una regla nueva para el eje; lo que hizo
+falta fue que las columnas del almacén fueran las mismas que las de la tabla.
 
-### HOY NO ESTÁ IMPLEMENTADO, y se dice para que no se lea como hecho
+### IMPLEMENTADO (2026-09-09). Lo que hay hoy, y cómo se lee
 
-**DECIDIDO el 2026-09-08 y a implementar cuando arranque la campaña humana**, por
-decisión expresa: *«el cambio de modelo no lo hagas de paso»*. Lo que hay hoy, medido:
+Lo que decía este bloque —«hoy no está implementado, y se dice para que no se lea como
+hecho»— **ya no es cierto**, y se sustituye en vez de borrarse: la escalera importa tanto
+como el resultado. La condición que lo aplazó —*«el cambio de modelo no lo hagas de
+paso»*— se cumplió: entra en su propia tanda y con el modelo primero.
 
-- `required_files(human)` pide **`transcriptoma_3utr_human.fa`** y **no pide**
-  `transcriptoma_3utr.fa`: el gestor pide los ficheros de UNA especie, y este diseño
-  necesita los de dos;
-- `STORE_FOR_FRONT["offtarget_seed"]` es `{"almacen": "offtarget", "por_hebra": True}` —
-  **una sola clave de consulta por hebra**, sin sitio donde meter el catálogo;
-- `PAIR_UNIT_FRONTS` sólo tiene `empalme_sitios`.
+**1. El MODELO: especie DIANA ≠ fondo genético del MODELO.**
+`Species.model_backgrounds` declara en qué fondo se prueban los candidatos de una
+especie, y son **tres estados**: `None` es NO DECLARADO, `()` es «se ha mirado y no hay
+ninguno más» —el ratón, cuyo modelo es el propio ratón— y una tupla de slugs son los
+fondos. El defecto que saldría decide contra qué se barren los off-targets, así que no
+hay defecto (principio nº 58). `off_target_catalogues` deriva de ahí los catálogos, la
+**DIANA primero**, y **aborta** si la especie no lo declara.
 
-**La pieza que falta es de MODELO, no de fontanería**: hay que distinguir **especie
-DIANA** —humana, la del transcrito— de **fondo genético del MODELO** —murino—, y que los
-frentes de off-target corran contra todos los fondos declarados. Mientras eso no exista,
-una corrida humana mide **la mitad** que hace falta, y la mitad que mide es la del
-paciente y no la del experimento.
+**2. El EJE: la columna lleva el catálogo en el nombre.** `offtarget_seed` declara
+`por_catalogo` en `STORE_FOR_FRONT`, así que sus columnas son
+`offtarget_seed:<hebra>:<catálogo>`: **dos** en el ratón y **cuatro** en el humano. Y las
+arma **un solo sitio** —`presentation.store_front_columns`—, que es el hallazgo de la
+tanda: estaban construidas dos veces, una para la tabla y otra para preguntarle al
+almacén, y al entrar el eje **la segunda se quedó sin él**. La tabla pedía cuatro celdas
+y el almacén contestaba dos, así que el frente **no se habría cerrado nunca**, con la
+forma correcta y sin dar ningún error. Es el principio nº 27 sobre un nombre de columna,
+y lo cazó extender el test de mecanismo al eje nuevo — no leer el código.
+
+**3. La CORRIDA declara contra qué contó.** `OfftargetScan.background` y
+`run_scan(..., background=)`, **sin valor por defecto**: sin él, dos corridas sobre
+catálogos distintos son indistinguibles en el almacén —la clave de consulta es
+`query_name(species, start, hebra)` y no lleva catálogo— y la última gana. El campo
+**viaja al log** y vuelve al releerlo; una corrida de antes del eje no lo trae, y eso
+**NO es «es el de la diana»**: `verdict_for` lo dice con esas palabras y no contesta por
+ninguno de los dos.
+
+**4. El VEREDICTO se pide POR CATÁLOGO.** `OfftargetStore.verdict_for(..., background=)`
+es obligatorio y aborta vacío. Y donde **no hay catálogo que nombrar** —una especie sin
+declarar— no se pregunta: `offtarget_store.verdict_without_catalogue` da un `NOT_RUN` que
+dice que el hueco está en la **declaración de la especie** y no en un fichero que
+conseguir. Vive en un sitio y lo leen la ficha y la tabla, que tienen que decir lo mismo.
+
+**5. Los FICHEROS: `required_files(human)` pide LOS DOS.** Rol propio
+`transcriptoma_fondo`, con su cargador, su hueco en el gestor y su párrafo en la ficha de
+obtención — que dice que se baja **exactamente igual** cambiando la especie y el
+ensamblaje, que **no es opcional** y que **no se funde** con el otro. Con más de un fondo
+declarado se **aborta**: haría falta un rol por fondo, y coger uno y callar el otro sería
+medir menos sin decirlo.
+
+**6. El MODAL corre contra el que se elija.** Con un fondo declarado sale un selector de
+catálogo —etiquetado «la especie DIANA (el paciente)» / «el FONDO GENÉTICO del modelo (el
+experimento)»— y el catálogo entra en la **huella de la corrida**: sin eso, cambiar de
+catálogo dejaría en pantalla el resultado del anterior y lo ofrecería para guardar, que
+es una procedencia falsa.
+
+### Dos cosas que salieron al implementarlo, y ninguna era el eje
+
+- **Una corrida consume UN catálogo, no dos.** La tabla de insumos llegó a declarar los
+  dos ficheros para `corrida_offtarget`, y eso habría marcado **OBSOLETA** la corrida del
+  catálogo de la diana en cuanto alguien reemplazara el del fondo — con la forma correcta
+  y sin que nadie lo decidiera. El rol del catálogo se **DERIVA** del `background` de la
+  propia corrida (`insumos.Insumo.catalogo_desde` → `species.catalogue_role`), y lo que
+  el PANEL enseña —los dos ficheros, porque los dos hacen falta para cerrar el frente— lo
+  contesta otra función (`insumos.roles_de`). **Son dos preguntas**: «¿cuál consumió ésta?»
+  y «¿cuáles hacen falta?».
+- **Un fichero con dos papeles.** `transcriptoma_3utr.fa` es el catálogo de la DIANA en un
+  diseño murino y el del FONDO en uno humano: no hay dos ficheros, hay uno visto desde dos
+  diseños. Es la única entrada de `manifest.ROLES` que comparte nombre con otra, va
+  **declarada** con su motivo, y `manifest.role_of` —que pregunta por nombre y no tiene
+  especie— sigue contestando el del **caso base**. Quien necesita la otra respuesta
+  pregunta por `deposito.role_for(species, filename)`, que sí tiene la especie delante.
+
+### Lo que se midió, y lo que NO se movió
+
+- Las columnas murinas pasan a `offtarget_seed:guia:mouse` y `:pasajera:mouse` en los
+  cuatro goldens que las llevan, **y no cambia nada más**: ni un candidato, ni un
+  veredicto, ni una cifra. Un golden que cambia sólo donde tenía que cambiar es la
+  comprobación de que el eje no ha tocado el panel.
+- El humano declara **dos** catálogos y el ratón **uno**, así que el eje **no puede
+  fallar en el ratón y tampoco puede demostrarse ahí**: la mitad adversaria del test
+  —«con UNO SOLO el frente NO se cierra»— corre sobre el humano, que es la única especie
+  declarada con fondo.
+- **El CLI no gana ninguna bandera**, y `DESTINOS["transcriptoma_fondo"] = None` lo dice:
+  el catálogo del fondo lo consume el MODAL, y lo que el CLI hace con
+  `--transcriptoma-3utr` es la columna comparativa `tilado_<clase>`, que es del catálogo
+  de la DIANA y lo dice en su nombre. Una bandera ahí prometería un barrido que ese
+  programa no hace.
 
 ### Lo que este eje NO cambia
 

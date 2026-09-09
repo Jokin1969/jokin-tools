@@ -73,6 +73,19 @@ class _AlmacenPorHebra:
         )
 
 
+def _columnas_offtarget():
+    """Las columnas de `offtarget_seed`, DERIVADAS de los ejes que las emiten.
+
+    Hebra x catalogo. Escritas aqui, este test no podria ver un eje emitido mal — que
+    es justo lo que existe para comprobar (principio nº 13).
+    """
+    return [
+        f"offtarget_seed:{hebra}:{catalogo}"
+        for hebra in presentation.STRANDS
+        for catalogo in presentation.catalogue_slugs(ESPECIE)
+    ]
+
+
 def _almacen_offtarget(corrida):
     """Un almacén que ha consultado a TODO el panel, por las dos hebras."""
     consultas = [
@@ -95,9 +108,7 @@ class TestElExportLLEVAlosFrentes(unittest.TestCase):
 
     def test_TODA_columna_de_frente_de_la_pantalla_esta_en_el_export(self):
         """Derivado, no listado: un frente nuevo entra solo en las dos."""
-        de_pantalla = presentation.front_columns(
-            self.corrida.tiling, self.corrida.selection
-        )
+        de_pantalla = presentation.front_columns(self.corrida.tiling, self.corrida.selection, species="raton")
         faltan = [c for c in de_pantalla if c not in self.cabecera]
         self.assertEqual(
             faltan, [],
@@ -105,8 +116,10 @@ class TestElExportLLEVAlosFrentes(unittest.TestCase):
         )
 
     def test_offtarget_seed_sale_POR_HEBRA_y_no_fundido(self):
-        self.assertIn("offtarget_seed:guia", self.cabecera)
-        self.assertIn("offtarget_seed:pasajera", self.cabecera)
+        # Y POR CATALOGO desde el 2026-09-09: los slugs se piden a `catalogue_slugs`,
+        # que los deriva de la especie. La columna fundida no puede quedar.
+        for columna in _columnas_offtarget():
+            self.assertIn(columna, self.cabecera)
         self.assertNotIn("offtarget_seed", self.cabecera)
 
     def test_empalme_sitios_tambien_esta_aunque_no_tenga_columna_en_pantalla(self):
@@ -156,7 +169,7 @@ class TestLaCELDA_es_la_MISMA(unittest.TestCase):
         for fila in filas:
             inicio = int(fila["inicio"].split(":")[-1])
             with self.subTest(inicio):
-                for columna in ("offtarget_seed:guia", "offtarget_seed:pasajera"):
+                for columna in _columnas_offtarget():
                     self.assertEqual(fila[columna], por_inicio[inicio][columna])
                     self.assertEqual(fila[columna], "PASS")
 
@@ -164,7 +177,8 @@ class TestLaCELDA_es_la_MISMA(unittest.TestCase):
         """Sin esto, «coincide» y «la columna no mira nada» dan el mismo verde."""
         filas = self._export(None)
         for fila in filas:
-            self.assertNotEqual(fila["offtarget_seed:guia"], "PASS")
+            for columna in _columnas_offtarget():
+                self.assertNotEqual(fila[columna], "PASS")
 
     def test_y_el_VEREDICTO_cuenta_lo_mismo_que_las_celdas(self):
         """La fila no puede decir `PASS` en una celda e ignorarla en su veredicto.

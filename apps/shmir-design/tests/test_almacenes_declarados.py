@@ -82,25 +82,26 @@ class TestLasCOLUMNAS_de_la_tabla(unittest.TestCase):
         )
 
     def test_offtarget_seed_tiene_sus_DOS_columnas(self):
-        columnas = self.presentation.front_columns(
-            self.corrida.tiling, self.corrida.selection
-        )
-        self.assertIn("offtarget_seed:guia", columnas)
-        self.assertIn("offtarget_seed:pasajera", columnas)
+        # DOS por hebra, y desde el 2026-09-09 el nombre lleva ademas el CATALOGO, asi
+        # que lo que se exige es una columna por hebra POR CADA catalogo declarado. El
+        # slug se pide a `catalogue_slugs`; escrito aqui, este test no podria ver un eje
+        # emitido mal (principio nº 13).
+        columnas = self.presentation.front_columns(self.corrida.tiling, self.corrida.selection, species="raton")
+        catalogos = self.presentation.catalogue_slugs("raton")
+        self.assertTrue(catalogos, "el raton tiene que declarar al menos su catalogo")
+        for hebra in ("guia", "pasajera"):
+            for catalogo in catalogos:
+                self.assertIn(f"offtarget_seed:{hebra}:{catalogo}", columnas)
 
     def test_y_seed_colision_tambien(self):
-        columnas = self.presentation.front_columns(
-            self.corrida.tiling, self.corrida.selection
-        )
+        columnas = self.presentation.front_columns(self.corrida.tiling, self.corrida.selection, species="raton")
         self.assertIn("seed_colision:guia", columnas)
         self.assertIn("seed_colision:pasajera", columnas)
 
     def test_y_ninguna_columna_de_un_frente_por_hebra_va_SIN_hebra(self):
         # Si quedara la fundida, seria la que alguien lee — y estaria dando el estado de
         # la guia por el de las dos.
-        columnas = self.presentation.front_columns(
-            self.corrida.tiling, self.corrida.selection
-        )
+        columnas = self.presentation.front_columns(self.corrida.tiling, self.corrida.selection, species="raton")
         for frente, datos in STORE_FOR_FRONT.items():
             if datos["por_hebra"]:
                 with self.subTest(frente):

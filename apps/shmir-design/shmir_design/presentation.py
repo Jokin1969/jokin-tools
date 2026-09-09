@@ -2518,14 +2518,18 @@ def offtarget_upper_bound():
 
 
 def offtarget_run(selection, *, catalog, mature, params, species, starts, guides,
-                  passengers, target, target_label):
-    """Atajo con nombre estable para la pagina. La logica esta en `offtarget`."""
+                  passengers, target, target_label, background):
+    """Atajo con nombre estable para la pagina. La logica esta en `offtarget`.
+
+    `background` —el slug de la especie CUYO catalogo se barre— viaja hasta aqui SIN
+    valor por defecto: la pagina sabe que fichero cargo y es la unica que lo sabe.
+    """
     from .offtarget import run_scan
 
     return run_scan(
         selection, catalog=catalog, mature=mature, params=params, species=species,
         starts=starts, guides=guides, passengers=passengers, target=target,
-        target_label=target_label,
+        target_label=target_label, background=background,
     )
 
 
@@ -2863,20 +2867,67 @@ MIN_SPACING_WARNING = (
 )
 
 
-def front_columns(tiling, selection) -> list[str]:
-    """Los frentes que van a ser columna. Se DERIVAN, no se listan a mano."""
+def catalogue_slugs(species) -> tuple[str, ...]:
+    """Los catalogos de transcriptoma de esta especie, por slug. DIANA primero.
+
+    Delega en `species.off_target_catalogue_slugs`, que es donde vive la declaracion del
+    fondo genetico del modelo — y que devuelve `()` cuando la especie no esta declarada,
+    porque ahi no hay eje que derivar. Aqui no se decide nada.
+    """
+    from .species import off_target_catalogue_slugs  # noqa: PLC0415
+
+    return off_target_catalogue_slugs(species)
+
+
+def store_front_columns(frente: str, declarado: dict, *, species) -> list[str]:
+    """Las columnas de UN frente con almacen: `<frente>[:hebra][:catalogo]`.
+
+    UN SOLO SITIO las arma, y por eso existe. `front_columns` las emitia para la tabla y
+    `store_states_by_front` las volvia a construir para preguntarle al almacen: dos
+    definiciones del mismo conjunto de nombres, y al entrar el eje de catalogo la
+    segunda se quedo sin el — o sea que la tabla pedia cuatro celdas y el almacen
+    contestaba dos, y el frente no se cerraba nunca. Es el principio nº 27 sobre un
+    nombre de columna.
+    """
+    # DOS COLUMNAS POR HEBRA, y no es formato: la pasajera es el eje donde menos
+    # datos hay y fundirla con la guia la hace invisible. La ficha ya las partia; la
+    # tabla decia «aqui la fila es el sitio» y con eso perdia una de las dos.
+    hebras = STRANDS if declarado["por_hebra"] else ("",)
+    # Y UNA POR CATALOGO donde el frente lo tenga. Con el fondo genetico declarado,
+    # `offtarget_seed` da cuatro celdas —dos hebras x dos catalogos— y ninguna se
+    # funde: ver `species.WHY_TWO_CATALOGUES`.
+    catalogos = catalogue_slugs(species) if declarado.get("por_catalogo") else ("",)
+    # SIN EJE DERIVABLE, una sola columna y SIN SUFIJO. No es la del catalogo de la
+    # diana con otro nombre: es una columna que no dice contra que se barrio, que es
+    # la verdad cuando la especie no esta declarada — y ahi tampoco hay catalogo que
+    # depositar, asi que ese frente no se cierra de todas formas. Lo que no puede
+    # pasar es emitir `...:<slug>` de un catalogo que nadie ha declarado.
+    catalogos = catalogos or ("",)
+    return [
+        ":".join(p for p in (frente, hebra, catalogo) if p)
+        for hebra in hebras
+        for catalogo in catalogos
+    ]
+
+
+def front_columns(tiling, selection, *, species) -> list[str]:
+    """Los frentes que van a ser columna. Se DERIVAN, no se listan a mano.
+
+    `species` es OBLIGATORIO desde que hay eje de catalogo (2026-09-09): de ella cuelga
+    contra cuantos transcriptomas se barren los off-targets, y un defecto emitiria SOLO
+    la columna de la diana — o sea la mitad de la pregunta, en silencio.
+    """
     from .selection import blocking_fronts
 
     nombres: list[str] = []
     for frente in blocking_fronts(tiling, selection):
         declarado = STORE_FOR_FRONT.get(frente.name)
-        if declarado and declarado["por_hebra"]:
-            # DOS COLUMNAS, y no es formato: la pasajera es el eje donde menos datos hay
-            # y fundirla con la guia la hace invisible. La ficha ya las partia; la tabla
-            # decia «aqui la fila es el sitio» y con eso perdia una de las dos.
-            nombres.extend(f"{frente.name}:{hebra}" for hebra in STRANDS)
-        else:
+        if not declarado:
             nombres.append(frente.name)
+            continue
+        nombres.extend(
+            store_front_columns(frente.name, declarado, species=species)
+        )
     return sorted(dict.fromkeys(nombres))
 
 
@@ -2895,9 +2946,16 @@ def front_columns(tiling, selection) -> list[str]:
 #: la guia en una columna la haria invisible — la ficha ya las parte y la tabla no lo
 #: hacia. Un frente por hebra da DOS columnas, `<frente>:guia` y `<frente>:pasajera`.
 STORE_FOR_FRONT = {
-    "especificidad": {"almacen": "blast", "por_hebra": False},
-    "seed_colision": {"almacen": "seed", "por_hebra": True},
-    "offtarget_seed": {"almacen": "offtarget", "por_hebra": True},
+    "especificidad": {"almacen": "blast", "por_hebra": False, "por_catalogo": False},
+    "seed_colision": {"almacen": "seed", "por_hebra": True, "por_catalogo": False},
+    # EL EJE DE CATALOGO (2026-09-08). Los candidatos pasan off-targets contra el
+    # transcriptoma de la especie DIANA y contra el del FONDO GENETICO del modelo, y las
+    # dos celdas no se funden: ver `species.WHY_TWO_CATALOGUES`. Los otros dos frentes no
+    # lo tienen —`especificidad` se corre fuera contra una base que el usuario elige, y
+    # `seed_colision` compara contra miRBase, que no es un transcriptoma—.
+    "offtarget_seed": {
+        "almacen": "offtarget", "por_hebra": True, "por_catalogo": True,
+    },
 }
 
 #: Frentes con almacen que NO caben aqui, con el motivo. `empalme_sitios` se consulta por
@@ -2985,7 +3043,7 @@ SIN_CONSULTAR = "SIN_CONSULTAR"
 
 
 def export_states(
-    tiling, selection, *, species: str = "", stores=None,
+    tiling, selection, *, species, stores=None,
 ) -> tuple[list[str], dict[int, dict[str, str]]]:
     """Los estados por candidato para el EXPORT: filtros de ventana Y frentes.
 
@@ -3013,7 +3071,7 @@ def export_states(
         return [], {}
 
     columnas = _filter_names(selection.window_of(chosen[0]))
-    for nombre in front_columns(tiling, selection):
+    for nombre in front_columns(tiling, selection, species=species):
         if nombre not in columnas:
             columnas.append(nombre)
 
@@ -3133,7 +3191,15 @@ def _store_state(stores, front: str, species: str, start: int) -> str | None:
     """
     # Una columna por hebra llega como `<frente>:guia`. La hebra se saca del NOMBRE de la
     # columna, que es quien la lleva; el frente es lo de delante.
-    nombre, _, hebra = front.partition(":")
+    # La columna lleva los EJES en el nombre: `<frente>[:hebra][:catalogo]`. Se parte por
+    # la derecha para el catalogo y por la izquierda para la hebra, asi que un frente sin
+    # eje de catalogo sigue leyendose igual.
+    nombre, _, resto = front.partition(":")
+    declarado_previo = STORE_FOR_FRONT.get(nombre) or {}
+    if declarado_previo.get("por_catalogo") and ":" in resto:
+        hebra, _, catalogo = resto.partition(":")
+    else:
+        hebra, catalogo = resto, ""
     # LOS FRENTES POR PAR TAMBIEN CONTESTAN AQUI (2026-09-07). `empalme_sitios` tiene
     # columna en las tablas por candidato —`front_columns` la deriva de `blocking_fronts`
     # y siempre la tuvo— y NADIE podia resolverla: no esta en `STORE_FOR_FRONT`, asi que
@@ -3180,9 +3246,24 @@ def _store_state(stores, front: str, species: str, start: int) -> str | None:
     # `TypeError`: eso se tragaria un `TypeError` de dentro del veredicto y repetiria la
     # llamada sin especie — un veredicto con la forma correcta, calculado con menos
     # informacion y sin que nadie se entere (regla 2).
-    if "species" in inspect.signature(almacen.verdict_for).parameters:
-        return almacen.verdict_for(consulta, species=species).state.value
-    return almacen.verdict_for(consulta).state.value
+    firma = inspect.signature(almacen.verdict_for).parameters
+    extra = {}
+    if "species" in firma:
+        extra["species"] = species
+    # EL CATALOGO VIAJA donde el frente lo tiene. Sin el, `verdict_for` aborta — y
+    # aborta a proposito: una corrida contra el transcriptoma del fondo contestando a la
+    # pregunta de la diana es el colapso que este eje existe para impedir.
+    if "background" in firma:
+        if not catalogo:
+            # SIN CATALOGO QUE NOMBRAR no se pregunta: `verdict_for` aborta a proposito
+            # y ese aborto tumbaria la tabla entera. La respuesta honesta es un NOT_RUN
+            # que dice que el hueco esta en la DECLARACION de la especie — la misma que
+            # da la ficha, para que las dos digan lo mismo (principio nº 23).
+            from .offtarget_store import verdict_without_catalogue  # noqa: PLC0415
+
+            return verdict_without_catalogue(species).state.value
+        extra["background"] = catalogo
+    return almacen.verdict_for(consulta, **extra).state.value
 
 
 #: Un frente se cierra CONSIGUIENDO LA RESPUESTA, no consiguiendo un `PASS`. Un `FAIL`
@@ -3384,10 +3465,10 @@ def store_states_by_front(stores, *, species: str, starts) -> dict[str, dict[int
     """
     salida: dict[str, dict[int, str]] = {}
     for frente, declarado in STORE_FOR_FRONT.items():
-        columnas = (
-            [f"{frente}:{hebra}" for hebra in STRANDS]
-            if declarado["por_hebra"] else [frente]
-        )
+        # LAS MISMAS COLUMNAS QUE EMITE LA TABLA, pedidas al mismo sitio. Estaban
+        # construidas aqui otra vez, y al entrar el eje de catalogo esta copia se quedo
+        # sin el: la tabla pedia cuatro celdas y esto contestaba dos.
+        columnas = store_front_columns(frente, declarado, species=species)
         por_candidato: dict[int, str] = {}
         for inicio in starts:
             estados = [
@@ -3859,9 +3940,15 @@ def panel_first(filas):
     return elegidas + resto
 
 
-def site_table_rows(tiling, selection, *, species: str = "",
+def site_table_rows(tiling, selection, *, species,
                     selected=None, stores=None) -> list[dict[str, object]]:
     """TODOS los sitios elegibles, con UNA COLUMNA POR FRENTE.
+
+    `species` es OBLIGATORIO y sin defecto desde que hay eje de catalogo (2026-09-09).
+    El `= ""` que tenia no era inerte: `front_columns` cuelga de ella, asi que la tabla
+    salia SIN el eje de transcriptoma —una sola celda de off-targets donde el humano
+    tiene dos— y con la forma correcta. Principio nº 58: donde el valor hay que
+    declararlo, el defecto es la configuracion que nadie revisa.
 
     No solo los elegidos: la piscina entera. Un candidato que no esta en el panel sigue
     siendo un sitio con veredictos, y esconderlo deja al lector sin poder discutir la
@@ -3879,7 +3966,7 @@ def site_table_rows(tiling, selection, *, species: str = "",
     globales = global_front_states(tiling, selection)
     from .selection import is_eligible
 
-    columnas = front_columns(tiling, selection)
+    columnas = front_columns(tiling, selection, species=species)
     elegidos = (
         {c.start for c in selection.selection.chosen} if selected is None
         else {int(s) for s in selected}
@@ -4388,30 +4475,83 @@ def deposit_file(role: str, *, species: str, directory) -> dict[str, object]:
 
 def deposit_for_run(kind: str, *, species: str, directory) -> list[dict[str, object]]:
     """Una fila por INSUMO declarado de esa corrida. Los cuatro modales llaman aquí."""
-    from .insumos import insumos_de  # noqa: PLC0415
+    from .insumos import roles_de  # noqa: PLC0415
 
+    # POR ROL Y POR ESPECIE. Con el eje de catalogo, `offtarget_seed` consume UN
+    # catalogo por corrida y necesita LOS DOS para cerrarse en una especie con fondo
+    # genetico declarado: el panel tiene que enseñar los dos ficheros o el segundo se
+    # queda sin pedir y el frente sin poder cerrarse por algo que nadie ha nombrado.
     return [
-        deposit_file(insumo.rol, species=species, directory=directory)
-        for insumo in insumos_de(kind)
+        deposit_file(rol, species=species, directory=directory)
+        for rol in roles_de(kind, species)
     ]
 
 
-def offtarget_catalog_from_deposit(*, species: str, directory, gene_map=None):
+#: POR QUE SON DOS CATALOGOS Y NO UN NUMERO FUNDIDO. Se reexporta desde `species` —que
+#: es donde vive la declaracion del fondo genetico— para que la pagina no tenga que
+#: importar el nucleo: una segunda redaccion del mismo motivo envejeceria por su cuenta.
+from .species import WHY_TWO_CATALOGUES  # noqa: E402
+
+#: LOS CATALOGOS QUE SE PUEDEN BARRER, para el selector del modal. Uno por catalogo
+#: declarado, con su rol y su fichero — el de la DIANA primero, que es el orden de
+#: `species.off_target_catalogues` y no es cosmetico: invierte cual se lee antes.
+def offtarget_catalog_options(*, species: str, directory) -> list[dict[str, object]]:
+    """Contra qué catálogos se puede contar, y cuál de ellos está en el depósito.
+
+    Son DOS corridas en una especie con fondo genético declarado, no una con dos
+    ficheros: cada una cuenta contra su catálogo y sus cifras no se suman
+    (`species.WHY_TWO_CATALOGUES`). El selector existe para que se vea que falta la
+    segunda — sin él, contar una y ver el frente sin cerrar no dice qué falta.
+    """
+    from .deposito import read_deposit  # noqa: PLC0415
+    from .species import (  # noqa: PLC0415
+        catalogue_role, off_target_catalogue_slugs, resolve,
+    )
+
+    especie = resolve(species)
+    opciones = []
+    for slug in off_target_catalogue_slugs(especie):
+        rol = catalogue_role(especie, slug)
+        fichero = read_deposit(rol, species=especie, directory=directory)
+        catalogo = resolve(slug)
+        opciones.append(
+            {
+                "catalogo": slug,
+                "rol": rol,
+                "es_la_diana": slug == especie.slug,
+                "nombre": fichero.filename,
+                "presente": fichero.present,
+                "etiqueta": (
+                    f"{catalogo.scientific} — "
+                    + ("la especie DIANA (el paciente)" if slug == especie.slug
+                       else "el FONDO GENÉTICO del modelo (el experimento)")
+                ),
+            }
+        )
+    return opciones
+
+
+def offtarget_catalog_from_deposit(*, species: str, directory, gene_map=None,
+                                   role: str = ""):
     """El catálogo Y SU PROCEDENCIA, del depósito. Cero campos que rellenar.
 
     La procedencia se DERIVA de la línea del manifiesto —los cuatro campos de tabla se
     declararon al subir el fichero y los otros tres los tenía desde siempre—, así que
     `Provenance` se monta sin que nadie vuelva a teclear nada. Si le falta alguno,
     `Provenance` aborta con el campo por su nombre: no se rellena por nuestra cuenta.
+
+    `role` dice CUÁL de los catálogos se pide (`species.ROL_CATALOGO_DIANA` o
+    `..._FONDO`). Vacío es el de la diana, que es el único que existía antes del eje y
+    el que sigue siendo cierto para una especie sin fondo declarado.
     """
     from pathlib import Path  # noqa: PLC0415
 
     from .deposito import read_deposit  # noqa: PLC0415
     from .offtarget import Provenance, build_catalog, validate_upload  # noqa: PLC0415
-    from .species import resolve  # noqa: PLC0415
+    from .species import ROL_CATALOGO_DIANA, resolve  # noqa: PLC0415
 
     fichero = read_deposit(
-        "transcriptoma", species=resolve(species), directory=directory
+        role or ROL_CATALOGO_DIANA, species=resolve(species), directory=directory
     )
     if not fichero.present:
         return None
@@ -9648,7 +9788,7 @@ def verdicts_changed(tiling, selection, *, species: str, before, after
     from .filters import FilterState
 
     decisivos = {FilterState.PASS.value, FilterState.FAIL.value}
-    columnas = front_columns(tiling, selection)
+    columnas = front_columns(tiling, selection, species=species)
 
     def _tabla(stores):
         return {

@@ -151,9 +151,15 @@ class TestLleva_LO_QUE_EL_ICONO_NO(unittest.TestCase):
         cabecera = presentation.tsv_header(presentation.selected_export_file(
             self.corrida.selection, species=ESPECIE, tiling=self.corrida.tiling,
         )["datos"])
-        for columna in ("offtarget_seed:guia", "offtarget_seed:pasajera"):
-            with self.subTest(columna):
-                self.assertIn(columna, cabecera)
+        # Hebra x CATALOGO, derivado: escribir los nombres aqui dejaria a este test sin
+        # poder ver un eje emitido mal (principio nº 13).
+        catalogos = presentation.catalogue_slugs(ESPECIE)
+        self.assertTrue(catalogos, "la especie del fixture declara sus catalogos")
+        for hebra in presentation.STRANDS:
+            for catalogo in catalogos:
+                columna = f"offtarget_seed:{hebra}:{catalogo}"
+                with self.subTest(columna):
+                    self.assertIn(columna, cabecera)
 
     def test_dice_MAS_columnas_que_la_tabla_de_la_pantalla(self):
         """Si dijera lo mismo, el icono de Streamlit valdría y esto sobraría."""

@@ -121,9 +121,16 @@ class TestYlasCOLUMNASdeLosDosFrentesEstan(unittest.TestCase):
     def test_empalme_sitios_tiene_columna(self):
         self.assertIn("empalme_sitios", self.cabecera)
 
-    def test_y_offtarget_seed_tambien_POR_HEBRA(self):
-        self.assertIn("offtarget_seed:guia", self.cabecera)
-        self.assertIn("offtarget_seed:pasajera", self.cabecera)
+    def test_y_offtarget_seed_tambien_POR_HEBRA_y_POR_CATALOGO(self):
+        # Los slugs se piden a la especie: escritos aqui, este test no podria ver un eje
+        # emitido mal (principio nº 13).
+        from shmir_design.species import off_target_catalogue_slugs
+
+        catalogos = off_target_catalogue_slugs("raton")
+        self.assertTrue(catalogos)
+        for hebra in ("guia", "pasajera"):
+            for catalogo in catalogos:
+                self.assertIn(f"offtarget_seed:{hebra}:{catalogo}", self.cabecera)
 
     def test_y_no_se_quedan_en_los_filtros_de_la_VENTANA(self):
         # El control adversario del reporte: lo que se veía terminaba en los filtros de

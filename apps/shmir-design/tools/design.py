@@ -208,6 +208,12 @@ DESTINOS = {
     # cuando hay que emitir ADN. Un rol que faltara aqui vuelve a ser el KeyError de
     # `polyadb`, y por eso se declara `None` en vez de omitirlo.
     "plasmido_andamio": None,
+    # NI ESTE, y `None` lo dice: el catalogo del FONDO genetico lo consume el MODAL de
+    # carga de off-targets, que corre una segunda vez contra el. El CLI no cuenta
+    # off-targets: lo que hace con `--transcriptoma-3utr` es la columna comparativa
+    # `tilado_<clase>`, que es del catalogo de la DIANA y lo dice en su nombre. Una
+    # bandera aqui prometeria un barrido que este programa no hace.
+    "transcriptoma_fondo": None,
 }
 
 

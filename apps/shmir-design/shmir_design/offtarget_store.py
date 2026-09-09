@@ -36,6 +36,33 @@ from .offtarget import (
 FILTER_NAME = "offtarget_seed"
 
 
+def verdict_without_catalogue(species) -> FilterResult:
+    """`NOT_RUN` cuando NO SE SABE contra que transcriptomas hay que barrer.
+
+    Pasa con una especie sin declarar: `species.off_target_catalogue_slugs` devuelve
+    `()`, asi que no hay ningun catalogo que nombrar y `verdict_for` no se puede
+    preguntar — aborta a proposito, y con razon.
+
+    Lo que NO se puede hacer es dejar que ese aborto tumbe la ficha o la tabla: la
+    respuesta honesta es un `NOT_RUN` que dice que el hueco esta en la DECLARACION de la
+    especie, no en un fichero que conseguir. Vive aqui, y no en cada consumidor, porque
+    la ficha y la tabla tienen que decir lo mismo (principio nº 23).
+    """
+    from .species import HOW_TO_DECLARE_BACKGROUND, resolve  # noqa: PLC0415
+
+    nombre = resolve(species).scientific if str(species).strip() else "la especie"
+    return FilterResult(
+        name=FILTER_NAME, state=FilterState.NOT_RUN,
+        reason=(
+            f"No se sabe contra qué transcriptomas hay que barrer los off-targets de "
+            f"{nombre}: no declara en qué fondo genético se prueban sus candidatos, así "
+            f"que no hay ningún catálogo que nombrar. No es que falte un fichero — es "
+            f"que falta la declaración, y suponer que el fondo es la propia especie es "
+            f"medir la mitad sin decirlo. {HOW_TO_DECLARE_BACKGROUND}"
+        ),
+    )
+
+
 @dataclass(frozen=True)
 class OfftargetRun:
     run_id: str
@@ -165,18 +192,57 @@ class OfftargetStore:
             )
         )
 
-    def latest(self, query_name: str) -> OfftargetRun | None:
+    def latest(self, query_name: str, *, background: str | None = None
+               ) -> OfftargetRun | None:
+        """La ultima corrida de esa consulta, y —si se pide— CONTRA ESE CATALOGO.
+
+        `background=None` es «cualquiera», y lo usan las vistas que sólo quieren la más
+        reciente. El VEREDICTO nunca pregunta así: ver `verdict_for`.
+        """
         historial = self.history(query_name)
+        if background is not None:
+            historial = tuple(
+                r for r in historial if r.scan.background == str(background)
+            )
         return historial[-1] if historial else None
 
-    def verdict_for(self, query_name: str, *, species: str = "") -> FilterResult:
-        """Por HEBRA. No hay `verdict_for_candidate`, igual que en la colision."""
-        ultima = self.latest(query_name)
+    def verdict_for(self, query_name: str, *, species: str = "",
+                    background: str) -> FilterResult:
+        """Por HEBRA **y POR CATALOGO**. No hay `verdict_for_candidate`.
+
+        `background` va SIN valor por defecto (principio nº 58). Con uno, una corrida
+        contra el transcriptoma del fondo contestaria a la pregunta de la diana —y al
+        reves— sin que nadie lo decidiera: es el mismo colapso que fundir guia y
+        pasajera, un eje mas alla. Ver `species.WHY_TWO_CATALOGUES`.
+        """
+        if not str(background).strip():
+            raise ShmirDesignError(
+                "Un veredicto de carga de off-targets se pide CONTRA UN CATALOGO: sin "
+                "el, una corrida contra el transcriptoma del fondo genético "
+                "contestaría a la pregunta de la especie diana. Se aborta."
+            )
+        sin_declarar = [
+            r for r in self.history(query_name) if not r.scan.background
+        ]
+        ultima = self.latest(query_name, background=background)
+        if ultima is None and sin_declarar:
+            return FilterResult(
+                name=FILTER_NAME, state=FilterState.NOT_RUN,
+                reason=(
+                    f"La(s) corrida(s) de carga de off-targets que hay para "
+                    f"{query_name} NO DECLARAN contra qué catálogo se contaron, así que "
+                    f"no contestan por {background!r} ni por ningún otro. No haberlo "
+                    f"declarado no es «es el de la especie diana»: es que no se sabe, y "
+                    f"suponerlo es lo que este eje existe para impedir. Se vuelve a "
+                    f"correr declarando el catálogo."
+                ),
+            )
         if ultima is None:
             return FilterResult(
                 name=FILTER_NAME, state=FilterState.NOT_RUN,
                 reason=(
-                    f"No hay ninguna corrida de carga de off-targets para {query_name}. "
+                    f"No hay ninguna corrida de carga de off-targets para "
+                    f"{query_name} contra el catálogo de {background!r}. "
                     f"Falta {missing_file_text(species)}. NOT_RUN no es PASS, y "
                     f"sobre todo NO ES "
                     f"CERO: no haber contado cuántos mensajeros llevan esta seed no es "

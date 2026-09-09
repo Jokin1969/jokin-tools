@@ -126,9 +126,30 @@ class TestLosFicherosQueNecesitaCadaEspecie(unittest.TestCase):
         self.assertEqual(raton["mirbase"].filename, "mature.fa")
         self.assertEqual(raton["transgen"].filename, "aav_casete.fa")
 
-    def test_los_roles_son_EXACTAMENTE_los_del_manifiesto(self):
-        roles = {f.role for f in species.required_files(species.resolve("raton"))}
-        self.assertEqual(roles, {r.role for r in manifest.ROLES})
+    def test_ningun_rol_pedido_falta_del_manifiesto(self):
+        # UN ROL QUE EL GESTOR PIDE Y `manifest.ROLES` NO DECLARA no tiene filtro al que
+        # conectarse, asi que el fichero entraria al deposito y no serviria para nada.
+        declarados = {r.role for r in manifest.ROLES}
+        for nombre in species.SPECIES:
+            pedidos = {
+                f.role for f in species.required_files(species.resolve(nombre))
+            }
+            with self.subTest(nombre):
+                self.assertEqual(pedidos - declarados, set())
+
+    def test_y_ningun_rol_declarado_se_queda_sin_que_NADIE_lo_pida(self):
+        # La otra direccion, y NO es «el raton los pide todos»: desde el eje de catalogo
+        # (2026-09-09) el raton NO pide `transcriptoma_fondo` —su modelo es el propio
+        # raton— y el humano si. Exigirselo al caso base convertiria un rol que solo
+        # existe para otra especie en un fallo; lo que no puede haber es un rol que no
+        # pida NINGUNA especie declarada, que seria un filtro sin fichero posible.
+        declarados = {r.role for r in manifest.ROLES}
+        pedidos = {
+            f.role
+            for nombre in species.SPECIES
+            for f in species.required_files(species.resolve(nombre))
+        }
+        self.assertEqual(declarados - pedidos, set())
 
     def test_cada_fichero_trae_la_FICHA_que_dice_como_conseguirlo(self):
         from shmir_design import obtencion

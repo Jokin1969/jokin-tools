@@ -138,16 +138,41 @@ class TestElMismoFalloEnElOTRO_MODAL(unittest.TestCase):
                 )
 
     def test_y_la_pagina_tambien_le_pasa_el_indice(self):
-        inicio = FUENTE.index("def _modal_offtarget")
-        fin = FUENTE.find("\ndef ", inicio + 10)
-        cuerpo = FUENTE[inicio : fin if fin != -1 else len(FUENTE)]
-        limpio = "\n".join(
-            l for l in cuerpo.split("\n") if not l.lstrip().startswith("#")
-        )
-        hueco = limpio.index("st.selectbox(")
+        # SE ANCLA AL DESPLEGABLE DE AJUSTES, no «al primero del modal» (2026-09-09).
+        # Con el eje de catalogo el primero pasa a ser el de contra QUE catalogo se
+        # cuenta, que no es un ajuste: su primera opcion es la especie DIANA, que es la
+        # respuesta correcta — el mismo caso que elegir candidato o proyecto. Anclarse a
+        # la posicion daba rojo sobre codigo correcto y, peor, habria dejado de mirar el
+        # que si tiene valor declarado.
         self.assertIsNotNone(
-            re.search(r"index=ajuste\[.indice.\]", limpio[hueco : hueco + 400])
+            _selectbox_de_ajuste(FUENTE, "def _modal_offtarget"),
+            "el desplegable de ajustes se pinta sin índice: vuelve a abrirse por la "
+            "primera opción",
         )
+
+
+def _selectbox_de_ajuste(fuente: str, marca: str) -> str | None:
+    """El `st.selectbox` de esa funcion que pinta un AJUSTE, o `None` si no lo hay.
+
+    Se busca POR LO QUE PINTA —`options=ajuste[...]`— y no por su POSICION dentro del
+    modal: un desplegable nuevo delante no puede hacer que este guardia deje de mirar el
+    que le toca. Los comentarios se quitan antes, que es la leccion de la errata nº 54.
+    """
+    inicio = fuente.index(marca)
+    fin = fuente.find("\ndef ", inicio + 10)
+    cuerpo = fuente[inicio : fin if fin != -1 else len(fuente)]
+    limpio = "\n".join(
+        l for l in cuerpo.split("\n") if not l.lstrip().startswith("#")
+    )
+    for hueco in range(len(limpio)):
+        hueco = limpio.find("st.selectbox(", hueco)
+        if hueco == -1:
+            return None
+        trozo = limpio[hueco : hueco + 400]
+        if "ajuste[" not in trozo:
+            continue
+        return trozo if re.search(r"index=ajuste\[.indice.\]", trozo) else None
+    return None
 
 
 class TestNINGUN_desplegable_abre_por_algo_que_nadie_declaro(unittest.TestCase):
@@ -178,15 +203,8 @@ class TestLaPaginaPASAelIndice(unittest.TestCase):
     """Emitirlo y no usarlo sería la novena vez del patrón de `page_run`."""
 
     def test_el_selectbox_del_modal_recibe_index(self):
-        inicio = FUENTE.index("def _modal_seed")
-        cuerpo = FUENTE[inicio : FUENTE.index("\ndef ", inicio + 10)]
-        limpio = "\n".join(
-            l for l in cuerpo.split("\n") if not l.lstrip().startswith("#")
-        )
-        hueco = limpio.index("st.selectbox(")
-        trozo = limpio[hueco : hueco + 400]
         self.assertIsNotNone(
-            re.search(r"index=ajuste\[.indice.\]", trozo),
+            _selectbox_de_ajuste(FUENTE, "def _modal_seed"),
             "el desplegable se pinta sin índice: vuelve a abrirse por la primera opción",
         )
 

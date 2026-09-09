@@ -108,12 +108,42 @@ class TestElNombreSEDERIVAdelGestor(unittest.TestCase):
         return {f.filename for f in species.required_files(species.resolve(especie))}
 
     def test_todo_insumo_resuelve_a_un_fichero_QUE_EL_GESTOR_PIDE(self):
+        # Se pregunta por ROLES y no por insumos: desde el eje de catalogo un insumo
+        # puede resolver a DOS roles segun la especie —el de la diana y el del fondo—,
+        # y los dos tienen que existir en el gestor o el frente se queda sin poder
+        # cerrarse por un fichero que nadie nombra.
         for especie in species.SPECIES:
             pedidos = self._del_deposito(especie)
-            for tipo, lista in insumos.CONSUMIDOS.items():
-                for ins in lista:
-                    with self.subTest(f"{especie}/{tipo}/{ins.rol}"):
-                        self.assertIn(insumos.fichero_de(ins, especie), pedidos)
+            por_rol = {f.role: f.filename for f in species.required_files(
+                species.resolve(especie)
+            )}
+            for tipo in insumos.CONSUMIDOS:
+                for rol in insumos.roles_de(tipo, especie):
+                    with self.subTest(f"{especie}/{tipo}/{rol}"):
+                        self.assertIn(por_rol.get(rol), pedidos)
+
+    def test_y_el_CATALOGO_de_una_corrida_sale_de_SU_background(self):
+        # El insumo del catalogo no tiene rol fijo: lo decide contra que se corrio. Con
+        # uno escrito, una corrida contra el fondo nombraria el fichero de la diana.
+        ins = next(
+            i for i in insumos.insumos_de("corrida_offtarget") if i.catalogo_desde
+        )
+        self.assertEqual(
+            insumos.fichero_de(ins, "human", {"background": "human"}),
+            "transcriptoma_3utr_human.fa",
+        )
+        self.assertEqual(
+            insumos.fichero_de(ins, "human", {"background": "mouse"}),
+            "transcriptoma_3utr.fa",
+        )
+
+    def test_y_SIN_background_declarado_ABORTA_en_vez_de_nombrar_el_de_la_diana(self):
+        ins = next(
+            i for i in insumos.insumos_de("corrida_offtarget") if i.catalogo_desde
+        )
+        with self.assertRaises(ShmirDesignError) as caja:
+            insumos.fichero_de(ins, "human", {})
+        self.assertIn("no se sabe", str(caja.exception).lower())
 
     def test_un_rol_que_el_gestor_no_declara_ABORTA(self):
         inventado = insumos.Insumo(rol="no_existe", ruta=("a",), porque="prueba")

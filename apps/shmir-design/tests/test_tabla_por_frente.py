@@ -119,46 +119,62 @@ class TestLaTablaDeSitios(unittest.TestCase):
         esperadas = set()
         for frente in blocking_fronts(self.informe, self.seleccion):
             declarado = presentation.STORE_FOR_FRONT.get(frente.name)
-            if declarado and declarado["por_hebra"]:
-                esperadas.update(
-                    f"{frente.name}:{hebra}" for hebra in presentation.STRANDS
-                )
-            else:
+            if not declarado:
                 esperadas.add(frente.name)
+                continue
+            hebras = presentation.STRANDS if declarado["por_hebra"] else ("",)
+            # Y UNA POR CATALOGO donde el frente lo tenga (2026-09-09). Los slugs salen
+            # de `catalogue_slugs`, que los deriva de la especie: escribirlos aqui haria
+            # que este test no pudiera ver un eje que se emitiera mal.
+            catalogos = (
+                presentation.catalogue_slugs("raton")
+                if declarado.get("por_catalogo") else ("",)
+            )
+            for hebra in hebras:
+                for catalogo in catalogos:
+                    partes = [frente.name, hebra, catalogo]
+                    esperadas.add(":".join(p for p in partes if p))
         self.assertEqual(
-            presentation.front_columns(self.informe, self.seleccion), sorted(esperadas)
+            presentation.front_columns(self.informe, self.seleccion, species="raton"), sorted(esperadas)
         )
 
     def test_hay_columna_para_offtarget_seed_que_es_el_que_estuvo_invisible(self):
         # DOS, una por hebra. Con una sola, el estado de la guia pasaria por el de las
         # dos justo en el frente donde menos datos hay.
-        columnas = presentation.front_columns(self.informe, self.seleccion)
-        self.assertIn("offtarget_seed:guia", columnas)
-        self.assertIn("offtarget_seed:pasajera", columnas)
+        columnas = presentation.front_columns(self.informe, self.seleccion, species="raton")
+        # El nombre lleva ademas el CATALOGO desde el 2026-09-09, asi que lo que se
+        # exige es UNA por hebra y no un literal: el eje de catalogo lo comprueba
+        # `tests/test_el_EJE_de_transcriptoma_en_los_offtargets.py`.
+        for hebra in presentation.STRANDS:
+            self.assertEqual(
+                [c for c in columnas if c.startswith(f"offtarget_seed:{hebra}")].__len__(),
+                len(presentation.catalogue_slugs("raton")),
+                hebra,
+            )
 
     def test_salen_TODOS_los_elegibles_no_solo_los_elegidos(self):
-        filas = presentation.site_table_rows(self.informe, self.seleccion)
+        filas = presentation.site_table_rows(self.informe, self.seleccion, species="raton")
         self.assertGreater(len(filas), 10)
         self.assertEqual(sum(1 for f in filas if f["elegido"]), 10)
 
     def test_cada_fila_trae_UNA_COLUMNA_POR_FRENTE(self):
-        filas = presentation.site_table_rows(self.informe, self.seleccion)
-        for columna in presentation.front_columns(self.informe, self.seleccion):
+        filas = presentation.site_table_rows(self.informe, self.seleccion, species="raton")
+        for columna in presentation.front_columns(self.informe, self.seleccion, species="raton"):
             self.assertIn(columna, filas[0], columna)
 
     def test_y_un_frente_sin_correr_sale_NOT_RUN_no_vacio(self):
-        filas = presentation.site_table_rows(self.informe, self.seleccion)
+        filas = presentation.site_table_rows(self.informe, self.seleccion, species="raton")
         self.assertEqual(filas[0]["especificidad"], "NOT_RUN")
 
     def test_la_seleccion_a_mano_cambia_QUIEN_esta_marcado(self):
         filas = presentation.site_table_rows(
-            self.informe, self.seleccion, selected=(10, 60)
+            self.informe, self.seleccion, species="raton", selected=(10, 60)
         )
         marcados = {f["inicio"] for f in filas if f["elegido"]}
         self.assertEqual(marcados, {10, 60})
 
     def test_sin_frontera_fiable_el_TERCIO_sale_NO_FIABLE(self):
-        filas = presentation.site_table_rows(self.informe, self.seleccion)
+        filas = presentation.site_table_rows(self.informe, self.seleccion, species="raton")
         self.assertEqual(filas[0]["tercio"], "NO_FIABLE")
 
     def test_con_GENBANK_el_tercio_sale_con_su_valor(self):
@@ -167,7 +183,7 @@ class TestLaTablaDeSitios(unittest.TestCase):
                 cds=(1, 3), length=1242, source=RegionSource.ANOTACION_GENBANK
             )
         )
-        filas = presentation.site_table_rows(informe, seleccion)
+        filas = presentation.site_table_rows(informe, seleccion, species="raton")
         self.assertNotEqual(filas[0]["tercio"], "NO_FIABLE")
 
 
