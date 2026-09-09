@@ -4426,37 +4426,62 @@ def offtarget_catalog_from_deposit(*, species: str, directory, gene_map=None):
     )
 
 
+#: QUE COMPRA UN md5 TECLEADO Y QUE NO. Va pegado a las casillas, no en una nota: sin
+#: esto, un md5 escrito a mano se lee como la misma garantia que uno calculado.
+TYPED_DATABASE_MD5_NOTE = (
+    "Estos dos campos SE TECLEAN porque la base no está en el depósito, y eso aquí es "
+    "lo normal: el BLAST se ejecuta fuera de la app y una base de RefSeq de verdad no "
+    "cabe en el escáner por ventana. Lo que compran es PROCEDENCIA —identifican contra "
+    "qué se corrió, que es lo que hace la corrida reproducible por quien la repita— y "
+    "lo que NO compran es comprobación: nadie puede recalcular ese md5 desde aquí, así "
+    "que no marcará la corrida como OBSOLETA si la base cambia. Con el fichero en el "
+    "depósito los dos se derivan y no se preguntan."
+)
+
+
 def blast_database_from_deposit(*, species: str, directory, remote: bool = False):
-    """La base de BLAST tal como la registra el depósito, para la corrida.
+    """La base de BLAST para la corrida: DERIVADA del depósito, o pedida si no está.
 
     Los tres campos —nombre, versión y md5— se tecleaban en el modal con la línea del
     manifiesto delante. El md5 es el que decide si una corrida queda OBSOLETA cuando el
-    fichero se reemplaza, así que tecleado a mano no ata nada.
+    fichero se reemplaza, así que tecleado a mano no ata nada: con el fichero dentro se
+    DERIVAN y no se preguntan (errata nº 62), y eso no se toca.
 
-    Sin fichero en el depósito la corrida se sigue pudiendo guardar —la base pudo correr
-    en otra máquina, que es el caso normal de este frente— pero entonces el nombre lo
-    dice y el md5 va VACÍO, que es la verdad: sin md5 no hay veredicto reproducible, y
-    `blast_readiness` ya lo avisa ANTES de la descarga.
+    **LO QUE FALTABA ERA EL OTRO ESTADO** (2026-09-09): que la base NO esté en el
+    depósito y la corrida sea válida igual. Aquí eso no es raro, es el caso normal de
+    este frente — el BLAST se ejecuta FUERA (`blast.Disabled`) y una base de RefSeq de
+    verdad no cabe en el escáner por ventana (techo medido en 5,45 MB, errata nº 84), así
+    que subir cientos de MB para obtener 32 caracteres no es una vía.
+
+    Aquí ponía que «sin fichero en el depósito la corrida se sigue pudiendo guardar […]
+    el md5 va VACÍO, que es la verdad». **Era falso**: `BlastDatabase.__post_init__`
+    ABORTA con el md5 vacío si la corrida es local, y el modal no tenía dónde
+    escribirlo — o sea un bucle sin salida. Esa frase es la razón de que nadie mirase si
+    las casillas estaban (principio nº 11).
+
+    `pedir` dice si hay que preguntarlos, y se DERIVA: sólo cuando la corrida es local
+    —en `-remote` no hay veredicto que dar— y no se han podido sacar del depósito.
     """
     from .deposito import read_deposit  # noqa: PLC0415
     from .species import resolve  # noqa: PLC0415
 
     fichero = read_deposit("refseq", species=resolve(species), directory=directory)
-    if not fichero.present:
-        return {
-            "nombre": fichero.filename,
-            "version": "",
-            "md5": "",
-            "remota": remote,
-            "texto": fichero.describe(),
-        }
-    entrada = fichero.provenance_fields()
+    version = fichero.provenance_fields().get("version", "") if fichero.present else ""
+    md5 = fichero.md5 if fichero.present else ""
+    faltan = [c for c, v in (("version", version), ("md5", md5)) if not str(v).strip()]
     return {
         "nombre": fichero.filename,
-        "version": entrada.get("version", ""),
-        "md5": fichero.md5,
+        "version": version,
+        "md5": md5,
         "remota": remote,
         "texto": fichero.describe(),
+        # DERIVADA: los dos campos salieron del deposito. Es el camino bueno.
+        "derivada": not faltan,
+        "faltan": faltan,
+        # Se PIDEN solo donde hacen falta y no se han podido derivar. En `-remote` no se
+        # piden nunca: esa corrida no es reproducible por definicion y no cierra nada.
+        "pedir": bool(faltan) and not remote,
+        "aviso": TYPED_DATABASE_MD5_NOTE,
     }
 
 

@@ -2824,6 +2824,30 @@ def _modal_blast(seleccion, nombre: str, proyecto=None, tiling=None) -> None:
                 species=nombre, directory=reference_dir(), remote=remota
             )
             st.caption(base["texto"])
+            # LOS DOS CAMPOS DE LA BASE, cuando NO se han podido derivar (2026-09-09).
+            # Con el fichero en el deposito salen de su linea y no se preguntan (errata
+            # nº 62), y eso no se toca. Lo que faltaba es el OTRO estado —la base no
+            # esta en el deposito y la corrida es valida igual—, que aqui es el caso
+            # NORMAL: el BLAST corre fuera y una base de RefSeq de verdad no cabe en el
+            # escaner por ventana. Sin estas dos casillas, `BlastDatabase` abortaba
+            # pidiendo lo que la pantalla no daba: un bucle sin salida (principio nº 47).
+            if base["pedir"]:
+                st.warning(base["aviso"])
+                base = dict(base)
+                base["version"] = st.text_input(
+                    f"Versión / procedencia de `{base['nombre']}`",
+                    value=str(base["version"]),
+                    key=f"blast_dbver_{nombre}",
+                    help="De dónde salió y cuándo: ensamblaje, ruta de descarga, fecha "
+                         "y número de secuencias. Es lo que permite repetirla.",
+                )
+                base["md5"] = st.text_input(
+                    f"md5 de `{base['nombre']}`",
+                    value=str(base["md5"]),
+                    key=f"blast_dbmd5_{nombre}",
+                    help="El del FASTA con el que se construyó la base "
+                         "(`md5sum`/`Get-FileHash`).",
+                )
             _guardar_corrida(
                 proyecto, nombre,
                 construir=lambda fecha, quien: blast_run_from_upload(
