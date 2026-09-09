@@ -50,7 +50,8 @@
 # pas_con_expresion	11
 # utr3_md5	f7fdb4a88d4834dbbf9a23edf9ec85dc
 # tejido	TODOS LOS TEJIDOS, no cerebro
-# reserva	4700115 (None, PSE 1,4 %, AvgRPM 0,57) cae en 3utr:128-134; 4701453 (None, PSE 1,6 %, AvgRPM 0,28) cae en 3utr:1466-1472. Ninguno entra: PasAnchor('None') bloquea antes del anclaje. El tramo 3utr:1-248 NO se declara INMUNE hasta que exista CutOnlySite con banda derivada del desfase resuelto. Pendiente: errata nº 158 (murino, pas_totales/pas_con_expresion) requiere el volcado murino completo para cerrar.
+# reserva	4700115 (None, PSE 1,4 %, AvgRPM 0,57) cae en 3utr:128-134; 4701453 (None, PSE 1,6 %, AvgRPM 0,28) cae en 3utr:1466-1472. Ninguno entra: PasAnchor('None') bloquea antes del anclaje. Pendiente: errata nº 158 (murino, pas_totales/pas_con_expresion) requiere el volcado murino completo para cerrar.
+# pendiente_veredicto	3utr:1-248 declarado INMUNE; es falso para el 1,4% de transcritos que cortan en 3utr:128-134; corrección pende de CutOnlySite
 # reserva	CONCORDANCIA de las otras dos fuentes, en PSE, para las cuatro filas: 4700235 ENCODE.PB 3,0 % y GTEx.ONT 18,5 %; 4700961 32,6 % y 29,3 %; 4701170 5,9 % y 18,5 %; 4701587 97,0 % y 94,6 %. El terminal concuerda en las tres; los tres proximales pesan poco en las tres, y GTEx.ONT los da sistematicamente mas altos. No se promedian: el dato de trabajo es 3'READS.
 # reserva	El valor `<0,1 %` que aparece en la tabla de expresion sale SOLO en PSE.ENCODE.PB (4687520) y PSE.GTEx.ONT (4690141), nunca en 3'READS, y los dos son PAS de 5'UTR que no entran aqui. Es un LIMITE SUPERIOR y no un numero: si llegara al cargador, `_fraccion` aborta. Convertirlo a 0,001 seria inventarse una medida.
 # reserva	El transcrito REPRESENTATIVO que usa PolyA_DB para PRNP no viene declarado en las tablas aportadas, asi que `representante` va vacio. El fichero se aplica por `utr3_md5`, no por el nombre del transcrito, asi que eso no afecta a ningun veredicto.

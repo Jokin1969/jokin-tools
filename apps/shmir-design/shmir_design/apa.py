@@ -749,6 +749,34 @@ def long_isoform_fraction(sites, *, weighted: bool) -> float:
     return distal / total
 
 
+class PendingScope(StrEnum):
+    """QUE bloquea un item de `pending`. Se DECLARA: no hay valor por defecto.
+
+    El campo tenia UN solo significado —«bloquea el uso del dato»— y hacian falta DOS.
+    El panel humano necesita anotar que `3utr:1-248` sale INMUNE y es falso para la
+    fraccion que corta antes: eso NO bloquea la fraccion —sigue siendo 0,998 y sigue
+    entrando— sino un VEREDICTO categorico de un tramo. Con un solo alcance, escribirlo
+    hacia que el informe imprimiera «El dato NO entra al pipeline todavia» encima de un
+    informe que lo estaba usando.
+
+    El defecto que saldria decide si el dato entra al pipeline, asi que no puede haber
+    defecto (principio nº 58).
+    """
+
+    #: Bloquea el uso del DATO entero. Mientras haya uno, la tabla no entra al pipeline.
+    DATO = "dato"
+    #: Bloquea un VEREDICTO concreto que el pipeline emite con este dato. El dato entra,
+    #: la cifra es buena, y lo que queda por corregir va NOMBRADO.
+    VEREDICTO = "veredicto"
+
+
+@dataclass(frozen=True)
+class PendingCheck:
+    text: str
+    #: Sin valor por defecto a proposito: ver `PendingScope`.
+    scope: PendingScope
+
+
 @dataclass(frozen=True)
 class MeasuredFraction:
     source: str
@@ -761,10 +789,12 @@ class MeasuredFraction:
     total_pas: int
     with_expression: int
     sites: tuple[MeasuredSite, ...]
-    #: Comprobaciones que BLOQUEAN el uso del dato. Mientras haya una, el dato no
-    #: entra al pipeline. No es lo mismo que una reserva: una reserva se anota y se
-    #: sigue, una comprobacion pendiente para el paso.
-    pending: tuple[str, ...]
+    #: Comprobaciones pendientes, cada una con su ALCANCE declarado (`PendingScope`).
+    #: Las de alcance DATO bloquean el uso de la tabla entera; las de alcance VEREDICTO
+    #: no la bloquean y nombran que veredicto queda por corregir. No es lo mismo que una
+    #: reserva: una reserva se anota porque no mueve NADA; un pendiente de veredicto si
+    #: mueve algo —un veredicto categorico— y por eso no cabe en `caveats`.
+    pending: tuple[PendingCheck, ...]
     tissue: str
     #: Reservas que se anotan y NO bloquean, porque no mueven el valor. Meterlas en
     #: `pending` haria que el dato pareciera inutilizable por algo que no cambia
@@ -795,9 +825,24 @@ class MeasuredFraction:
         )
 
     @property
+    def blocking(self) -> tuple[PendingCheck, ...]:
+        """Los pendientes que bloquean el DATO."""
+        return tuple(p for p in self.pending if p.scope is PendingScope.DATO)
+
+    @property
+    def open_verdicts(self) -> tuple[PendingCheck, ...]:
+        """Los que NO bloquean el dato y nombran un veredicto por corregir."""
+        return tuple(p for p in self.pending if p.scope is PendingScope.VEREDICTO)
+
+    @property
     def usable(self) -> bool:
-        """Mientras queden comprobaciones pendientes, el dato NO entra al pipeline."""
-        return not self.pending
+        """Con un pendiente de alcance DATO, la tabla NO entra al pipeline.
+
+        Se DERIVA del alcance, asi que deja de mentir en las dos direcciones: antes
+        cualquier pendiente lo ponia a falso, y no lo leia nadie — o sea que el campo
+        afirmaba un bloqueo que no ocurria.
+        """
+        return not self.blocking
 
     def describe(self) -> list[str]:
         lineas = [
@@ -835,12 +880,25 @@ class MeasuredFraction:
                 "",
             ]
         )
-        if self.pending:
+        if self.blocking:
             lineas.append(
                 "  PENDIENTE ANTES DE USARLO. El dato NO entra al pipeline todavia:"
             )
-            lineas.extend(f"    {i}. {p}" for i, p in enumerate(self.pending, start=1))
-        else:
+            lineas.extend(
+                f"    {i}. {p.text}" for i, p in enumerate(self.blocking, start=1)
+            )
+        if self.open_verdicts:
+            lineas.extend([
+                "  PENDIENTE, y NO bloquea el dato: la cifra ENTRA y lo que queda por "
+                "corregir es un",
+                "  VEREDICTO concreto que el pipeline emite con ella. Va aquí y no en "
+                "las reservas porque",
+                "  una reserva se anota cuando no mueve NADA, y esto mueve un veredicto:",
+            ])
+            lineas.extend(
+                f"    {i}. {p.text}" for i, p in enumerate(self.open_verdicts, start=1)
+            )
+        if not self.pending:
             lineas.append(
                 "  SIN COMPROBACIONES PENDIENTES: el dato ENTRA al pipeline. El mapeo "
                 "genomico↔transcrito,"
@@ -887,9 +945,20 @@ POLYADB_FORMAT = (
 POLYADB_FILENAME = "polya_db_{slug}.tsv"
 
 
+#: La clave de cabecera DECLARA el alcance. Son dos claves y no un valor dentro de
+#: una, para que no haya forma de escribir un pendiente sin decir que bloquea.
+_PENDIENTE_POR_CLAVE = {
+    "pendiente_dato": PendingScope.DATO,
+    "pendiente_veredicto": PendingScope.VEREDICTO,
+}
+
+
 def _cabecera(texto: str, *, source: str) -> dict[str, str]:
     valores: dict[str, str] = {}
     reservas: list[str] = []
+    # Los pendientes van en LISTA y no en el diccionario: dos con la misma clave se
+    # pisarian, y el segundo aviso desapareceria sin dar ningun error.
+    pendientes: list[PendingCheck] = []
     for linea in texto.splitlines():
         if not linea.startswith("#"):
             continue
@@ -900,9 +969,22 @@ def _cabecera(texto: str, *, source: str) -> dict[str, str]:
         clave = clave.strip()
         if clave == "reserva":
             reservas.append(valor.strip())
+        elif clave == "pendiente":
+            raise ShmirDesignError(
+                f"{source}: `pendiente` no dice QUE bloquea, y el defecto que saldria "
+                f"decide si el dato entra al pipeline. Usa `pendiente_dato` —bloquea la "
+                f"tabla entera— o `pendiente_veredicto` —el dato entra y lo que queda "
+                f"por corregir es un veredicto concreto—. Se aborta en vez de elegir "
+                f"por tu cuenta.\n\n  {valor.strip()}"
+            )
+        elif clave in _PENDIENTE_POR_CLAVE:
+            pendientes.append(
+                PendingCheck(text=valor.strip(), scope=_PENDIENTE_POR_CLAVE[clave])
+            )
         else:
             valores[clave] = valor.strip()
     valores["_reservas"] = "\n".join(reservas)
+    valores["_pendientes"] = pendientes  # type: ignore[assignment]
     faltan = [c for c in POLYADB_HEADER if not valores.get(c)]
     if faltan:
         raise ShmirDesignError(
@@ -1018,7 +1100,7 @@ def parse_polyadb(texto: str, *, source: str) -> MeasuredFraction:
         sites=tuple(sitios),
         anchors=tuple(anclas),
         tissue=cabecera["tejido"],
-        pending=(),
+        pending=tuple(cabecera["_pendientes"]),
         caveats=reservas,
     )
 
