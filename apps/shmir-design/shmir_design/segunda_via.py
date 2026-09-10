@@ -22,14 +22,35 @@ final: *una vía y su alternativa no pueden compartir el mecanismo que falla*. E
 copiable lo cumplía y entrega un PEGADO; ésta entrega un FICHERO y tampoco lo comparte.
 
 **Cómo**: el contenido se escribe en el directorio ``static/`` del script, que Streamlit
-sirve en ``/app/static/`` con ``FileResponse`` **sin ``Content-Disposition``**, y con el
-sufijo ``.txt`` para que el tipo sea ``text/plain`` — que el navegador PINTA. Luego se
-guarda con «Guardar como». El enlace lo pulsa una persona: no hay ningún ``click()`` de
-un script por medio.
+sirve en ``/app/static/`` con ``FileResponse`` **sin ``Content-Disposition``**. El enlace
+lo pulsa una persona: no hay ningún ``click()`` de un script por medio.
 
-**El sufijo es el mecanismo entero**, y por eso su test lleva control adversario: sin él,
-``.tsv`` sale como ``text/tab-separated-values`` y ``.fa`` como
-``application/octet-stream``, y los dos vuelven a la maquinaria de descarga.
+**EL SUFIJO ES EL MECANISMO ENTERO, y por eso hay DOS MODOS y ninguno tiene defecto**
+(principio nº 58). Con ``.txt`` el tipo es ``text/plain`` y el navegador **PINTA** el
+contenido en una pestaña; con el nombre REAL, ``.tsv`` sale como
+``text/tab-separated-values`` y ``.fa`` como ``application/octet-stream``, y entonces el
+navegador **DESCARGA**.
+
+Hasta el 2026-09-10 sólo existía el primero, y su docstring llamaba al segundo «volver a
+la maquinaria de descarga». Esa frase mezclaba dos cosas que **están medidas y no son la
+misma**: las dos vías muertas de la errata nº 130 terminan en una **pulsación SINTÉTICA**
+sobre un ``<a download>`` —``DownloadButton`` sobre una URL de ``/media/`` cuyo id se
+recicla en el rerun, y el icono de la tabla sobre un ``Blob``—; ésta es una **navegación
+de verdad**, iniciada por una persona, a un fichero estático que ya existe en disco. Lo
+que comparten es el gestor de descargas del navegador; lo que no comparten es todo lo
+demás. Por eso el modo de descarga es una vía NUEVA y no la que ya falla, y por eso se
+mide en un navegador de verdad (`test/shmir.smoke.test.js`) en vez de razonarse.
+
+Los dos modos conviven a propósito: el botón de descarga usa el segundo, y el primero se
+queda como la salida que **está medida** desde el 2026-09-08.
+
+**Y el segundo ya está MEDIDO también** (2026-09-10). En Chromium, por el proxy del hub y
+con el flujo real —elegir especie, subir el mRNA y su `.gb`, buscar candidatos y pulsar el
+botón morado de la primera tabla—: el enlace sale a ``/shmir/app/static/anatomy_rows.tsv``
+—sin ``.txt``— y **el navegador descarga el fichero**: 117 bytes, 4 líneas, la primera es
+la cabecera de columnas. O sea que la vía de descarga que este módulo abre **sí baja
+bytes**, mientras las dos de la errata nº 130 siguen sin bajar ninguno. Eso no le asigna
+causa a aquella errata: la esquiva, que es lo que este módulo dice desde su primera línea.
 """
 
 from __future__ import annotations
@@ -101,13 +122,19 @@ def publish(
     *,
     directory,
     base_path: str,
+    inline: bool,
     max_bytes: int = MAX_STATIC_BYTES,
 ) -> dict:
-    """Publica `contenido` para abrirlo en una pestaña. Devuelve URL y nombre real.
+    """Publica `contenido` en la ruta estática. Devuelve URL y nombre real.
 
-    `base_path` es el prefijo del montaje y **no tiene valor por defecto** (principio
-    nº 58): con `/shmir` supuesto, la app en local daría un enlace roto; con vacío
-    supuesto, la del hub daría un 404 del hub. Los dos, en silencio.
+    `inline` decide QUÉ HACE EL NAVEGADOR con el enlace, y **no tiene valor por
+    defecto** porque es el mecanismo entero: `True` añade `.txt` y el contenido se
+    **PINTA** en una pestaña; `False` conserva el nombre real y el navegador lo
+    **DESCARGA**. Un defecto aquí elegiría en silencio cuál de las dos cosas pasa.
+
+    `base_path` es el prefijo del montaje y **tampoco** tiene valor por defecto: con
+    `/shmir` supuesto, la app en local daría un enlace roto; con vacío supuesto, la del
+    hub daría un 404 del hub. Los dos, en silencio.
 
     Del nombre sobrevive el NOMBRE y se cae toda la ruta, la misma regla que
     `presentation.upload_path`: no se limpia `..`, se descarta entera.
@@ -141,7 +168,7 @@ def publish(
         )
 
     base = Path(directory)
-    fichero = f"{limpio}{INLINE_SUFFIX}"
+    fichero = f"{limpio}{INLINE_SUFFIX}" if inline else limpio
     ruta = base / fichero
     if not ruta.resolve().is_relative_to(base.resolve()):
         raise ShmirDesignError(
@@ -163,4 +190,8 @@ def publish(
         "guardar_como": limpio,
         "ruta": ruta,
         "bytes": len(datos),
+        #: Qué va a hacer el navegador con este enlace. Viaja con la URL para que quien
+        #: la pinte no tenga que volver a decidirlo — y para que el rótulo no pueda
+        #: prometer una cosa y el enlace hacer otra.
+        "modo": "pinta" if inline else "descarga",
     }

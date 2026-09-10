@@ -6743,6 +6743,160 @@ de los ficheros que faltan. Comparar el empalme en los dos fondos se hace con **
 casetes**, no con dos transcriptomas, y **eso es otra decisión** — no se toma de paso.
 
 
+## BAJO CADA TABLA, DOS BOTONES NUESTROS. PEDIDO (2026-09-10)
+
+Con las palabras con que se pidió: *«ya sabemos que el botón de descarga de estas que
+está dentro de la tabla embebida no funciona y no es culpa tuya. Por eso te pido que
+debajo de cada tabla me pongas un botón de color morado que diga Descargar tabla y que
+esa sí que funcione y sea responsabilidad tuya. Y otro al lado de color naranja que diga
+Copiar tabla y que solo copie toda la tabla en buffer para poder pegar en un Excel por
+ejemplo. Y esto tiene que ser en todas las tablas de la app»*.
+
+- **El icono de la esquina no se toca y no se tapa.** Es de Streamlit, genera el CSV en
+  el navegador y acaba en la maquinaria de descarga que la errata nº 130 dejó **sin causa
+  asignada**. Es el principio nº 59 —no lo escribimos nosotros, pero lo servimos
+  nosotros— y lo único que se puede hacer es poner al lado dos salidas que sí son
+  nuestras. Taparlo dejaría sin identificar lo que alguien ya tenga en su carpeta de
+  descargas.
+- **No tabla por tabla: en el pintor único.** `_tabla` es el único sitio de la página que
+  llama a `st.dataframe` —hay guardia desde el 2026-09-09— así que los dos botones entran
+  ahí y **una tabla nueva los trae por construcción**. Un arreglo repetido a mano es una
+  costumbre, no un mecanismo (principio nº 31).
+- **Fuera de todo desplegable.** La segunda vía vivía dentro de un expander, y un gesto de
+  más entre el usuario y su fichero se lee como que el fichero no está (principio nº 46).
+  El expander se queda **debajo** con las otras dos salidas, que no se retiran.
+- **Los rótulos y los colores los declara `presentation.TABLE_BUTTONS`** (regla 6): se
+  pidieron POR SU COLOR, así que el color es parte de lo pedido y no una elección de la
+  vista. Elegido en la página sería una decisión sin test.
+
+### El morado NO comparte mecanismo con los dos botones que no bajan nada
+
+Es la condición que lo hace responsabilidad nuestra, y es el corolario ya escrito de la
+errata nº 124: *una vía y su alternativa no pueden compartir el mecanismo que falla*.
+
+| | cómo entrega los bytes | ¿baja? |
+|---|---|---|
+| `st.download_button` (el rojo del export) | pulsación **sintética** sobre un `<a download>` de `/media/` | **no** |
+| el icono de la tabla | `showSaveFilePicker` y, si falla, `Blob` + `<a download>` sintético | **no** |
+| **el morado** | **navegación de verdad**, iniciada por una persona, a un fichero que ya está en disco en `ui/static/` | **sí, medido** |
+
+`segunda_via.publish` gana `inline`, **obligatorio y sin valor por defecto** (principio
+nº 58): con `True` añade `.txt`, el fichero sale `text/plain` y el navegador lo **PINTA**
+—que es la vía medida desde el 2026-09-08—; con `False` conserva el nombre real, sale
+`text/tab-separated-values` y el navegador lo **DESCARGA**. El sufijo es el mecanismo
+entero, así que un defecto ahí elegiría en silencio cuál de las dos cosas pasa. Los dos
+modos conviven a propósito: el botón usa el segundo y el expander sigue ofreciendo el
+primero.
+
+### MEDIDO en Chromium, por el proxy del hub (2026-09-10)
+
+No razonado, y con el flujo entero: elegir especie, subir `NM_011170.3.fa` y su `.gb`,
+pulsar «Buscar candidatos» y usar los dos botones de la primera tabla que pinta.
+
+```
+botones      Descargar tabla · rgb(107, 47, 160)   (= #6b2fa0, el morado declarado)
+             Copiar tabla    · rgb(210, 105, 30)   (= #d2691e, el naranja declarado)
+enlace       /shmir/app/static/anatomy_rows.tsv     (sin .txt: modo DESCARGA)
+copiar       eco «Copiada: 3 fila(s)» y el portapapeles trae el TSV con tabuladores
+descargar    anatomy_rows.tsv, 117 bytes, 4 líneas, la primera es la cabecera
+```
+
+- **El bloque va en `components.v1.html` y no en `st.button`**, y no es una preferencia:
+  los dos botones tienen que actuar **en el navegador** —una navegación y una escritura
+  en el portapapeles— y un `st.button` da una vuelta al servidor y repinta. Con ese
+  rodeo, el de copiar no podría escribir: el navegador sólo lo permite dentro del gesto
+  del usuario, y para entonces ese gesto ya terminó.
+- **El portapapeles funciona desde ese iframe, medido**: lleva `allow-scripts
+  allow-same-origin allow-downloads` en el `sandbox` y `clipboard-write` en el `allow`.
+  Con el documento sin foco falla —artefacto de la automatización, no del usuario—, así
+  que hay respaldo con `execCommand` y, si los dos fallan, **se DICE**: un botón que copia
+  y no lo dice es indistinguible de uno que no hace nada.
+- **`components.v1.html` está DEPRECADO** y su propio aviso dice «will be removed after
+  2026-06-01», o sea una fecha ya pasada. Hay guardia
+  (`test_CADA_tabla_trae_sus_DOS_botones.py`) para que el día que el símbolo desaparezca
+  **falle la suite y no la página**. El relevo está explorado y no supuesto: `st.iframe`
+  existe pero recibe un `src`, así que sustituirlo obliga a publicar el bloque en
+  `ui/static/` — ruta ya medida por el proxy— y **el permiso de portapapeles de ese
+  iframe NO está medido**. Se mide antes de cambiarlo.
+- **Una tabla VACÍA no ofrece nada**: no hay qué llevarse, y un enlace a un fichero vacío
+  se lee como una descarga hecha.
+- **Si publicar falla, el de copiar sigue estando** y se dice el motivo: una alternativa
+  que se lleva por delante a la otra no es una alternativa (errata nº 137).
+
+
+## EL TEXTO NO SE ATENÚA: SALE UN AVISO. PEDIDO (2026-09-10)
+
+Reportado así: *«cada vez que le doy a un botón o un clic en alguna casilla o relleno
+algo que luego guarda, se baja la intensidad del texto como dejando ver que está
+pensando»*, y lo que se pide en su lugar: *«algo más estándar que es que salga una nota,
+ventana o similar diciendo lo que está haciendo, pero sin bajar la intensidad del texto.
+Durante esa ventana uno sabe que solo le queda esperar, pero al menos sabe que la app
+está trabajando»*.
+
+**El mecanismo se MIDIÓ antes de tocar nada.** Al repintarse, Streamlit marca el
+contenedor de cada elemento pendiente con `data-stale="true"` y le pone `transition:
+opacity 1s ease-in 0.5s`. Ese **medio segundo de retardo** es lo que lo hacía parecer
+intermitente: en un repintado corto no llega a verse y en una corrida larga se ve entero.
+
+**Lo que hace ese atenuado es avisar QUITANDO**: apaga justo lo que se estaba leyendo, y
+no dice qué pasa ni cuánto queda. Se sustituye por lo contrario, un aviso que **AÑADE**.
+
+- **La regla vive en `presentation.page_stylesheet`, no en la página** (regla 6), y no
+  por simetría: las dos reglas nuevas son **mecanismo**, cuelgan de atributos de código
+  de terceros **medidos en un navegador**, y en la vista no tendrían test.
+- **Se quita el desvanecido Y su transición.** Sólo con `opacity: 1` el navegador sigue
+  animando hacia la opacidad nueva hasta que el estilo se aplica: es la mitad que no se
+  ve al leer la regla.
+- **El aviso cuelga del ESTADO REAL de ejecución**, no de un temporizador nuestro:
+  `[data-testid="stStatusWidget"]` existe **sólo** mientras el script corre, así que se
+  enciende y se apaga solo y **no puede quedarse encendido**. Se le conservan sus
+  controles —el botón de parar es suyo y sigue haciendo falta— y se le antepone el texto
+  con un `::before`, fijo arriba y centrado.
+- **El texto lo declara `presentation.BUSY_NOTICE`** y no la hoja de estilo: es prosa que
+  lee una persona, y ahí es donde lo mira `check:tildes`.
+
+**MEDIDO en Chromium por el proxy del hub, con su control adversario** (2026-09-10):
+durante una corrida real, **142 elementos** llegaron a estar marcados `data-stale="true"`
+y **0** se atenuaron; el aviso salió con `position: fixed` y el contenido `"La app está
+trabajando…"`. Las dos cifras van juntas o no dicen nada: sin los 142, «ninguno se atenúa»
+y «el mecanismo no llegó a dispararse» darían el mismo verde.
+
+
+## UN CLIC EN «BUSCAR CANDIDATOS» NO BUSCABA NADA (2026-09-10)
+
+Errata nº 161, y **la encontró intentar medir otra cosa**: el flujo real en Chromium para
+comprobar los dos botones nuevos no llegaba a pintar ninguna tabla.
+
+```
+1 clic : {"tablas": 0, "sigue_el_boton": 1, "dice_todo_listo": true}
+2 clics: {"tablas": 4, "dice_todo_listo": false}
+```
+
+**LA CAUSA es de una línea y la anatomía ya tenía nombre.** `accion` se resuelve ARRIBA
+—`design_action(st.session_state.get("accion"), …)`, que es una sola definición a
+propósito— y los dos botones que la escriben se pintan mucho más abajo. En el repintado
+que pulsa el botón, `accion` ya se leyó y vale `None`: la página vuelve a decir «Todo
+listo» y no corre nada. **Escribir en `session_state` no repinta lo que ya se pintó** —
+exactamente la pieza de la errata nº 54, donde la confirmación de una corrida guardada
+salía sobre la pantalla de antes.
+
+**Por qué llevaba ahí sin verse.** No da ningún error, la página se repinta entera y el
+aviso de «trabajando» aparece —hay rerun—, así que desde fuera parece que el primer clic
+«no se registró»; y a la segunda funciona. Y los tests de la página no pueden verlo:
+`AppTest` llama a `.run()` otra vez después de tocar el widget, **que es justo el segundo
+repintado que aquí faltaba**. Un cliente que no se parece al real no prueba nada.
+
+**El arreglo es `st.rerun()` en los DOS botones**, no sólo en el que se reportó, y lo que
+lo convierte en mecanismo es `tests/test_UN_CLIC_basta_para_DISENAR.py`: la regla se
+**deriva** —cualquier `if` que escriba `session_state["accion"]` tiene que repintar— así
+que un tercer botón queda cubierto sin que nadie se acuerde. Y hay un segundo test que
+fija **la condición que hace falta el guardia**: que la acción se lea antes de que se
+escriba. Si algún día deja de ser cierto, la regla se entera en vez de quedarse sin
+motivo.
+
+**Comprobado después del arreglo, en el mismo navegador**: un solo clic, las 4 tablas en
+**3,8 s**.
+
 ## EL INVENTARIO DE ESTADOS GANA EL EJE DE LA ESPECIE (2026-09-08)
 
 D2 de `docs/revision-preparacion-humano.md`, y el último de los nueve. `data/estados.toml`
