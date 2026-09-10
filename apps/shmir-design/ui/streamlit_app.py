@@ -80,6 +80,9 @@ from shmir_design.presentation import (  # noqa: E402
     project_create,
     project_list,
     PAGE_COLORS,
+    TABLE_COPY_FEEDBACK,
+    page_stylesheet,
+    table_actions,
     PROJECT_ENTRY_HELP,
     PROJECT_PENDING_NOTE,
     DOWNLOAD_FAILED_NOTE,
@@ -1322,6 +1325,10 @@ def _segunda_via(texto: str, *, nombre: str, clave: str) -> None:
             base_path=segunda_via.mount_prefix(
                 config.get_option("server.baseUrlPath")
             ),
+            # PINTADO en una pestaña, que es lo que esta via promete y lo que esta
+            # MEDIDO desde el 2026-09-08. La descarga es el otro modo, y la usa el
+            # boton morado de `_botones_de_tabla`.
+            inline=True,
         )
     except (ShmirDesignError, OSError) as exc:
         # rule2-ok: frontera de la interfaz. El motivo entero, sin degradar, y queda el
@@ -1344,6 +1351,109 @@ def _segunda_via(texto: str, *, nombre: str, clave: str) -> None:
             f"la derecha del bloque."
         )
         st.code(texto, language=None)
+
+
+#: ALTO del bloque de los dos botones, en pixeles. `components.html` NO se ajusta al
+#: contenido: sin alto declarado corta el aviso de «copiada» y el usuario ve un boton que
+#: no dice nada. Se declara con sitio para las dos lineas.
+_ALTO_BOTONES = 96
+
+
+def _botones_de_tabla(accion) -> None:
+    """Los DOS botones de una tabla: descargar (morado) y copiar (naranja).
+
+    **Van en un `components.html` y no en `st.button`**, y no es una preferencia: los dos
+    tienen que hacer algo EN EL NAVEGADOR —una navegacion a un fichero y una escritura en
+    el portapapeles— y un `st.button` da una vuelta al servidor y repinta la pagina. Con
+    ese rodeo, el de copiar no podria escribir en el portapapeles: el navegador solo lo
+    permite dentro del gesto del usuario, y para entonces ese gesto ya termino.
+
+    **MEDIDO en Chromium por el proxy del hub, no supuesto** (2026-09-10): el iframe de
+    `components` lleva `allow-scripts allow-same-origin allow-downloads` en el `sandbox` y
+    `clipboard-write` en el `allow`, asi que `navigator.clipboard.writeText` funciona
+    desde dentro con un clic de verdad. Con el documento sin foco falla —y ese es un
+    artefacto de la automatizacion, no del usuario—, asi que ademas hay respaldo con
+    `execCommand` y, si los dos fallan, se DICE: un boton que copia y no lo dice es
+    indistinguible de uno que no hace nada.
+
+    **El de descargar NO comparte mecanismo con los dos que no bajan nada.** Aquellos
+    terminan en una pulsacion SINTETICA sobre un `<a download>`; este es un enlace normal
+    a un fichero que ya esta en disco, pulsado por una persona, servido con su extension
+    real para que el navegador lo descargue. Ver `segunda_via` y la errata nº 130.
+
+    Si publicar falla, **el de copiar sigue estando**: una alternativa que se lleva por
+    delante a la otra no es una alternativa (errata nº 137).
+    """
+    import json as _json  # noqa: PLC0415
+
+    # SIN GUION BAJO DELANTE, y no es estilo: `test_orden_del_modulo` exige que
+    # toda llamada `_algo(...)` de la pagina apunte a una funcion del modulo, y un
+    # alias privado de un import parece un ayudante que no existe. El guardia hizo
+    # lo que debe; lo que estaba mal era el nombre.
+    from streamlit.components.v1 import html as bloque_html  # noqa: PLC0415
+
+    texto = str(accion["tsv"])
+    descargar = accion["botones"]["descargar"]
+    copiar = accion["botones"]["copiar"]
+    try:
+        entrega = segunda_via.publish(
+            str(accion["nombre"]), texto,
+            directory=segunda_via.static_dir(__file__),
+            base_path=segunda_via.mount_prefix(
+                config.get_option("server.baseUrlPath")
+            ),
+            # DESCARGA, no pintado: es lo que el boton promete.
+            inline=False,
+        )
+    except (ShmirDesignError, OSError) as exc:
+        # rule2-ok: frontera de la interfaz. El motivo entero y queda el de copiar.
+        entrega = None
+        st.caption(f"No se pudo preparar la descarga: {exc}")
+
+    url = _json.dumps(entrega["url"] if entrega else "")
+    bloque_html(
+        f"""
+        <style>
+          .sd-b {{ font: 600 15px/1.2 system-ui, sans-serif; color: #fff;
+                   border: 0; border-radius: 8px; padding: .62rem 1.15rem;
+                   cursor: pointer; text-decoration: none; display: inline-block; }}
+          .sd-b:hover {{ filter: brightness(1.12); }}
+          .sd-fila {{ display: flex; gap: .6rem; align-items: center;
+                      flex-wrap: wrap; margin: .1rem 0 .35rem; }}
+          .sd-eco {{ font: 13px system-ui, sans-serif; color: {PAGE_COLORS['texto']};
+                     min-height: 1.2em; }}
+        </style>
+        <div class="sd-fila">
+          {(
+            f'<a class="sd-b" style="background:{descargar["color"]}" '
+            f'href={url} target="_blank" rel="noopener">{descargar["rotulo"]}</a>'
+          ) if entrega else ''}
+          <button class="sd-b" style="background:{copiar['color']}"
+                  id="c">{copiar['rotulo']}</button>
+        </div>
+        <div class="sd-eco" id="eco">{accion['filas']:,} fila(s) · {accion['bytes']:,} bytes</div>
+        <script>
+          const TSV = {_json.dumps(texto)};
+          const HECHO = {_json.dumps(TABLE_COPY_FEEDBACK["hecho"].format(filas=accion["filas"]))};
+          const FALLO = {_json.dumps(TABLE_COPY_FEEDBACK["fallo"])};
+          const eco = document.getElementById('eco');
+          document.getElementById('c').addEventListener('click', async () => {{
+            try {{
+              await navigator.clipboard.writeText(TSV);
+              eco.textContent = HECHO;
+            }} catch (e) {{
+              const ta = document.createElement('textarea');
+              ta.value = TSV; ta.style.position = 'fixed'; ta.style.opacity = '0';
+              document.body.appendChild(ta); ta.select();
+              const ok = document.execCommand('copy');
+              ta.remove();
+              eco.textContent = ok ? HECHO : FALLO.replace('{{motivo}}', e.message);
+            }}
+          }});
+        </script>
+        """,
+        height=_ALTO_BOTONES,
+    )
 
 
 def _tabla(filas, *, nombre: str, clave: str, **kwargs) -> None:
@@ -1370,12 +1480,13 @@ def _tabla(filas, *, nombre: str, clave: str, **kwargs) -> None:
     un fichero vacío se lee como una descarga hecha.
     """
     st.dataframe(filas, **kwargs)
-    texto = table_tsv(filas)
-    if not texto:
+    accion = table_actions(filas, nombre=nombre)
+    if accion["vacia"]:
         return
-    with st.expander(f"Llevarse esta tabla ({nombre})"):
+    _botones_de_tabla(accion)
+    with st.expander(f"Otras formas de llevarse esta tabla ({nombre})"):
         st.caption(TABLE_ICON_NOTE)
-        _segunda_via(texto, nombre=nombre, clave=clave)
+        _segunda_via(str(accion["tsv"]), nombre=nombre, clave=clave)
 
 
 def _descargar_todo(directorio) -> None:
@@ -1705,32 +1816,16 @@ def _panel_refinamiento(especie: str) -> None:
 
 
 def _estilo() -> None:
-    """Tipografia y aire. La pagina se leia como una consola: letra de 14 px, todo
+    """Inyecta la hoja de estilo. La hoja la MONTA `presentation.page_stylesheet`.
 
-    pegado y las explicaciones en `caption`, que es el tamaño mas pequeño que hay.
-    Nada de esto DECIDE nada —son medidas, no criterios— asi que puede vivir aqui.
+    Estuvo aqui mientras fue tipografia y aire —medidas, no criterios—. Desde el
+    2026-09-10 lleva dos reglas que SI son mecanismo: la que impide que el texto se
+    atenue al repintar y la que convierte el indicador de ejecucion de Streamlit en un
+    aviso legible. Las dos cuelgan de atributos de terceros MEDIDOS en un navegador de
+    verdad, asi que necesitan test — y aqui no lo tendrian (regla 6).
     """
     st.markdown(
-        """
-        <style>
-          .block-container {{ max-width: 1180px; padding-top: 2.2rem; }}
-          html, body, [class*="css"] {{ font-size: 17px; line-height: 1.65; }}
-          h1 {{ font-size: 2.1rem; letter-spacing: -0.5px; margin-bottom: .2rem; }}
-          h2 {{ font-size: 1.55rem; margin-top: 2.6rem; margin-bottom: .4rem; }}
-          h3 {{ font-size: 1.2rem; margin-top: 1.6rem; }}
-          /* Las explicaciones dejan de ser letra pequeña: son la mitad del producto.
-             Y dejan de ser grises. El color lo declara `presentation.PAGE_COLORS`: uno
-             elegido aqui seria una decision sin test (regla 6). */
-          [data-testid="stCaptionContainer"] p {{ font-size: .97rem; color: {texto}; }}
-          [data-testid="stVerticalBlockBorderWrapper"] {{ padding: .35rem .2rem; }}
-          div[data-testid="stExpander"] {{ border-radius: 8px; }}
-          .stButton button {{ padding: .55rem 1.1rem; font-size: 1rem; }}
-          .sd-lede {{ font-size: 1.12rem; color: {texto}; max-width: 46rem; }}
-          .sd-paso {{ color: {rotulo}; font-size: .82rem; letter-spacing: .12em;
-                     text-transform: uppercase; font-weight: 700; }}
-        </style>
-        """.format(**PAGE_COLORS),
-        unsafe_allow_html=True,
+        f"<style>{page_stylesheet()}</style>", unsafe_allow_html=True,
     )
 
 
@@ -2278,6 +2373,13 @@ def main() -> None:
         with acciones[0]:
             if st.button(BUTTON_DESIGN, type="primary", width="stretch"):
                 st.session_state["accion"] = ACCION_DISENAR
+                # UN CLIC BASTA, y sin esto hacian falta DOS (errata nº 161). `accion`
+                # se resuelve ARRIBA, antes de pintar el boton, asi que en el repintado
+                # que lo pulsa ya vale None: la pagina vuelve a decir «Todo listo» y no
+                # corre nada. Es la misma pieza que la errata nº 54 — escribir en
+                # `session_state` no repinta lo que ya se pinto — puesta en el otro
+                # boton de la aplicacion.
+                st.rerun()
         with acciones[1]:
             if st.button(
                 BUTTON_ESTIMATE,
@@ -2288,6 +2390,11 @@ def main() -> None:
                 ),
             ):
                 st.session_state["accion"] = ACCION_ESTIMAR
+                # Lo mismo, y no se arregla solo el de al lado: un arreglo repetido a
+                # mano es una costumbre, no un mecanismo (principio nº 31). Lo que lo
+                # convierte en mecanismo es el guardia de
+                # `test_UN_CLIC_basta_para_DISENAR.py`.
+                st.rerun()
 
     # RETOMAR ES VER EL RESULTADO. Pedir otra vez «Buscar candidatos» sobre un proyecto
     # que ya los tiene guardados es pedir que se repita lo que se acaba de recuperar.

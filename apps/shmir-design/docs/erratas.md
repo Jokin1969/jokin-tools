@@ -8269,3 +8269,38 @@ Se dice **sólo donde ocurre**: un aviso que sale siempre deja de leerse.
 0,855834 y 0,649606, y los tramos de techo no cambian —se construyen con los PROXIMALES, y
 ninguno desborda—. Lo único que cambia en el golden murino es una banda que decía
 `3utr:1229-1249` sobre un 3'UTR de 1242 nt: una posición que no existe.
+
+## 161 — Un clic en «Buscar candidatos» no buscaba nada, y hacían falta dos
+
+**La encontró intentar medir otra cosa** (2026-09-10): el flujo real en Chromium, por el
+proxy del hub, para comprobar los dos botones nuevos de las tablas — elegir especie, subir
+`NM_011170.3.fa` y su `.gb`, pulsar el botón. **No aparecía ninguna tabla.**
+
+```
+1 clic : {"tablas": 0, "sigue_el_boton": 1, "dice_todo_listo": true}
+2 clics: {"tablas": 4, "dice_todo_listo": false}
+```
+
+**La causa es de una línea.** `accion` se resuelve ARRIBA —`design_action(
+st.session_state.get("accion"), …)`, que es una sola definición a propósito— y los dos
+botones que la escriben se pintan mucho más abajo. En el repintado que pulsa el botón,
+`accion` ya se leyó y vale `None`: la página vuelve a decir «Todo listo» y no corre nada.
+**Escribir en `session_state` no repinta lo que ya se pintó** — la misma pieza de la
+errata nº 54.
+
+**Por qué no lo veía nadie.** No da ningún error: la página se repinta entera, el aviso de
+ejecución aparece —hay rerun— y debajo se lee el texto de siempre; a la segunda funciona,
+así que parece que el primer clic «no se registró». Y `AppTest` no puede verlo: llama a
+`.run()` otra vez después de tocar el widget, **que es justo el segundo repintado que aquí
+faltaba**. Un cliente que no se parece al real no prueba nada.
+
+**Contramedida:** `st.rerun()` en los DOS botones —arreglar sólo el reportado es una
+costumbre, no un mecanismo (principio nº 31)— y
+`tests/test_UN_CLIC_basta_para_DISENAR.py`, que **deriva** la regla: cualquier `if` que
+escriba `session_state["accion"]` tiene que repintar, así que un tercer botón queda
+cubierto sin que nadie se acuerde. Con control de que el detector encuentra los botones, y
+con un segundo test que fija **la condición que hace falta el guardia** —que la acción se
+lea antes de escribirse—: si algún día deja de ser cierto, la regla se entera en vez de
+quedarse sin motivo.
+
+**Comprobado después, en el mismo navegador**: un solo clic, las cuatro tablas en 3,8 s.

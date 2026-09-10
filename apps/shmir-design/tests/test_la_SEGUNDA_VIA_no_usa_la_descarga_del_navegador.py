@@ -54,7 +54,7 @@ class TestLaUrlLlevaElPrefijoDelMontaje(unittest.TestCase):
     def test_con_el_hub_delante_la_url_empieza_por_shmir(self):
         entrega = segunda_via.publish(
             "mouse_seleccionados.tsv", "a\tb\n1\t2\n",
-            directory=self.dir, base_path="/shmir",
+            directory=self.dir, base_path="/shmir", inline=True
         )
         self.assertEqual(
             entrega["url"], "/shmir/app/static/mouse_seleccionados.tsv.txt"
@@ -62,7 +62,7 @@ class TestLaUrlLlevaElPrefijoDelMontaje(unittest.TestCase):
 
     def test_en_local_no_hay_prefijo_y_eso_es_la_VERDAD_no_un_defecto(self):
         entrega = segunda_via.publish(
-            "mouse_seleccionados.tsv", "a\tb\n", directory=self.dir, base_path="",
+            "mouse_seleccionados.tsv", "a\tb\n", directory=self.dir, base_path="", inline=True
         )
         self.assertEqual(entrega["url"], "/app/static/mouse_seleccionados.tsv.txt")
 
@@ -76,7 +76,7 @@ class TestLaUrlLlevaElPrefijoDelMontaje(unittest.TestCase):
     def test_un_prefijo_que_no_empieza_por_barra_ABORTA(self):
         with self.assertRaises(ShmirDesignError):
             segunda_via.publish(
-                "x.tsv", "a", directory=self.dir, base_path="shmir",
+                "x.tsv", "a", directory=self.dir, base_path="shmir", inline=True
             )
 
 
@@ -108,7 +108,7 @@ class TestElNavegadorLoPINTAenVezDeDescargarlo(unittest.TestCase):
 
     def test_el_fichero_publicado_sale_como_text_plain(self):
         entrega = segunda_via.publish(
-            "mouse_seleccionados.tsv", "a\tb\n", directory=self.dir, base_path="/shmir",
+            "mouse_seleccionados.tsv", "a\tb\n", directory=self.dir, base_path="/shmir", inline=True
         )
         self.assertEqual(mimetypes.guess_type(entrega["fichero"])[0], "text/plain")
 
@@ -130,7 +130,7 @@ class TestElNavegadorLoPINTAenVezDeDescargarlo(unittest.TestCase):
             # sin ella. No se esconde ningún fallo — el motivo sale en el skip.
             self.skipTest("Streamlit no está instalado; es dependencia sólo de la UI")
         entrega = segunda_via.publish(
-            "panel.fa", ">x\nACGT\n", directory=self.dir, base_path="/shmir",
+            "panel.fa", ">x\nACGT\n", directory=self.dir, base_path="/shmir", inline=True
         )
         self.assertEqual(guess_content_type(str(entrega["ruta"])), "text/plain")
         self.assertEqual(guess_content_type("/x/panel.fa"), "application/octet-stream")
@@ -149,7 +149,7 @@ class TestElContenidoYElNombreDeVerdad(unittest.TestCase):
     def test_el_contenido_llega_INTACTO(self):
         texto = "# BUILD: abc123\ncandidato\testado\n3utr:60\tPASS\n"
         entrega = segunda_via.publish(
-            "mouse_seleccionados.tsv", texto, directory=self.dir, base_path="/shmir",
+            "mouse_seleccionados.tsv", texto, directory=self.dir, base_path="/shmir", inline=True
         )
         self.assertEqual(entrega["ruta"].read_text(encoding="utf-8"), texto)
         self.assertEqual(entrega["bytes"], len(texto.encode("utf-8")))
@@ -158,14 +158,14 @@ class TestElContenidoYElNombreDeVerdad(unittest.TestCase):
         # El fichero servido lleva `.txt` para que se pinte; el que hace falta en disco
         # es el de verdad. Callarlo dejaría un `.txt` alimentando a SpliceAI.
         entrega = segunda_via.publish(
-            "panel.fa", ">x\nACGT\n", directory=self.dir, base_path="/shmir",
+            "panel.fa", ">x\nACGT\n", directory=self.dir, base_path="/shmir", inline=True
         )
         self.assertEqual(entrega["guardar_como"], "panel.fa")
 
     def test_publicar_dos_veces_el_mismo_nombre_NO_acumula(self):
         for texto in ("uno\n", "dos\n"):
             entrega = segunda_via.publish(
-                "x.tsv", texto, directory=self.dir, base_path="/shmir",
+                "x.tsv", texto, directory=self.dir, base_path="/shmir", inline=True
             )
         self.assertEqual(sorted(p.name for p in self.dir.iterdir()), ["x.tsv.txt"])
         self.assertEqual(entrega["ruta"].read_text(encoding="utf-8"), "dos\n")
@@ -187,7 +187,7 @@ class TestLoQueABORTA(unittest.TestCase):
         # por eso: es la que hace que no haya que acertar con la lista de formas de
         # escribir `..`.
         entrega = segunda_via.publish(
-            "../../fuera.tsv", "a\n", directory=self.dir, base_path="/shmir",
+            "../../fuera.tsv", "a\n", directory=self.dir, base_path="/shmir", inline=True
         )
         self.assertEqual(entrega["ruta"].parent.resolve(), self.dir.resolve())
         self.assertEqual(entrega["url"], "/shmir/app/static/fuera.tsv.txt")
@@ -197,7 +197,7 @@ class TestLoQueABORTA(unittest.TestCase):
         # correcta y sin ningún error.
         with self.assertRaises(ShmirDesignError):
             segunda_via.publish(
-                Path("x.tsv"), "a\n", directory=self.dir, base_path="/shmir",
+                Path("x.tsv"), "a\n", directory=self.dir, base_path="/shmir", inline=True
             )
 
     def test_un_directorio_que_no_se_puede_crear_ABORTA_con_el_MOTIVO(self):
@@ -206,7 +206,7 @@ class TestLoQueABORTA(unittest.TestCase):
         try:
             with self.assertRaises(ShmirDesignError) as cm:
                 segunda_via.publish(
-                    "x.tsv", "a\n", directory=estorbo / "dentro", base_path="/shmir",
+                    "x.tsv", "a\n", directory=estorbo / "dentro", base_path="/shmir", inline=True
                 )
             self.assertIn(str(estorbo / "dentro"), str(cm.exception))
         finally:
@@ -218,7 +218,7 @@ class TestLoQueABORTA(unittest.TestCase):
         # segunda vía tampoco funciona».
         with self.assertRaises(ShmirDesignError) as cm:
             segunda_via.publish(
-                "x.tsv", "a", directory=self.dir, base_path="/shmir",
+                "x.tsv", "a", directory=self.dir, base_path="/shmir", inline=True,
                 max_bytes=0,
             )
         self.assertIn("404", str(cm.exception))

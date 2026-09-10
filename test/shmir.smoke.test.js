@@ -103,11 +103,21 @@ test('la SEGUNDA VÍA de las descargas se sirve de verdad, y como TEXTO', SALTAR
   }
 });
 
-test('y sin el sufijo .txt volvería a la maquinaria de descarga (control)', SALTAR, async () => {
-  // El control adversario del sufijo, medido sobre el servidor de verdad: un `.tsv`
-  // sale como `text/tab-separated-values`, que el navegador NO pinta. Sin esto, «se
-  // sirve como texto» y «el servidor manda cualquier cosa como texto» dan el mismo
-  // verde.
+test('y sin el sufijo .txt se sirve con su tipo real: es el MODO DESCARGA', SALTAR,
+  async () => {
+  // Dos cosas a la vez, y por eso el test es uno solo.
+  //
+  // (1) Es el CONTROL ADVERSARIO del sufijo: un `.tsv` sale como
+  //     `text/tab-separated-values`, que el navegador NO pinta. Sin esto, «se sirve como
+  //     texto» y «el servidor manda cualquier cosa como texto» dan el mismo verde.
+  //
+  // (2) Y desde el 2026-09-10 es además el modo que usa el botón MORADO «Descargar
+  //     tabla» (`segunda_via.publish(..., inline=False)`). O sea que esta línea dejó de
+  //     describir sólo una vía muerta: describe una viva. **No comparte mecanismo con
+  //     los dos botones que no bajan nada** —aquéllos terminan en una pulsación
+  //     SINTÉTICA sobre un `<a download>`; éste es una navegación de verdad, iniciada
+  //     por una persona, a un fichero que ya está en disco—, y la errata nº 130 sigue
+  //     SIN CAUSA ASIGNADA, así que esto la esquiva y no la arregla.
   const fs = require('node:fs');
   const path = require('node:path');
   const dir = path.resolve(__dirname, '../apps/shmir-design/ui/static');

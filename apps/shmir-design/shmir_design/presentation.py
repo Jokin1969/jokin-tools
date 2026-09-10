@@ -7282,6 +7282,54 @@ PAGE_COLORS = {
     "texto": "#12305c",
     #: El rotulo pequeño «PASO N». Mismo tono, mas claro, para que ordene sin gritar.
     "rotulo": "#3a5f9e",
+    #: El MORADO del boton de descargar una tabla. Pedido por su color, asi que el color
+    #: es parte de lo que se pidio y no una eleccion de la vista (regla 6).
+    "descargar": "#6b2fa0",
+    #: El NARANJA del boton de copiar una tabla.
+    "copiar": "#d2691e",
+    #: El aviso de que la app esta trabajando. Ambar: no es un error y no es un exito.
+    "trabajando": "#8a5a00",
+}
+
+
+#: LOS DOS BOTONES QUE VAN BAJO CADA TABLA, declarados aqui y no en la pagina.
+#:
+#: **Por que existen** (pedido el 2026-09-10): el icono de descarga que Streamlit pinta
+#: en la esquina de la tabla **no es nuestro** y no baja nada — acaba en la maquinaria de
+#: descarga de la errata nº 130, que sigue SIN CAUSA ASIGNADA. No lo podemos arreglar
+#: (principio nº 59), asi que lo que se hace es poner al lado DOS salidas que si son
+#: nuestras, visibles y bajo cada tabla — no dentro de un desplegable, que es un gesto
+#: mas entre el usuario y su fichero (principio nº 46).
+#:
+#: **Son dos porque entregan cosas distintas y ninguna sustituye a la otra**: una da un
+#: FICHERO y la otra deja la tabla en el portapapeles para pegarla en una hoja de
+#: calculo. El rotulo y el color van aqui porque se pidieron por su color: elegidos en la
+#: vista serian una decision sin test.
+TABLE_BUTTONS = {
+    "descargar": {
+        "rotulo": "Descargar tabla",
+        "color": PAGE_COLORS["descargar"],
+        "que_hace": (
+            "Baja la tabla entera como TSV. Es una NAVEGACIÓN de verdad a un fichero "
+            "que ya está en disco, no una pulsación simulada sobre un enlace de "
+            "descarga: no comparte mecanismo con el icono de la esquina."
+        ),
+    },
+    "copiar": {
+        "rotulo": "Copiar tabla",
+        "color": PAGE_COLORS["copiar"],
+        "que_hace": (
+            "Deja la tabla entera en el portapapeles, con tabuladores, para pegarla "
+            "directamente en Excel o en una hoja de cálculo. No pasa por ningún fichero."
+        ),
+    },
+}
+
+#: Lo que dice el boton de copiar cuando ya ha copiado, y cuando no ha podido. Un boton
+#: que copia y no lo dice es indistinguible de uno que no hace nada.
+TABLE_COPY_FEEDBACK = {
+    "hecho": "Copiada: {filas} fila(s). Pégala en la hoja de cálculo.",
+    "fallo": "No se pudo copiar ({motivo}). Queda el bloque copiable de abajo.",
 }
 
 
@@ -7603,6 +7651,109 @@ TABLE_ICON_NOTE = (
     "app: genera el CSV en el navegador y a veces no llega a bajar nada. Ésta es la vía "
     "que no depende de eso — se abre como texto en una pestaña y se guarda desde ahí."
 )
+
+
+#: LO QUE DICE EL AVISO MIENTRAS LA APP TRABAJA. Va aqui y no en la hoja de estilo
+#: porque es texto que lee una persona, y `check:tildes` mira los literales de prosa.
+BUSY_NOTICE = "La app está trabajando…"
+
+#: POR QUE EL TEXTO DEJA DE ATENUARSE (2026-09-10). Reportado asi: «cada vez que le doy a
+#: un botón se baja la intensidad del texto como dejando ver que está pensando».
+#:
+#: MEDIDO en Chromium por el proxy del hub, no supuesto: al repintarse, Streamlit marca el
+#: contenedor de cada elemento con `data-stale="true"`, le cambia la clase de emotion y le
+#: pone `transition: opacity 1s ease-in 0.5s`. O sea que el desvanecido tiene MEDIO
+#: SEGUNDO DE RETARDO: en un repintado rapido no llega a verse y en una corrida larga se
+#: ve entero. Eso explica por que parecia intermitente.
+#:
+#: Lo que hace ese atenuado es AVISAR QUITANDO: apaga justo lo que se estaba leyendo, y no
+#: dice que esta pasando ni cuanto queda. Se sustituye por lo contrario —un aviso que
+#: AÑADE, visible y con texto— y el texto se queda como estaba. La regla vive aqui, no en
+#: la pagina, porque el gancho (`data-stale`) es una MEDIDA sobre codigo de terceros: si
+#: Streamlit lo cambia, esto deja de morder y hay que volver a medirlo.
+WHY_NO_DIMMING = (
+    "El texto NO se atenúa mientras la app repinta. Streamlit desvanece cada elemento "
+    "que queda pendiente —`data-stale`, con medio segundo de retardo—, y eso avisa "
+    "QUITANDO: apaga lo que se estaba leyendo y no dice qué está pasando. En su lugar "
+    "sale un aviso que AÑADE, con texto y visible, y el texto se queda legible."
+)
+
+
+def page_stylesheet(colors: dict | None = None) -> str:
+    """La hoja de estilo de la pagina ENTERA, con los colores ya sustituidos.
+
+    Vive aqui y no en la vista por dos razones distintas, y la segunda es la que obliga:
+    los colores ya se declaraban aqui (regla 6), y desde el 2026-09-10 la hoja lleva
+    ademas **dos reglas que son mecanismo y no adorno** — la que impide el atenuado y la
+    que pinta el aviso de que la app trabaja—. Las dos cuelgan de atributos de Streamlit
+    MEDIDOS en un navegador de verdad, asi que necesitan test; en la pagina no lo
+    tendrian.
+    """
+    c = dict(PAGE_COLORS if colors is None else colors)
+    return f"""
+      .block-container {{ max-width: 1180px; padding-top: 2.2rem; }}
+      html, body, [class*="css"] {{ font-size: 17px; line-height: 1.65; }}
+      h1 {{ font-size: 2.1rem; letter-spacing: -0.5px; margin-bottom: .2rem; }}
+      h2 {{ font-size: 1.55rem; margin-top: 2.6rem; margin-bottom: .4rem; }}
+      h3 {{ font-size: 1.2rem; margin-top: 1.6rem; }}
+      /* Las explicaciones dejan de ser letra pequeña: son la mitad del producto.
+         Y dejan de ser grises. El color lo declara `PAGE_COLORS`: uno elegido en la
+         vista seria una decision sin test (regla 6). */
+      [data-testid="stCaptionContainer"] p {{ font-size: .97rem; color: {c['texto']}; }}
+      [data-testid="stVerticalBlockBorderWrapper"] {{ padding: .35rem .2rem; }}
+      div[data-testid="stExpander"] {{ border-radius: 8px; }}
+      .stButton button {{ padding: .55rem 1.1rem; font-size: 1rem; }}
+      .sd-lede {{ font-size: 1.12rem; color: {c['texto']}; max-width: 46rem; }}
+      .sd-paso {{ color: {c['rotulo']}; font-size: .82rem; letter-spacing: .12em;
+                 text-transform: uppercase; font-weight: 700; }}
+
+      /* EL TEXTO NO SE ATENUA. Ver `WHY_NO_DIMMING`: el gancho es `data-stale`, medido
+         en Chromium, y lo que se quita es el desvanecido Y su transicion — sin la
+         segunda, el navegador sigue animando hacia la opacidad nueva. */
+      [data-stale="true"] {{ opacity: 1 !important; transition: none !important; }}
+
+      /* Y EN SU LUGAR, UN AVISO QUE SE VE. `stStatusWidget` existe SOLO mientras el
+         script corre —medido: 0 apariciones en reposo—, asi que el aviso se enciende y
+         se apaga solo, derivado del estado real y no de un temporizador nuestro. Se
+         conservan sus controles (el boton de parar es suyo y sigue haciendo falta) y se
+         le antepone el texto. */
+      [data-testid="stStatusWidget"] {{
+        opacity: 1 !important;
+        position: fixed; top: .55rem; left: 50%; transform: translateX(-50%);
+        z-index: 1000000;
+        display: flex; align-items: center; gap: .5rem;
+        background: #fff8e6; border: 2px solid {c['trabajando']};
+        border-radius: 999px; padding: .35rem .9rem;
+        box-shadow: 0 4px 18px rgba(0,0,0,.18);
+      }}
+      [data-testid="stStatusWidget"]::before {{
+        content: "{BUSY_NOTICE}";
+        color: {c['trabajando']}; font-weight: 700; font-size: .95rem;
+        white-space: nowrap;
+      }}
+    """
+
+
+def table_actions(rows, *, nombre: str) -> dict[str, object]:
+    """Lo que hace falta para pintar los dos botones de UNA tabla. La vista no calcula.
+
+    Devuelve el TSV ya montado, su tamaño, cuántas filas lleva y si la tabla está VACÍA
+    — y en ese caso no se ofrece ninguna salida: no hay nada que llevarse, y un botón
+    que baja un fichero vacío se lee como una descarga hecha.
+
+    El nombre del fichero se DERIVA del nombre de la tabla, así que una tabla nueva trae
+    su salida por construcción y nadie tiene que acordarse de bautizarla.
+    """
+    texto = table_tsv(rows)
+    filas = list(rows or [])
+    return {
+        "tsv": texto,
+        "nombre": str(nombre),
+        "bytes": len(texto.encode("utf-8")),
+        "filas": len(filas),
+        "vacia": not texto,
+        "botones": TABLE_BUTTONS,
+    }
 
 
 def table_tsv(rows) -> str:
