@@ -1323,6 +1323,32 @@ def assembly_report(
     )
 
 
+#: Lo que un enlace tiene que empezar por para que el navegador vaya a alguna parte. Va
+#: aquí y no en la página por la regla 6: decidir si un botón se puede pulsar es una
+#: decisión, y estaba escrita en la página —en UNO de los dos sitios que pintan enlaces—.
+ESQUEMAS_NAVEGABLES = ("http://", "https://", "/")
+
+
+def link_usable(url) -> bool:
+    """¿Ese enlace lleva a alguna parte? MEDIDO en un navegador, no supuesto.
+
+    Con Chromium por el proxy del hub, un `st.link_button(label, "")` pinta
+    `<a href="" target="_blank">`, y un `href` vacío **resuelve a la propia página**: se
+    abre una pestaña con la app otra vez. O sea un botón que se ve activo, se pulsa, y no
+    hace nada de lo que anuncia — que es indistinguible de uno roto.
+
+    Pasa con las herramientas externas cuya dirección **nadie ha aportado**
+    (`external_score.URL_NOT_PROVIDED`): hoy `siDirect` y `BLOCK-iT RNAi Designer`. La
+    regla 4 prohíbe inventarles una URL, así que lo que queda es **no ofrecer el enlace**
+    y decir por qué — no ofrecerlo roto.
+
+    Se acepta la ruta relativa además de `http(s)`, porque la segunda vía de las descargas
+    sirve `/shmir/app/static/…` y es un enlace legítimo.
+    """
+    texto = str(url or "").strip()
+    return texto.startswith(ESQUEMAS_NAVEGABLES)
+
+
 def vector_note(species: str) -> dict[str, object]:
     """¿Aplica el vector del proyecto a esta especie? La app lo DICE, no lo supone."""
     from .blocks import vector_applies_to

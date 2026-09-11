@@ -32,6 +32,7 @@ from shmir_design.seed_scan import DEFAULTS as SEED_DEFAULTS  # noqa: E402
 from shmir_design.offtarget import DEFAULTS as OFFTARGET_DEFAULTS  # noqa: E402
 from shmir_design.offtarget import WHY_THE_EXPECTED_DIFFERS  # noqa: E402
 from shmir_design.masking import RepeatMask  # noqa: E402
+from shmir_design.outputs import output_name  # noqa: E402
 from shmir_design.polya import normalize_sequence  # noqa: E402
 from shmir_design.presentation import (  # noqa: E402
     TABLE_ICON_NOTE,
@@ -75,6 +76,7 @@ from shmir_design.presentation import (  # noqa: E402
     library_delete,
     library_file,
     library_note,
+    link_usable,
     library_rows,
     library_save,
     project_create,
@@ -1028,7 +1030,7 @@ def _tarjeta_de_frente(tarjeta) -> None:
         st.link_button(
             f"↗ {tarjeta['fuente']}",
             tarjeta["url"],
-            disabled=not tarjeta["url"].startswith("http"),
+            disabled=not link_usable(tarjeta["url"]),
         )
 
 
@@ -1329,14 +1331,35 @@ def _segunda_via(texto: str, *, nombre: str, clave: str) -> None:
         entrega = None
         st.caption(f"No se pudo preparar la pestaña: {exc}")
     if entrega is not None:
+        # Pasa por `link_usable` como los otros dos, sin excepcion declarada: hoy
+        # `publish` construye siempre una ruta que empieza por «/», asi que la
+        # comprobacion no muerde — y una excepcion escrita es una HIPOTESIS sobre codigo
+        # que puede cambiar (errata nº 133). Si algun dia no cuadrara, el boton sale
+        # desactivado y la direccion de abajo sigue estando para copiarla.
         st.link_button(
             f"Abrir «{entrega['guardar_como']}» en una pestaña",
             entrega["url"],
+            disabled=not link_usable(entrega["url"]),
         )
         st.caption(
             f"Se abre como texto, {entrega['bytes']:,} bytes: guárdalo desde ahí con el "
             f"nombre `{entrega['guardar_como']}`. No pasa por la descarga del navegador."
         )
+        # LA URL, A LA VISTA Y COPIABLE — tercera vía, y la OBSERVACIÓN que falta.
+        # Si el enlace no hace nada al pulsarlo, pegarla en la barra de direcciones no
+        # comparte NADA con el botón (errata nº 124, su corolario): ni la maquinaria de
+        # descarga del navegador ni la pulsación sobre un ancla. Y lo que se vea al
+        # pegarla es lo único que separa los dos casos de la errata nº 130, que sigue SIN
+        # CAUSA ASIGNADA: si la página aparece, lo que falla es el enlace; si sale un
+        # error, lo que falla es la ruta — y entonces el error DICE cuál.
+        with st.expander("Si el enlace no hace nada: la dirección, para pegarla"):
+            st.caption(
+                "Pégala en la barra de direcciones de una pestaña nueva. No pasa por el "
+                "botón ni por el gestor de descargas, así que lo que salga aquí dice "
+                "dónde está el problema: si se ve el fichero, lo que falla es el enlace; "
+                "si sale un error, es la ruta y el error lo nombra."
+            )
+            st.code(entrega["url"], language=None)
     with st.expander(f"O copia el contenido de `{nombre}`"):
         st.caption(
             f"El mismo contenido que el botón, {len(texto.encode('utf-8')):,} bytes. "
@@ -1962,9 +1985,16 @@ def main() -> None:
         # los botones no se estiren a todo el ancho. Las dos ultimas quedan vacias.
         for columna, herramienta in zip(enlaces, EXTERNAL_TOOLS):
             with columna:
+                # SIN DIRECCION NO SE OFRECE EL ENLACE. Medido con Chromium por el proxy:
+                # `st.link_button(label, "")` pinta un `<a href="">` que resuelve a la
+                # PROPIA pagina, asi que abre una pestaña con la app y no hace nada de lo
+                # que anuncia. La regla 4 prohibe inventarle la URL, asi que lo honesto es
+                # el boton desactivado con el motivo en el tooltip (`url_note`).
+                utilizable = link_usable(herramienta.url)
                 st.link_button(
-                    f"↗ {herramienta.name}", herramienta.url, help=herramienta.tooltip,
-                    width="stretch",
+                    f"↗ {herramienta.name}", herramienta.url,
+                    help=herramienta.tooltip if utilizable else herramienta.url_note,
+                    width="stretch", disabled=not utilizable,
                 )
         st.caption(
             "Sus direcciones no se han podido comprobar desde este entorno y **ningun "
@@ -2777,8 +2807,16 @@ def _modal_blast(seleccion, nombre: str, proyecto=None, tiling=None) -> None:
     for aviso in blast_warnings(params):
         (st.error if aviso["bloquea"] else st.warning)(aviso["texto"])
 
-    ruta = f"{nombre}_consulta.fasta"
-    st.code(blast_command_text(params, query_path=ruta, out_path=f"{nombre}_blast.tsv"))
+    # EL NOMBRE LO PONE `output_name`, NO UNA f-STRING. `nombre` es el nombre CIENTÍFICO
+    # que pone el desplegable, así que aquí salía `Homo sapiens_consulta.fasta` — y esta
+    # misma línea es una orden PARA PEGAR EN UNA CONSOLA, donde el espacio la parte en
+    # dos argumentos: medido, `blastn` recibía `-query Homo`.
+    ruta = output_name(nombre, "consulta.fasta")
+    st.code(
+        blast_command_text(
+            params, query_path=ruta, out_path=output_name(nombre, "blast.tsv")
+        )
+    )
 
     if marcados and (guias or pasajeras):
         consulta = blast_query(
@@ -2962,7 +3000,7 @@ def _modal_seed(seleccion, nombre: str, maduros, proyecto=None,
         st.info(destacados["pasajeras"]["texto"])
         _tabla(seed_result_rows(scan), hide_index=True, nombre="seed_result_rows.tsv", clave="tb_seed_result_rows")
         bloque_seed = scan.export_block()
-        nombre_seed = f"{nombre}_colision_seed.txt"
+        nombre_seed = output_name(nombre, "colision_seed.txt")
         st.download_button(
             "Descargar el bloque para el documento",
             data=bloque_seed,
@@ -3519,7 +3557,7 @@ def _modal_offtarget(seleccion, nombre: str, maduros, diana: str,
             st.error(destacados["autoconteo"]["texto"])
 
         bloque_ot = scan.export_block()
-        nombre_ot = f"{nombre}_carga_offtarget_{fondo}.txt"
+        nombre_ot = output_name(nombre, f"carga_offtarget_{fondo}.txt")
         st.download_button(
             "Descargar el bloque para el documento",
             data=bloque_ot,

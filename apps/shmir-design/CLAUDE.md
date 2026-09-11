@@ -7434,3 +7434,86 @@ orden voraz. La cuota es un **requisito** —los inmunes son la única reserva s
 sale `PANEL_TX`. Estaba transcrito en una docena de ficheros de test, así que un cambio
 de panel obligaba a tocarlos uno a uno y cada copia envejecía por su cuenta — que es
 exactamente la errata nº 28 dentro de la suite. Principio nº 13.
+
+---
+
+## EL ESPACIO DEL NOMBRE ROMPÍA LA ORDEN DE BLAST — Y NO ERA LA CAUSA DE LOS BOTONES (2026-09-11)
+
+Reportado con la captura de los dos botones del FASTA de consulta: *«ninguno de estos
+botones funciona. He tenido que copiar a mano para preparar el archivo
+`candidatos_human.fa`»*. Lo que se ve en la captura es `Homo sapiens_consulta.fasta`,
+**con el espacio dentro**.
+
+### Lo que se midió, y lo que QUEDA DESCARTADO
+
+El espacio es un defecto real y **NO explica los botones muertos**. Medido, no razonado:
+
+| qué | cómo | resultado |
+|---|---|---|
+| el servidor con el nombre `%20` | proxy real del hub | **200 `text/plain`** |
+| cómo resuelve el navegador el `href` crudo | Chromium, DOM real | lo codifica a `%20` |
+| el ancla que pinta `st.link_button` | Chromium por CDP, Streamlit con los flags de producción | `href` correcto, `target=_blank` |
+| `baseUrlPath` dentro del proceso hijo | sonda lanzada como la lanza `process.js` | `/shmir`, prefijo bien |
+
+O sea: **la errata nº 130 sigue SIN CAUSA ASIGNADA** y esta tanda no la cierra
+(principio nº 3). Lo que hace es quitar del medio una hipótesis que era verosímil y
+falsa, y dar la observación que falta.
+
+### El defecto que SÍ estaba, y es el que se pagó
+
+`-query Homo`. Medido con `shlex` sobre la orden que la propia página da para copiar:
+
+    -query recibe -> 'Homo'
+    y el shell mete además un argumento suelto: 'sapiens_consulta.fasta'
+
+Tres emisores de la página montaban el nombre con una f-string sobre el nombre
+**científico** (`f"{nombre}_consulta.fasta"`, el bloque de seed y el de carga de
+off-targets). `outputs.output_stem` existe desde la errata nº 60 y **la barrida de
+entonces no los cubría**, porque su guardia exige que ninguna entrada del **zip** lleve
+un espacio y estos tres no entran en el zip. **Un guardia que mira un artefacto no cubre
+a quien no entra en ese artefacto** (principio nº 31).
+
+- **`outputs.output_name(species, sufijo)`** emite el nombre ENTERO, no un trozo:
+  `output_stem` devuelve un fragmento que hay que pegar, así que seguía habiendo una
+  f-string por emisor y el que no se acordara quedaba igual. Ahora el llamador no pega
+  nada.
+- **El guardia está CALIBRADO** (principio nº 34): «f-string con extensión» da 6 y es
+  inservible; «además con interpolación» da 6 con **2 falsos positivos** (el slug del
+  proyecto, que ya está validado); «además interpolando `nombre`/`especie`» da **4 de 4
+  reales**. Con control adversario sobre la forma REAL del código de antes.
+- **Y lo que se comprueba de verdad es la ORDEN, con `shlex`**, para todas las especies
+  declaradas: el nombre feo se ve, una orden partida en dos argumentos no — `blastn`
+  contesta que no encuentra el fichero «Homo», que manda a mirar el sitio equivocado.
+
+### EL HALLAZGO DE LA MEDIDA: dos botones que sí están muertos, y son otros
+
+Al volcar el DOM de la página real con Chromium salieron estos:
+
+    {"texto": "↗ siDirect",               "atributo": "", "resuelto": ".../shmir/"}
+    {"texto": "↗ BLOCK-iT RNAi Designer", "atributo": "", "resuelto": ".../shmir/"}
+
+`st.link_button(label, "")` pinta `<a href="" target="_blank">`, y un `href` vacío
+**resuelve a la propia página**: el botón se ve activo, se pulsa, y abre una pestaña con
+la app otra vez. Son las dos herramientas cuya dirección **nadie ha aportado**
+(`URL_NOT_PROVIDED`) — la regla 4 prohíbe inventarles una URL, así que la salida es **no
+ofrecer el enlace y decir por qué**, no ofrecerlo roto.
+
+- **La decisión estaba escrita en UNO de los dos sitios**: la tarjeta de un frente ya
+  hacía `disabled=not tarjeta["url"].startswith("http")` **en la página** (regla 6) y el
+  panel de herramientas no hacía nada. Ahora decide `presentation.link_usable` y lo leen
+  los tres.
+- **El guardia cazó un TERCER `link_button`** que no se había mirado —el de la propia
+  segunda vía—, y en vez de declararle una excepción se le aplica la comprobación: una
+  excepción declarada es una HIPÓTESIS (errata nº 133).
+- **Y el detector se equivocó una vez, sobre código correcto**: miraba sólo hacia
+  delante y el panel de herramientas calcula la decisión en la línea de ARRIBA. Ensanchar
+  la ventana llevó su propio control adversario pegado, porque ensanchar es exactamente
+  cómo se llega a un guardia que aprueba cualquier cosa.
+
+### La tercera vía: la URL a la vista, que además es la OBSERVACIÓN que falta
+
+Debajo del enlace va ahora la dirección en un bloque copiable. **No comparte nada** con
+el botón —ni la maquinaria de descarga del navegador ni la pulsación sobre un ancla—, que
+es el corolario de la errata nº 124, y lo que se vea al pegarla es lo único que separa
+los dos casos que quedan abiertos: **si aparece el fichero, lo que falla es el enlace; si
+sale un error, es la ruta — y entonces el error la nombra**.

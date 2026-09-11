@@ -128,6 +128,40 @@ def output_stem(species: str) -> str:
     return limpio
 
 
+def output_name(species: str, suffix: str) -> str:
+    """El nombre COMPLETO de un fichero de salida de una especie: `<especie>_<sufijo>`.
+
+    `output_stem` existía y **la página no lo usaba en tres sitios**: el FASTA de
+    consulta de BLAST, el bloque de colisión de seed y el de carga de off-targets se
+    montaban con una f-string sobre el nombre CIENTÍFICO, así que salían con el espacio
+    dentro — `Homo sapiens_consulta.fasta`. En la carpeta de Descargas se disimula; en la
+    orden que la propia página da para pegar en una consola, no: medido, `blastn` recibe
+    `-query Homo` y `sapiens_consulta.fasta` como un argumento suelto.
+
+    Existe porque `output_stem` devuelve un TROZO, y un trozo hay que pegarlo — o sea que
+    sigue habiendo una f-string por emisor, y el emisor que no se acuerde de llamarla
+    queda igual que antes y sin dar ningún error. Esto emite el nombre entero, así que el
+    llamador no pega nada: es la diferencia entre un comentario que protege su línea y un
+    mecanismo que protege al siguiente emisor (principio nº 31).
+
+    El sufijo lleva su extensión y **no puede traer espacios ni rutas**: si los trae, el
+    fallo no está en la especie y arreglar sólo la especie dejaría el nombre roto igual.
+    """
+    limpio = str(suffix).strip()
+    if not limpio:
+        raise ShmirDesignError(
+            "El sufijo del nombre de fichero llega vacío, así que saldría un fichero "
+            "llamado sólo por su especie y sin decir qué contiene."
+        )
+    if limpio != "_".join(limpio.split()) or "/" in limpio or "\\" in limpio:
+        raise ShmirDesignError(
+            f"El sufijo {suffix!r} lleva espacios o separadores de ruta. El nombre de un "
+            f"fichero de salida se pega en una consola y se guarda en una carpeta: un "
+            f"espacio ahí parte la orden en dos argumentos."
+        )
+    return f"{output_stem(species)}_{limpio}"
+
+
 def tsv_selected(
     selection: ReportSelection,
     *,
