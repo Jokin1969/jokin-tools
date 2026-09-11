@@ -8166,3 +8166,83 @@ en una sola. Y el de navegación, que vio `pd.DataFrame(filas).astype`: se resol
 declarando `pd` en su lista `AJENAS` —donde ya están `st` y los módulos estándar, por la
 misma razón: el contrato lo mantiene otra gente— **y no exentándolo en el test**, que
 habría dejado dos listas envejeciendo por separado.
+
+## LA COLISIÓN DE md5 ENTRE PANELES NO PUEDE DARSE — Y EL BLOQUEO NO DECÍA DE QUÉ PANEL ERA (2026-09-11)
+
+Reportado: con el panel humano activo, la app bloqueó el guardado de una corrida de
+`seed_colision` por `result_md5` repetido, y además dijo que lo registrado cubre **0 de
+11** candidatos del panel. De ahí se dedujo una **colisión de md5 entre paneles
+distintos**, y se pidió meter el contexto del panel en el `run_id`.
+
+### LA PREMISA NO SE SOSTIENE, Y SE MIDIÓ ANTES DE TOCAR NADA
+
+Cada línea del crudo de una corrida de seed es
+`f"{consulta}\t{hepta}\t{nivel}\t{nombres}"`, y `consulta` la pone
+`query_name(species, inicio, hebra)` → **`human_pos825_guia`** frente a
+**`mouse_pos60_guia`**. Construido el **peor caso posible** —mismo eje declarado, mismo
+heptámero, mismo nivel y los mismos nombres de miARN, o sea suponiendo que todo lo
+biológico coincide—:
+
+```
+md5 humano: 2bfae62aaf20783c5c412e45971acd45
+md5 raton : 6beb16db3c38ce43118a6e745a6f1fc3
+¿COLISIONAN? False
+```
+
+**El contexto del panel YA está en el identificador**, y no como un campo aparte: el
+`run_id` se DERIVA de un crudo en el que **cada línea identifica su consulta**. Ni
+siquiera colisionan dos paneles que compartieran posición a posición.
+
+**Y el eje tampoco es el hueco**: `crudas.insert(0, "# organismo\t…")` entró en `aae3223`,
+que **sí está** en el build que se estaba sirviendo — comprobado con `merge-base`.
+
+### POR QUÉ EL ARREGLO PEDIDO SERÍA UNA REGRESIÓN
+
+Meter «el conjunto de candidatos activo» en el `run_id` **desarma el guardia** que existe
+a propósito: `_rechaza_si_es_el_mismo_fichero` está para que **el mismo fichero subido dos
+veces no entre dos veces**, y con el panel dentro del id el mismo resultado resubido
+después de que el panel cambie dejaría de reconocerse como repetido — que es exactamente
+el caso que ese guardia vino a cerrar. La propiedad que se quiere conservar es «dos
+resultados distintos no chocan, dos idénticos sí».
+
+### LO QUE SÍ FALTABA: el bloqueo no decía DE QUÉ PANEL era lo registrado
+
+Decía cuántos cubre —el «0 de 11»— y **no de qué panel venía la corrida que bloquea**, así
+que hubo que deducirlo. **Deducir de qué panel es un registro es lo que este proyecto no
+deja hacer con nada más.** Principio nº 47: la salida va donde está el bloqueo.
+
+- **`query_panel` es la INVERSA de `query_name`** y vive pegada a ella, con test que las
+  cruza en las dos direcciones para todas las especies declaradas: son la misma regla y
+  escritas en dos sitios una se queda atrás.
+- **No adivina.** Un nombre sin la forma `<slug>_pos<N>_<hebra>` devuelve vacío y quien
+  pregunta dice «no se ha podido leer» — nunca un slug deducido. Y **normaliza el alias
+  viejo**: antes de la errata nº 42 la clave llevaba el nombre que se pinta, así que un
+  log de entonces trae `raton_pos200_guia`; sin normalizar, una corrida murina de entonces
+  se leería como «de otro panel» sobre un diseño murino y el aviso sería un falso
+  positivo — un guardia con falsos positivos se apaga.
+- **`registered_panels` se DERIVA de los nombres de consulta**, que cada corrida ya lleva:
+  no hace falta un campo nuevo ni cambia el formato del log, así que un proyecto de ayer
+  contesta igual.
+- **La cabecera va DELANTE**, porque cambia lo que hay que hacer: si lo registrado es de
+  otro panel, no falta «una corrida que incluya a estos dos» — falta entera, y el «0 de N»
+  deja de ser una laguna para pasar a ser la consecuencia.
+
+Sobre el panel humano de verdad, con una corrida murina registrada:
+
+> **OJO: la corrida que ya está registrada para este frente es del panel mouse y NO del
+> de hoy (human). Por eso no contesta a ninguno de estos candidatos: sus consultas son de
+> otras ventanas.** Y ESO NO ES TODO EL PANEL: lo que ya está registrado contesta a 0 de
+> 11 candidatos…
+
+### Y el «0 de 11» tiene OTRA causa posible, que también se nombra sola
+
+Una corrida registrada **antes del eje de organismo** no declara ninguno, y
+`verdict_for` no contesta por ninguno de los dos —está escrito así a propósito: una
+corrida sin organismo **no es «la de la diana»**—. Esa corrida cubre **0 de 11** con el
+panel correcto y la especie correcta. Con la cabecera puesta, los dos casos se distinguen
+de un vistazo: si dice «es del panel mouse», es otro panel; si no dice nada de panel, es
+una corrida heredada.
+
+**LO QUE NO SE HACE ES ASIGNARLE CAUSA A LO REPORTADO** (principio nº 3): desde aquí no se
+reproduce ni se ve el proyecto. Lo que se cierra es que la próxima vez no haya que
+deducirlo.

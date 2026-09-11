@@ -4221,8 +4221,10 @@ def pending_after_duplicate(
     nombres = ", ".join(_start_label(selection, inicio) for inicio in faltan)
     return {
         "activo": True,
+        "de_otro_panel": _otro_panel(stores, front, species),
         "texto": (
-            f"Y ESO NO ES TODO EL PANEL: lo que ya está registrado contesta a "
+            _otro_panel(stores, front, species)
+            + f"Y ESO NO ES TODO EL PANEL: lo que ya está registrado contesta a "
             f"{panel - len(faltan)} de {panel} candidatos para este frente, y "
             f"{len(faltan)} siguen sin contestar — {nombres}. Si venías a cubrirlos, "
             f"el fichero que hace falta es el de una corrida que los INCLUYA: se "
@@ -4230,6 +4232,28 @@ def pending_after_duplicate(
             f"sube ESE resultado."
         ),
     }
+
+
+def _otro_panel(stores, front: str, species: str) -> str:
+    """La cabecera que dice que lo registrado es de OTRO panel. Vacia si no lo es.
+
+    **Va DELANTE y no al final**, porque cambia lo que hay que hacer: si la corrida
+    registrada es de otro panel, no falta «una corrida que incluya a estos dos» — falta
+    entera, y el `0 de N` de abajo deja de ser una laguna para pasar a ser la
+    consecuencia. Reportado el 2026-09-11: el mensaje decia «cubre 0 de 11» y no decia de
+    QUE panel era, asi que hubo que deducirlo.
+    """
+    from .species import resolve  # noqa: PLC0415
+
+    activo = resolve(species).slug
+    ajenos = [s for s in registered_panels(stores, front) if s and s != activo]
+    if not ajenos:
+        return ""
+    return (
+        f"OJO: la corrida que ya está registrada para este frente es del panel "
+        f"{', '.join(sorted(ajenos))} y NO del de hoy ({activo}). Por eso no contesta "
+        f"a ninguno de estos candidatos: sus consultas son de otras ventanas. "
+    )
 
 
 def panel_first(filas):
@@ -9849,6 +9873,61 @@ def query_name(species: str, start: int, strand: str) -> str:
     from .species import resolve
 
     return f"{resolve(species).slug}_pos{int(start)}_{strand}"
+
+
+def query_panel(nombre: str) -> str:
+    """El slug de la especie de UNA consulta, leido de vuelta. `""` si no tiene la forma.
+
+    **Es la inversa de `query_name`, y vive pegada a ella** por la razon de siempre: son
+    la misma regla en dos direcciones, y escritas en dos sitios una se queda atras. Hay
+    test que las cruza.
+
+    **NO ADIVINA.** Un nombre que no tenga la forma `<slug>_pos<N>_<hebra>` devuelve la
+    cadena vacia y quien pregunta dice «sin declarar» — nunca un slug deducido. Los hay:
+    antes de la errata nº 42 la clave llevaba el nombre que se pinta, asi que en un log
+    viejo puede haber `raton_pos200_guia`, y `raton` **es un alias**, no el slug. Se
+    NORMALIZA por `species.resolve` para que un log de entonces se pueda comparar con uno
+    de hoy; si el nombre no es ni siquiera una especie conocida, se devuelve vacio.
+    """
+    from .species import Species, resolve  # noqa: PLC0415
+
+    texto = str(nombre or "")
+    corte = texto.find("_pos")
+    if corte <= 0:
+        return ""
+    crudo = texto[:corte]
+    especie = resolve(crudo)
+    # `resolve` FABRICA una `Species` con cualquier cadena —para poder trabajar sin
+    # declarar nada— asi que preguntar si reviento no vale: se pregunta si es CONOCIDA.
+    return especie.slug if isinstance(especie, Species) and especie.known else ""
+
+
+def registered_panels(stores, front: str) -> tuple[str, ...]:
+    """Los paneles (slug de especie) de las corridas YA registradas de un frente.
+
+    Sale del reporte del 2026-09-11: la app bloqueo un guardado por `result_md5` repetido
+    y dijo que lo registrado cubre **0 de 11** candidatos del panel activo — y **no dijo
+    de que panel era esa corrida**, asi que hubo que deducirlo. Deducir de que panel es un
+    registro es exactamente lo que este proyecto no deja hacer con nada mas.
+
+    Se DERIVA de los nombres de consulta, que ya los lleva cada corrida: no hace falta un
+    campo nuevo ni cambia el formato del log, asi que un proyecto de ayer contesta igual.
+    Un `""` en la salida significa «hay corridas cuya consulta no tiene la forma de hoy»,
+    que es informacion y no un hueco a rellenar.
+    """
+    info = STORE_FOR_FRONT.get(front)
+    if not info or not stores:
+        return ()
+    almacen = stores.get(info["almacen"]) if hasattr(stores, "get") else None
+    if almacen is None:
+        return ()
+    slugs = []
+    for corrida in getattr(almacen, "runs", ()):
+        for consulta in getattr(corrida, "query_names", ()) or ():
+            slug = query_panel(consulta)
+            if slug not in slugs:
+                slugs.append(slug)
+    return tuple(slugs)
 
 
 #: Las dos hebras que produce `query_name`, y NO son intercambiables en una comparacion
