@@ -328,6 +328,15 @@ class BaseRate:
     #: EL CONJUNTO sobre el que se ha contado, que es el mismo contra el que se emite el
     #: veredicto. Ver `WHY_THE_RATE_FOLLOWS_THE_LEVEL`.
     level: str = "ambos"
+    #: Los prefijos que se han UNIDO, cuando esta tasa es la de la union de los ejes.
+    #: Vacio = es la de un solo eje, que es la que va pegada a un veredicto. Es un campo
+    #: y no un `+` dentro de `species_prefix` porque de el depende QUE PREGUNTA contesta
+    #: esta cifra, y eso no se deduce mirando si una cadena trae un signo.
+    union_of: tuple[str, ...] = ()
+
+    @property
+    def is_union(self) -> bool:
+        return bool(self.union_of)
 
     @property
     def fraction(self) -> float:
@@ -347,6 +356,21 @@ class BaseRate:
         )
 
     def describe(self) -> str:
+        if self.is_union:
+            # LA DE LA UNION CONTESTA OTRA PREGUNTA, y lo dice con esas palabras: sin
+            # eso, dos tasas distintas en la misma pantalla se leen como una
+            # discrepancia y alguien promedia. Ver `union_base_rate`.
+            return (
+                f"TASA BASE DE LA UNIÓN ({' + '.join(self.union_of)}): "
+                f"{self.matures} maduro(s) dan {self.distinct} seed(s) distinta(s) de "
+                f"{self.window} sobre un espacio de {self.space}, así que cerca del "
+                f"{self.fraction:.0%} de las guías colisiona con algo EN ALGUNO DE LOS "
+                f"DOS EJES por azar. NO es la tasa de ningún veredicto —cada eje lleva "
+                f"la suya— y no la sustituye: ésta es la referencia de un «limpio en "
+                f"los dos», que es la pregunta del CANDIDATO. Pegarla a un veredicto de "
+                f"un solo eje describiría un conjunto contra el que ese veredicto no se "
+                f"ha medido. {WHY_THE_RATE_FOLLOWS_THE_LEVEL}"
+            )
         return (
             f"TASA BASE: {self.matures} maduro(s) "
             # `None` y `""` NO son lo mismo y estaba escrito que no lo eran: el primero
@@ -376,6 +400,59 @@ _LEVEL_LABELS = {
     "ampliado": "los maduros de la especie FUERA del núcleo",
     "ambos": "todos los maduros de la especie",
 }
+
+
+def union_base_rate(mature, params: SeedParams, prefixes) -> BaseRate:
+    """La tasa base de la UNION de los ejes. Contesta OTRA pregunta, y por eso va aparte.
+
+    **NO sustituye a la de cada eje, y confundirlas es la errata nº 118.** La tasa de un
+    veredicto tiene que describir EL CONJUNTO QUE SE CONSULTA
+    (`WHY_THE_RATE_FOLLOWS_THE_LEVEL`), y con los veredictos separados por organismo cada
+    uno se compara contra los maduros de SU prefijo: una tasa de la union pegada al
+    veredicto `hsa-` describiria un conjunto contra el que ese veredicto no se ha medido,
+    y lo haria hacia el lado comodo —hace parecer excepcionalmente limpio algo que solo
+    se comparo contra la mitad—.
+
+    Lo que SI contesta es la pregunta del CANDIDATO, que es otra: «¿cual es la
+    probabilidad de que una guia cualquiera choque con algo en ALGUNO de los dos ejes?».
+    Esa es la referencia de un «limpio en los dos», y sin ella un candidato que pasa los
+    dos ejes parece el doble de notable de lo que es.
+
+    Con un solo prefijo devuelve exactamente lo mismo que `base_rate`: la union de uno
+    es el, y asi no hay dos numeros donde hay uno.
+    """
+    from .mirna import core_hits  # noqa: PLC0415
+
+    limpios = [str(p) for p in prefixes]
+    if not limpios:
+        raise ShmirDesignError(
+            "No hay ningún prefijo de miRBase en el eje, así que no hay unión que "
+            "calcular. Se aborta en vez de devolver una tasa de cero, que se leería "
+            "como «no colisiona nada por azar»."
+        )
+    largo = params.length
+    nombres = 0
+    seeds = set()
+    for seed, lista in mature.seeds.items():
+        propios = [
+            n for n in lista
+            if any(not prefijo or n.startswith(prefijo) for prefijo in limpios)
+        ]
+        if params.level != "ambos":
+            del_nucleo = {h.name for h in core_hits(propios)}
+            propios = [
+                n for n in propios
+                if (n in del_nucleo) == (params.level == "nucleo")
+            ]
+        if not propios:
+            continue
+        nombres += len(propios)
+        seeds.add(seed[:largo])
+    return BaseRate(
+        matures=nombres, distinct=len(seeds), space=params.space,
+        window=params.window, species_prefix="+".join(limpios), level=params.level,
+        union_of=tuple(limpios),
+    )
 
 
 def base_rate(mature, params: SeedParams = DEFAULTS) -> BaseRate:
@@ -500,9 +577,53 @@ class SeedScan:
     #: miRBase—. De ella sale el nombre del fichero que el bloque exportable dice que
     #: falta: el bloque se lee sin la app delante y no puede nombrar el de otra especie.
     species: str = ""
+    #: EL ORGANISMO DEL EJE: contra los maduros de QUIEN se ha comparado. Es el slug, no
+    #: el prefijo —el prefijo se DERIVA de el y vive en `params.species_prefix`—, y es lo
+    #: que nombra la columna. Con el humano hay dos corridas: `human` mide al PACIENTE y
+    #: `mouse` mide el EXPERIMENTO en el Tg650. Ver `species.WHY_TWO_MIRNA_SETS`.
+    #:
+    #: VACIO significa «esta corrida es ANTERIOR al eje», no «es la de la diana»: un
+    #: veredicto no se puede pedir sobre ella y `SeedStore.verdict_for` lo dice.
+    organism: str = ""
+    #: La tasa base de la UNION de los ejes. Contesta la pregunta del CANDIDATO —«¿es
+    #: notable estar limpio en los DOS?»— y NO sustituye a `base_rate`, que es la del
+    #: conjunto contra el que se emite ESTE veredicto. Ver `union_base_rate`.
+    union_rate: BaseRate | None = None
 
     def for_strand(self, strand: str) -> tuple[SeedResult, ...]:
         return tuple(r for r in self.results if r.strand == strand)
+
+    def axis_line(self) -> str:
+        """CONTRA QUIEN se ha medido esta corrida, y que NO cubre. Una frase, siempre.
+
+        Va en el bloque exportable —que se lee sin la app delante— porque con el eje
+        dual el resultado de una corrida no se puede interpretar sin saber de cual es:
+        un `LIMPIO` contra `hsa-` no dice nada del `mmu-`, y la pantalla que lo
+        distinguia no viaja con el texto (principio nº 55).
+        """
+        from .species import WHY_TWO_MIRNA_SETS, mirna_axis, resolve  # noqa: PLC0415
+
+        if not self.organism:
+            return (
+                "EJE: SIN DECLARAR. Esta corrida es anterior al eje de organismo, así "
+                "que no dice contra los maduros de quién se comparó — y no haberlo "
+                "declarado no es «es el de la especie diana». No se puede pedir un "
+                "veredicto sobre ella: se vuelve a correr."
+            )
+        ejes = dict(mirna_axis(self.species)) if self.species else {}
+        otros = [s for s in ejes if s != self.organism]
+        cual = resolve(self.organism).scientific
+        linea = (
+            f"EJE: {cual} ({self.params.species_prefix}). Esta corrida mide SÓLO ese "
+            f"conjunto de maduros."
+        )
+        if otros:
+            nombres = ", ".join(resolve(s).scientific for s in otros)
+            linea += (
+                f" NO cubre {nombres}, que es otra corrida y otra columna. "
+                f"{WHY_TWO_MIRNA_SETS}"
+            )
+        return linea
 
     @property
     def mir30_results(self) -> tuple[SeedResult, ...]:
@@ -519,7 +640,10 @@ class SeedScan:
             "  PARÁMETROS EFECTIVOS:",
         ]
         lineas.extend(f"    {l}" for l in self.params.describe())
+        lineas.extend(["", f"  {self.axis_line()}"])
         lineas.extend(["", f"  {self.base_rate.describe()}", ""])
+        if self.union_rate is not None and self.union_rate.is_union:
+            lineas.extend([f"  {self.union_rate.describe()}", ""])
         for hebra in ("guia", "pasajera"):
             filas = self.for_strand(hebra)
             if not filas:
@@ -545,9 +669,18 @@ class SeedScan:
 
 def run_scan(
     selection, *, mature, params: SeedParams = DEFAULTS, species: str,
-    starts, guides: bool, passengers: bool,
+    starts, guides: bool, passengers: bool, organism: str,
 ) -> SeedScan:
-    """Corre la busqueda. Esto SI ejecuta: es subcadena contra un fichero ya cargado."""
+    """Corre la busqueda. Esto SI ejecuta: es subcadena contra un fichero ya cargado.
+
+    `organism` es el SLUG del organismo del eje —contra los maduros de quien se compara—
+    y va **sin valor por defecto** (principio nº 58). De el sale el prefijo de miRBase,
+    asi que no hay ningun camino que acabe filtrando por un prefijo que nadie eligio:
+    filtrar con el equivocado da CERO colisiones, que parece una buena noticia.
+
+    **Una corrida es de UN organismo.** El panel humano necesita DOS, una por eje, y no
+    se funden: ver `species.WHY_TWO_MIRNA_SETS`.
+    """
     if mature is None:
         raise ShmirDesignError(
             "No hay tabla de maduros cargada (`mature.fa`), así que no hay contra que "
@@ -565,14 +698,23 @@ def run_scan(
             "vacía que parezca haber corrido."
         )
 
-    # Si los parametros no traen especie declarada, se resuelve con la de la CORRIDA —
-    # que ya viene por parametro— pasando por `species`. Asi no hay ningun camino que
-    # acabe usando `mmu-` sin haber preguntado, y una especie sin prefijo declarado
-    # aborta aqui en vez de dar cero colisiones.
-    if not params.declared:
-        params = SeedParams.for_species(
-            species, window=params.window, level=params.level
+    from .eje_organismo import exige_organismo  # noqa: PLC0415
+    from .species import mirna_axis  # noqa: PLC0415
+
+    eje = exige_organismo(organism, frente="seed_colision", que_es="la colisión de seed")
+    declarados = dict(mirna_axis(species))
+    if eje not in declarados:
+        raise ShmirDesignError(
+            f"El organismo {eje!r} no está en el eje de {species!r}, que es "
+            f"{', '.join(declarados) or 'ninguno — esa especie no está declarada'}. "
+            f"Comparar contra los maduros de un organismo que este diseño no mide es "
+            f"inventarse la procedencia de un veredicto. Se aborta."
         )
+    # EL PREFIJO SE DERIVA DEL ORGANISMO DEL EJE, no de la especie del diseño. Antes
+    # salia de `species` —correcto cuando el eje era uno solo— y con el eje dual eso
+    # dejaria las dos corridas filtrando por `hsa-`: dos columnas, el mismo numero, y
+    # ninguna forma de verlo. Principio nº 13 sobre el filtro de una corrida.
+    params = params.with_changes(species_prefix=declarados[eje])
     prefijo = params.require_prefix()
     largo = params.length
     # Indice por la ventana pedida: con 2-7 una colision es cualquier maduro cuya seed
@@ -589,7 +731,14 @@ def run_scan(
     # cuando la lista es de la especie que se esta diseñando.
     from .mirna import CORE_LIST_MARK, core_list_note  # noqa: PLC0415
 
-    nota_nucleo = core_list_note(species)
+    # LA NOTA SE PREGUNTA POR EL ORGANISMO DEL EJE, no por la especie del diseño, y eso
+    # cambia lo que dice: el nucleo de abundantes esta autorizado para cerebro MURINO,
+    # asi que en el eje `mouse` de un diseño humano la lista NO es prestada — es
+    # exactamente la de su especie, porque ese eje mide el experimento en el Tg650. Con
+    # la especie del diseño, ese eje saldria marcado «lista de OTRA ESPECIE» sobre el
+    # unico caso en que la lista es la correcta. El eje `human` sigue marcado, que es lo
+    # cierto.
+    nota_nucleo = core_list_note(eje)
     resultados = []
     crudas = []
     for inicio, hebra, secuencia in _strands(
@@ -600,7 +749,9 @@ def run_scan(
         # LA ESPECIE SE PASA. Sin ella `CoreHit` no puede decir si la lista es
         # PRESTADA, y este es el camino que ESCRIBE en el almacen y produce el bloque
         # exportable: el aviso llegaba al filtro del tilado y no aqui (principio nº 33).
-        nucleo = {h.name for h in core_hits(nombres, species=species)}
+        # POR EL ORGANISMO DEL EJE, por lo mismo que la nota de arriba: es quien
+        # decide si la lista del nucleo es la de esa especie o una prestada.
+        nucleo = {h.name for h in core_hits(nombres, species=eje)}
         colisiones = tuple(
             SeedCollision(
                 name=n, core=n in nucleo, mir30=MIR30_FAMILY in n,
@@ -633,9 +784,24 @@ def run_scan(
         )
         crudas.append(f"{consulta}\t{hepta}\t{nivel}\t{','.join(nombres)}")
 
+    # EL ORGANISMO DEL EJE VA DENTRO DEL CRUDO, y no es decoracion. El `run_id` es
+    # `seed-<fecha>-<md5 del crudo>` (errata nº 48), asi que dos corridas del mismo
+    # panel que salieran LIMPIAS en los dos ejes tendrian el mismo crudo, el mismo md5 y
+    # el mismo id: la segunda se rechazaria como «el mismo fichero subido dos veces» y
+    # el eje que se venia a cubrir se quedaria sin corrida — con un mensaje que ademas
+    # manda a mirar otra cosa. Y sirve para lo de siempre: el crudo se relee del log y
+    # tiene que decir por si solo contra que se midio (principio nº 35).
+    crudas.insert(0, f"# organismo\t{eje}\t{prefijo}")
+
     return SeedScan(
         params=params, source=mature.provenance, results=tuple(resultados),
         base_rate=base_rate(mature, params), raw="\n".join(crudas) + "\n",
-        core_note=nota_nucleo, species=species,
+        core_note=nota_nucleo, species=species, organism=eje,
+        # LA DE LA UNION, calculada AQUI y no en la vista: sale del mismo fichero ya
+        # cargado y viaja con la corrida al log, asi que el informe la lee en vez de
+        # recalcularla sobre 69.020 maduros en cada repintado (errata nº 59).
+        union_rate=union_base_rate(
+            mature, params, [p for _, p in mirna_axis(species)],
+        ),
         mature_md5=mature.checksum, mature_version=mature.version,
     )

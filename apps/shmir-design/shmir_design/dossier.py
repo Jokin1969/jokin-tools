@@ -334,17 +334,37 @@ def build_dossier(
     estados.pop("seed_colision", None)
     procedencia_de.pop("seed_colision", None)
     fecha_de.pop("seed_colision", None)
+    # Y SE PARTE ADEMAS POR ORGANISMO (2026-09-11), por el mismo motivo que
+    # `offtarget_seed` y con la misma lista: el shmiR se expresa en neuronas de raton
+    # humanizado, asi que una seed limpia contra `hsa-` puede chocar con un `mmu-`
+    # abundante EN EL EXPERIMENTO. Ver `species.WHY_TWO_MIRNA_SETS`.
+    from .eje_organismo import sin_eje_declarado
+    from .species import model_organism_slugs
+
+    organismos = model_organism_slugs(species) or ("",)
     for hebra in ("guia", "pasajera"):
-        nombre = f"seed_colision:{hebra}"
-        consulta_hebra = query_name(species, start, hebra)
-        resultado_hebra = seeds.verdict_for(consulta_hebra)
-        corrida = seeds.latest(consulta_hebra)
-        estados[nombre] = (resultado_hebra.state, resultado_hebra.reason)
-        procedencia_de[nombre] = (
-            f"corrida {corrida.run_id} ({corrida.source.split(',')[0]})" if corrida
-            else "sin corrida en el almacen"
-        )
-        fecha_de[nombre] = corrida.date if corrida else SIN_FECHA
+        for organismo in organismos:
+            partes = ["seed_colision", hebra, organismo]
+            nombre = ":".join(p for p in partes if p)
+            consulta_hebra = query_name(species, start, hebra)
+            resultado_hebra = (
+                seeds.verdict_for(consulta_hebra, background=organismo) if organismo
+                # SIN EJE QUE NOMBRAR no se pregunta: `verdict_for` aborta a proposito.
+                else sin_eje_declarado(
+                    species, frente="seed_colision",
+                    que_es="la colisión de seed con miARN endógeno",
+                )
+            )
+            corrida = (
+                seeds.latest(consulta_hebra, background=organismo) if organismo
+                else None
+            )
+            estados[nombre] = (resultado_hebra.state, resultado_hebra.reason)
+            procedencia_de[nombre] = (
+                f"corrida {corrida.run_id} ({corrida.source.split(',')[0]})" if corrida
+                else "sin corrida en el almacen"
+            )
+            fecha_de[nombre] = corrida.date if corrida else SIN_FECHA
 
     # `offtarget_seed` se PARTE igual, y por el mismo motivo. Ademas es el frente que
     # estuvo invisible: si la ficha lo enseñara como una sola fila por candidato, la

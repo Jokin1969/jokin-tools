@@ -7609,3 +7609,148 @@ nº 108.
 - **COMPROBADO que el guardia muerde**: con el `blocked_by_panel` desconectado, el test
   reproduce el texto reportado letra por letra. Sin ese control, «la tarjeta dice el
   motivo de la corrida» y «la tarjeta dice cualquier cosa» darían el mismo verde.
+
+---
+
+## LA COLISIÓN DE SEED VA POR ORGANISMO, CON LA MISMA LISTA QUE LOS OFF-TARGETS (2026-09-11)
+
+Con las palabras del responsable del proyecto, citadas tal cual y anotadas con su nombre
+a petición suya:
+
+> **«El panel humano se valida en el ratón humanizado Tg650. El shmiR se expresa en
+> neuronas de ratón, cuya maquinaria endógena de miARN es murina. Por la misma lógica que
+> el eje de transcriptoma dual, `seed_colision` debe correr contra `hsa-` Y `mmu-` por
+> separado — el murino mide el experimento y el humano mide el paciente. Los veredictos
+> de cada prefijo van SEPARADOS, SIN fundirse.»**
+> — Joaquín Castilla, 2026-09-11.
+
+Una seed que choque con un `mmu-` abundante secuestra un programa regulador **en el
+experimento** aunque esté limpia contra `hsa-`; la colisión `hsa-` es la que describe al
+**paciente**. El transgén aporta el mensajero diana, no el miRNoma.
+
+### LA LISTA DE ORGANISMOS ES UNA, y eso es lo que impide que los dos ejes se separen
+
+`species.model_organisms` —la diana primero y detrás los fondos genéticos del modelo— la
+leen **los dos** frentes: `off_target_catalogues` pasa a ser esa misma función vista desde
+los off-targets, y `mirna_axis` le pega a cada organismo su prefijo de miRBase. Con una
+lista por frente, el día que se declare un segundo fondo genético uno de los dos se
+quedaría con uno solo **y el síntoma sería medir la mitad con la forma correcta**.
+
+- **El PREFIJO se deriva del organismo del EJE, no de la especie del diseño.** Con la del
+  diseño, las dos corridas del panel humano filtrarían las dos por `hsa-`: dos columnas,
+  el mismo número, y ninguna forma de verlo (principio nº 13).
+- **Y ESO CAMBIA LO QUE DICE EL NÚCLEO DE ABUNDANTES.** `CORE_ABUNDANT` está autorizado
+  para cerebro **murino**, así que hasta hoy un diseño humano salía entero marcado «lista
+  de OTRA ESPECIE». En el eje `mouse` de un panel humano **no lo es**: es exactamente la
+  de su especie, porque ese eje mide el experimento en el Tg650. El eje `human` sigue
+  marcado, que es lo cierto. La nota se pregunta ahora por el ORGANISMO DEL EJE.
+- **ESTE EJE NO NECESITA NINGÚN FICHERO** (`species.MIRNA_AXIS_IS_ONE_FILE`), y es la
+  diferencia con el de transcriptoma: allí cada catálogo es **otro fichero** que hay que
+  descargar y aquí son **dos subconjuntos de uno** —`mature.fa` trae los 69.020 maduros de
+  todas las especies—. Se dice en el propio selector: sin esa frase, la segunda corrida se
+  lee como si esperara una descarga y se aplaza por una razón que no existe.
+
+### LAS REGLAS DEL EJE VIVEN EN UN SITIO PARA LOS DOS FRENTES
+
+`eje_organismo.py`. Son las mismas cuatro y ninguna es obvia —el organismo sin valor por
+defecto; una corrida que no lo declara no contesta por ninguno; sin eje derivable la
+respuesta es un `NOT_RUN` que dice que falta la DECLARACIÓN y no un fichero; y el frente
+sólo cierra con todas sus columnas—. Copiadas al segundo almacén serían dos sitios donde
+arreglarlas la próxima vez: **un comentario protege su clase, un mecanismo protege la
+siguiente** (principio nº 31).
+
+Lo que NO vive ahí es el RECURSO, que es lo único que de verdad difiere. Cada almacén dice
+el suyo.
+
+### LA TASA BASE DE LA UNIÓN **NO** SUSTITUYE A LA DE CADA EJE
+
+Se pidió «la tasa base se calcula sobre la unión», y **la unión sola sería la errata
+nº 118 con un eje más**: la regla escrita de este proyecto es que la tasa describe **el
+conjunto que se consulta**, y con los veredictos separados cada uno se compara contra los
+maduros de SU prefijo. Una tasa de la unión pegada al veredicto `hsa-` describiría un
+conjunto contra el que ese veredicto no se ha medido — y erraría **hacia el lado cómodo**,
+que es lo que la hace grave.
+
+Así que salen **las dos, y contestan preguntas distintas**:
+
+| cifra | qué contesta | dónde va |
+|---|---|---|
+| la de CADA eje (~10 %) | ¿es notable este `LIMPIO` contra `hsa-`? | pegada a ESE veredicto |
+| la de la UNIÓN (~19 %) | ¿es notable estar limpio en los DOS? | al lado, y dice que no es la de ningún veredicto |
+
+`union_base_rate` la deriva del fichero cargado; `mirna.UNION_RATE_MEASURED` conserva la
+medida publicada **con su procedencia** (release 23, md5 `320a5a53…`, 4777 maduros, 3127
+seeds sobre 16.384) y un test la **cruza** contra el fichero de verdad: sin el cruce sería
+prosa que se queda atrás con la siguiente release (principio nº 11). Con un solo prefijo
+declarado, la unión da exactamente lo mismo que la de ese uno — no hay dos números donde
+hay uno.
+
+### EL ORGANISMO VA DENTRO DEL CRUDO, y sin eso el eje no habría funcionado nunca
+
+El `run_id` es `seed-<fecha>-<md5 del crudo>` (errata nº 48). Dos corridas del mismo panel
+que salieran **LIMPIAS en los dos ejes** tendrían el mismo crudo, el mismo md5 y el mismo
+id: la segunda se rechazaría como «el mismo fichero subido dos veces» —con un mensaje que
+además manda a mirar otra cosa— y el eje que se venía a cubrir se quedaría sin corrida. La
+primera línea del crudo es ahora `# organismo\t<slug>\t<prefijo>`, que además lo hace
+legible al releerlo del log (principio nº 35).
+
+### LAS COLUMNAS DE CARGA PASAN A SER CUATRO **POR CATÁLOGO**. DECIDIDO (2026-09-11)
+
+Se preguntó si 8 columnas, 4 con el catálogo en el texto, o una tercera vía. **Cuatro por
+organismo, derivadas**, y lo decide el propio modelo: `seed_load_reference` pedía
+`latest(consulta)` **sin catálogo** —«la más reciente, sea cual sea»—, así que con las dos
+corridas guardadas esas cuatro celdas mostraban la segunda y la columna no decía cuál. Es
+el principio nº 27 sobre una celda: **el mismo nombre de columna llevando un número humano
+en una fila y uno murino en otra, decidido por el orden en que alguien pulsó.**
+
+No es «más información»: el percentil se calcula contra una nula del **mismo** catálogo
+(`WHY_TWO_CATALOGUES`), así que una celda sin catálogo **no se refiere a nada**. Y la
+opción de dejarlo en el texto de referencia estaba descartada por el principio nº 55: ese
+párrafo no viaja con el CSV, y el CSV es lo que se lee sin la pantalla delante.
+
+- **Los CONTROLES biológicos también son por catálogo**: sus conteos salen de barrer ESE
+  transcriptoma, así que «miR-124-3p: 19.020» sin decir de cuál no es una magnitud de
+  nada. La tabla gana una columna `catalogo` en vez de dejarlo en el párrafo.
+- **El texto nombra la corrida DE CADA columna**, no «la última»: decir «la corrida X» al
+  lado de ocho celdas de las que la mitad salen de otra es una procedencia falsa.
+- **`SIN_CONSULTAR` se decide POR CATÁLOGO**: preguntarlo por el almacén entero diría
+  `SIN_CONSULTAR` en las celdas del catálogo que nadie ha corrido todavía, y eso manda a
+  repetir una corrida con otro alcance cuando lo que falta es la corrida entera. Son las
+  tres formas de la errata nº 55 con un eje más.
+- En el **bloque legible** del informe sigue cabiendo una sola clase, y es la del catálogo
+  de la **DIANA** con su nombre completo al lado: `carga_8mer:human`. El eje entero está en
+  el TSV, que es donde se compara.
+
+## EL MODAL DE COLISIÓN DE SEED LLEVABA DOS DÍAS MUERTO (2026-09-11)
+
+Errata nº 158, y salió buscando dónde enchufar el eje. `_modal_seed` tenía:
+
+```python
+huella = run_fingerprint(tuple(starts), params, fondo)
+```
+
+`fondo` es la variable del modal de **off-targets** —el catálogo elegido en su selector— y
+en `_modal_seed` **no existe**. Se copió con el eje de transcriptoma el 2026-09-09, así que
+desde entonces **marcar la casilla «Colisión de seed» lanzaba un `NameError`**; y como esa
+excepción sube al `try` de `main()`, que pinta el motivo y hace `return`, se llevaba por
+delante **todo lo que va por debajo**: los otros modales, Descargas y el paso 5. El síntoma
+no es «el modal de seed falla» — es **«la página se corta por la mitad»**.
+
+- **No lo vio nada de lo que hay, y no por descuido.** `AppTest` no puede rellenar un
+  `file_uploader`, así que la suite no llega al estado DISEÑADO y los once estados que
+  cuelgan de él están declarados BLOQUEADOS en `data/estados.toml` —los ocho de los cuatro
+  modales entre ellos—. La alcanzabilidad mira símbolos sin llamador y aquí había llamador;
+  el golden lee lo que se emite y esto no llegaba a emitirse.
+- **Así que el mecanismo no puede depender de ejecutar la página: mira el FUENTE.**
+  `tests/test_la_PAGINA_no_usa_nombres_que_no_existen.py` recorre cada función y exige que
+  todo nombre leído esté definido ahí dentro —argumento, asignación, importación, o
+  global—. **GUARDIA, no trinquete**: el número correcto es cero.
+- **CALIBRADO contra el código que había** (principio nº 34): sobre `origin/main` da
+  **exactamente un hallazgo, y es el fallo**; sobre el árbol arreglado, cero. Es
+  deliberadamente generoso —cualquier `Store`, sin mirar ramas ni orden— porque lo que se
+  busca es un nombre que **no se escribe en ninguna parte**; un guardia más fino diría
+  cosas ciertas sobre código correcto y se acabaría apagando.
+- Con **las dos mitades del control** (principio nº 51): que muerde sobre la línea real
+  que había, y que NO muerde sobre las tres formas correctas que más aparecen en esa
+  página —una variable atada dentro de un `if`, el objetivo de un `for`, un nombre que
+  entra por un `import` local—. Más la prueba de vida: que el barrido encuentre la página.

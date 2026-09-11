@@ -29,6 +29,15 @@ from shmir_design.filters import FilterState
 from shmir_design.offtarget import SITE_CLASSES
 
 ESPECIE = "raton"
+
+#: EL SUFIJO DEL EJE DE CATALOGO, DERIVADO de la especie y no escrito (principio nº 13):
+#: desde el 2026-09-11 las celdas de carga salen una tanda por organismo del eje, y con
+#: `carga_8mer` escrito este test preguntaria por una columna que la app ya no emite —
+#: y su `KeyError` se leeria como que la celda no se rellena.
+SUFIJO = (
+    f":{presentation.catalogue_slugs(ESPECIE)[0]}"
+    if presentation.catalogue_slugs(ESPECIE) else ""
+)
 #: Los del panel que la corrida SÍ consultó, y el que entró después. Es la forma exacta
 #: del caso: la corrida es del panel anterior y `3utr:359` no estaba en él.
 CONSULTADOS = (10, 553, 819, 1018)
@@ -65,6 +74,9 @@ class _Corrida:
     class scan:
         controls = ()
         self_counts: dict = {}
+        #: CONTRA QUE CATALOGO se conto. El doble lo declara porque el de verdad lo
+        #: declara: una corrida sin catalogo no contesta por ninguno (2026-09-11).
+        background = "mouse"
 
     def __init__(self, resultados):
         self._resultados = resultados
@@ -80,12 +92,17 @@ class _Almacen:
         #: este candidato no es un almacén vacío, y hasta hoy daban la misma celda.
         self.runs = (corrida,) if corrida is not None else ()
 
-    def latest(self, consulta):
+    def latest(self, consulta, *, background=None):
+        # EL `background` NO SE IGNORA: con el eje de catalogo, un almacen que
+        # contestara que si a cualquiera daria por contado un catalogo que nadie ha
+        # barrido. Un cliente que no se parece al real no prueba nada.
         if self._corrida is None:
+            return None
+        if background is not None and background != self._corrida.scan.background:
             return None
         return self._corrida if self._corrida.result_for(consulta) else None
 
-    def verdict_for(self, consulta):
+    def verdict_for(self, consulta, *, background):
         from shmir_design.filters import FilterResult
 
         return FilterResult(
@@ -113,7 +130,7 @@ class TestTresCeldasDistintas(unittest.TestCase):
         )
 
     def test_el_CONSULTADO_trae_el_numero_con_su_percentil(self):
-        celda = self._celdas(CONSULTADOS[0])["carga_8mer"]
+        celda = self._celdas(CONSULTADOS[0])[f"carga_8mer{SUFIJO}"]
         self.assertIn("3", celda)
         self.assertIn("p", celda)
 
@@ -121,7 +138,7 @@ class TestTresCeldasDistintas(unittest.TestCase):
         for clase in SITE_CLASSES:
             with self.subTest(clase):
                 self.assertEqual(
-                    self._celdas(EL_NUEVO)[f"carga_{clase}"],
+                    self._celdas(EL_NUEVO)[f"carga_{clase}{SUFIJO}"],
                     presentation.SIN_CONSULTAR,
                     "una celda en blanco no distingue «no estabas en la corrida» de "
                     "«nadie lo ha medido nunca», y se arreglan con cosas distintas.",
@@ -133,7 +150,7 @@ class TestTresCeldasDistintas(unittest.TestCase):
         for clase in SITE_CLASSES:
             with self.subTest(clase):
                 self.assertEqual(
-                    self._celdas(EL_NUEVO, con_corrida=False)[f"carga_{clase}"], "",
+                    self._celdas(EL_NUEVO, con_corrida=False)[f"carga_{clase}{SUFIJO}"], "",
                 )
 
     def test_sin_almacenes_tampoco_se_inventa_un_estado(self):

@@ -58,7 +58,49 @@ DEFAULT_PREFIXES: tuple[str, ...] = ()
 
 #: Los dos que el proyecto tenia indexados. Se conserva con nombre propio porque el
 #: manifiesto y las cifras de tasa base publicadas se calcularon con ellos.
+#:
+#: **Y DESDE EL 2026-09-11 SON LOS DOS EJES DEL PANEL HUMANO**, que es lo que convierte
+#: esta pareja de residuo historico en el caso vivo: `hsa-` mide al paciente y `mmu-` el
+#: experimento en el Tg650 (`species.WHY_TWO_MIRNA_SETS`). Lo que NO cambia es de donde
+#: sale la pareja: de `species.model_organisms`, derivada de la especie del diseño, no de
+#: esta tupla — aqui sigue siendo el registro de con que se calcularon las cifras de
+#: abajo.
 HISTORICAL_PREFIXES = ("mmu-", "hsa-")
+
+#: LA TASA BASE PUBLICADA DE LA UNION, con su procedencia. Es un REGISTRO de una medida,
+#: no la cifra que usa la app: la que viaja con un resultado la DERIVA
+#: `seed_scan.union_base_rate` del fichero cargado (principio nº 13), porque una tasa
+#: transcrita envejece con la siguiente release de miRBase y nadie se entera.
+#:
+#: Existe para poder CRUZARLA: `tests/test_la_COLISION_de_seed_es_DUAL.py` recalcula la
+#: union sobre `mature.fa` y exige que coincida con esto. Sin el cruce, esta entrada
+#: seria prosa que se queda atras (principio nº 11); con el, es lo que delata el dia que
+#: el fichero cambie sin que nadie mire las cifras.
+#:
+#: PROCEDENCIA: medido sobre `mature.fa` release 23 de miRBase
+#: (md5 320a5a535c75bff442dbdc7bbccfff4c, 69.020 maduros), ventana 2-8, nivel `ambos`.
+UNION_RATE_MEASURED = {
+    "prefijos": ("mmu-", "hsa-"),
+    "window": "2-8",
+    "level": "ambos",
+    "matures": 4777,
+    "distinct": 3127,
+    "space": 16384,
+    "mature_md5": "320a5a535c75bff442dbdc7bbccfff4c",
+}
+
+#: Y LO QUE ESA CIFRA SIGNIFICA, que es lo que hace falta para leerla. Va aqui porque la
+#: pregunta que contesta NO es la de ningun veredicto: cada eje lleva su propia tasa.
+WHY_THE_UNION_RATE = (
+    "Con los dos ejes corriendo, la unión (~19 %) NO es la tasa de ningún veredicto: "
+    "cada eje se compara contra los maduros de SU prefijo y lleva la suya —`hsa-` sola "
+    "y `mmu-` sola rondan el 10 %—. Pegar la de la unión a un veredicto de un solo eje "
+    "describiría un conjunto contra el que ese veredicto no se ha medido, y lo haría "
+    "hacia el lado cómodo: es la errata nº 118 con un eje más. Lo que la unión sí "
+    "contesta es la pregunta del CANDIDATO —«¿es notable estar limpio en los DOS?»—, "
+    "y ahí casi el doble de tasa cambia la lectura: un candidato limpio en los dos ejes "
+    "lo es contra una expectativa de azar mucho mayor."
+)
 
 #: Cuantos 7-meros hay. Se usa para explicar en el informe por que hay dos niveles.
 SEED_SPACE = 4 ** (SEED_END - SEED_START + 1)

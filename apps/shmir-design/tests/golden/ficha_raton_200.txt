@@ -20,8 +20,8 @@
   repeticion_polimorfica          NOT_RUN   —            frente abierto del informe
   repeticiones                    NOT_RUN   —            frente abierto del informe
   seed                            NOT_RUN   —            frente abierto del informe
-  seed_colision:guia              NOT_RUN   —            sin corrida en el almacen
-  seed_colision:pasajera          NOT_RUN   —            sin corrida en el almacen
+  seed_colision:guia:mouse        NOT_RUN   —            sin corrida en el almacen
+  seed_colision:pasajera:mouse    NOT_RUN   —            sin corrida en el almacen
   transgen                        NOT_RUN   —            frente abierto del informe
 
 ── Asimetría — las TRES cifras, que son magnitudes distintas ──

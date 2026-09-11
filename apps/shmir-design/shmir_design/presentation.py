@@ -1988,6 +1988,24 @@ WHY_BOTH_REFERENCES = (
 )
 
 
+def _catalogos_con_corrida(almacen, organismos) -> tuple[str, ...]:
+    """De que catalogos hay ALGO guardado en el almacen, mire a quien mire.
+
+    Es la mitad que distingue «a este candidato no se le preguntó» de «este catálogo no
+    se ha corrido», y son dos salidas distintas: repetir la corrida con otro alcance, o
+    correrla entera. Sin eje derivable —`organismos` es `("",)`— cuenta cualquier
+    corrida, que es lo que había antes de que el eje existiera.
+    """
+    corridas = tuple(getattr(almacen, "runs", ()) or ())
+    if not corridas:
+        return ()
+    fondos = {getattr(getattr(r, "scan", None), "background", "") or "" for r in corridas}
+    return tuple(
+        organismo for organismo in organismos
+        if not organismo or organismo in fondos
+    )
+
+
 def seed_load_reference(*, stores, species: str, starts) -> dict[str, object]:
     """El percentil por clase y los controles que hacen legible `carga_seed`.
 
@@ -2013,39 +2031,72 @@ def seed_load_reference(*, stores, species: str, starts) -> dict[str, object]:
     from .offtarget import CONTROL_NAMES, SITE_CLASSES, missing_file_text
 
     almacen = (stores or {}).get("offtarget")
-    por_candidato: dict[int, dict[str, str]] = {}
-    ultima = None
+    # UN JUEGO DE CELDAS POR ORGANISMO DEL EJE. DECIDIDO (2026-09-11), y es la respuesta
+    # a «4 columnas o 8»: son CUATRO POR CATALOGO, derivadas. Hasta hoy se pedia
+    # `almacen.latest(consulta)` SIN catalogo —«la mas reciente, sea cual sea»—, asi que
+    # con las dos corridas guardadas estas cuatro celdas mostraban la segunda y la
+    # columna no decia cual. O sea: el mismo nombre de columna llevando un numero humano
+    # en una corrida y uno murino en otra, decidido por el orden en que alguien pulso
+    # (principio nº 27).
+    #
+    # No es «mas informacion»: es que el percentil se calcula contra una nula del MISMO
+    # catalogo (`species.WHY_TWO_CATALOGUES`), asi que una celda sin catalogo no se
+    # refiere a nada. Y la opcion de dejarlo en el texto de referencia estaba descartada
+    # por el principio nº 55: ese parrafo no viaja con el CSV, y el CSV es lo que se lee
+    # sin la pantalla delante.
+    organismos = catalogue_slugs(species) or ("",)
+    por_candidato: dict[int, dict[str, dict[str, str]]] = {}
+    ultima_por_organismo: dict[str, object] = {}
     # SIN ALMACEN NO SE PREGUNTA NADA, y por eso tampoco se resuelve la especie: la clave
     # de consulta la necesita quien busca en el registro, y aqui no hay registro. Sin este
     # corte, una tabla pedida sin especie —que es un camino legitimo, el del CLI— abortaba
     # al derivar una clave para la que no hay nada que buscar.
     for inicio in (starts if almacen is not None else ()):
         consulta = query_name(species, int(inicio), "guia")
-        corrida = almacen.latest(consulta) if almacen is not None else None
-        if corrida is None:
-            continue
-        resultado = corrida.result_for(consulta)
-        if resultado is None:
-            continue
-        # EL CONTEO Y SU PERCENTIL, EN LA MISMA CELDA. Separarlos en dos columnas es lo
-        # que hace que alguien copie el numero solo, que es el fallo que esto cierra.
-        por_candidato[int(inicio)] = {
-            clase: (
-                f"{resultado.counts.sites[clase]} "
-                f"(p{resultado.percentiles[clase]:.1f})"
+        for organismo in organismos:
+            # `background=None` es «cualquiera» y es lo que hay que pedir cuando NO hay
+            # eje derivable —especie sin declarar—: ahi no hay catalogo que nombrar y
+            # exigirlo dejaria la columna vacia sobre una corrida que si existe.
+            corrida = almacen.latest(
+                consulta, background=organismo if organismo else None,
             )
-            for clase in SITE_CLASSES
-        }
-        ultima = corrida
+            if corrida is None:
+                continue
+            resultado = corrida.result_for(consulta)
+            if resultado is None:
+                continue
+            # EL CONTEO Y SU PERCENTIL, EN LA MISMA CELDA. Separarlos en dos columnas es
+            # lo que hace que alguien copie el numero solo, que es el fallo que esto
+            # cierra.
+            por_candidato.setdefault(int(inicio), {})[organismo] = {
+                clase: (
+                    f"{resultado.counts.sites[clase]} "
+                    f"(p{resultado.percentiles[clase]:.1f})"
+                )
+                for clase in SITE_CLASSES
+            }
+            ultima_por_organismo[organismo] = corrida
 
+    # LOS CONTROLES TAMBIEN SON POR CATALOGO: sus conteos salen de barrer ESE
+    # transcriptoma, asi que «miR-124-3p: 19.020» sin decir de cual no es una magnitud de
+    # nada. La columna lo dice en vez de dejarlo en el parrafo de arriba.
     controles = [
         {
             "nombre": control.name,
+            "catalogo": organismo or "sin declarar",
             "heptamero": control.heptamer,
             **{clase: control.sites[clase] for clase in SITE_CLASSES},
         }
-        for control in (ultima.scan.controls if ultima is not None else ())
+        for organismo in organismos
+        for control in (
+            getattr(ultima_por_organismo.get(organismo), "scan", None).controls
+            if ultima_por_organismo.get(organismo) is not None else ()
+        )
     ]
+    ultima = next(
+        (ultima_por_organismo[o] for o in organismos if o in ultima_por_organismo),
+        None,
+    )
 
     if ultima is None:
         texto = (
@@ -2058,11 +2109,26 @@ def seed_load_reference(*, stores, species: str, starts) -> dict[str, object]:
             f"{WHY_BOTH_REFERENCES} {WHY_NO_PERCENTILE_FOR_THE_TOTAL}"
         )
     else:
+        # DE QUE CORRIDA SALE CADA COLUMNA, y no «de la ultima». Con el eje dual hay una
+        # por organismo y el texto tiene que nombrarlas: decir «la corrida X» al lado de
+        # ocho celdas de las que la mitad salen de otra es una procedencia falsa.
+        corridas = ", ".join(
+            f"{organismo}: {ultima_por_organismo[organismo].run_id} "
+            f"({ultima_por_organismo[organismo].date})"
+            for organismo in organismos
+            if organismo in ultima_por_organismo
+        )
+        faltan = [o for o in organismos if o and o not in ultima_por_organismo]
         texto = (
-            f"Percentiles y controles de la corrida {ultima.run_id} ({ultima.date}), "
-            f"sobre {ultima.source}. {WHY_BOTH_REFERENCES} "
+            f"Percentiles y controles por catálogo — {corridas}; sobre "
+            f"{ultima.source}. {WHY_BOTH_REFERENCES} "
             f"{WHY_NO_PERCENTILE_FOR_THE_TOTAL}"
         )
+        if faltan:
+            texto += (
+                f" SIN CORRER todavía: {', '.join(faltan)}. Esas celdas van vacías y no "
+                f"es por falta de fichero — es que falta esa corrida, que es otra cosa."
+            )
 
     return {
         "hay": ultima is not None,
@@ -2074,6 +2140,17 @@ def seed_load_reference(*, stores, species: str, starts) -> dict[str, object]:
         "por_candidato": por_candidato,
         "controles": controles,
         "clases": tuple(SITE_CLASSES),
+        # LOS ORGANISMOS DEL EJE, en el mismo orden en que salen las columnas. Se
+        # publican para que la tabla, el informe y el CSV los lean de aqui en vez de
+        # volver a derivarlos cada uno: dos derivaciones del mismo eje son dos formas de
+        # nombrar la misma celda (principio nº 27).
+        "organismos": tuple(organismos),
+        # Y CUALES TIENEN CORRIDA EN EL ALMACEN, que NO es `ultima_por_organismo`: eso
+        # dice si alguno de los candidatos PREGUNTADOS salio en una, y esto si hay algo
+        # guardado de ese catalogo. La diferencia es justo el caso de `3utr:359` —
+        # corrida guardada, y el no estaba en ella— un eje mas alla, y de ella depende
+        # que su celda diga `SIN_CONSULTAR` en vez de quedarse vacia (errata nº 55).
+        "con_corrida": _catalogos_con_corrida(almacen, organismos),
         "texto": texto,
     }
 
@@ -2288,12 +2365,20 @@ def seed_load_columns(*, stores, species: str, start: int, reference=None) -> di
     vista = reference if reference is not None else seed_load_reference(
         stores=stores, species=species, starts=(start,)
     )
-    celdas = vista["por_candidato"].get(int(start), {})
-    # El hueco se rellena con `SIN_CONSULTAR` sólo si el ALMACÉN tiene corridas. Con la
-    # vista de un solo candidato, `hay` diría que no hay referencia justo en el caso que
-    # se quiere distinguir, así que la pregunta es por el almacén y no por esta fila.
-    vacio = SIN_CONSULTAR if vista["hay_corridas"] else ""
-    return {f"carga_{clase}": celdas.get(clase, vacio) for clase in SITE_CLASSES}
+    por_organismo = vista["por_candidato"].get(int(start), {})
+    salida: dict[str, str] = {}
+    for organismo in vista["organismos"]:
+        celdas = por_organismo.get(organismo, {})
+        # El hueco se rellena con `SIN_CONSULTAR` sólo si HAY corrida DE ESE CATALOGO.
+        # Con el eje dual, preguntarlo por el almacén entero diría `SIN_CONSULTAR` en
+        # las celdas del catálogo que nadie ha corrido todavía — y eso manda a repetir
+        # una corrida con otro alcance cuando lo que falta es la corrida entera. Son las
+        # tres formas de la errata nº 55, ahora con un eje más.
+        vacio = SIN_CONSULTAR if organismo in vista["con_corrida"] else ""
+        sufijo = f":{organismo}" if organismo else ""
+        for clase in SITE_CLASSES:
+            salida[f"carga_{clase}{sufijo}"] = celdas.get(clase, vacio)
+    return salida
 
 
 def seed_load_placeholder(utr3_set, *, species: str = ""):
@@ -2973,7 +3058,19 @@ def front_columns(tiling, selection, *, species) -> list[str]:
 #: hacia. Un frente por hebra da DOS columnas, `<frente>:guia` y `<frente>:pasajera`.
 STORE_FOR_FRONT = {
     "especificidad": {"almacen": "blast", "por_hebra": False, "por_catalogo": False},
-    "seed_colision": {"almacen": "seed", "por_hebra": True, "por_catalogo": False},
+    # EL EJE DE ORGANISMO TAMBIEN AQUI (2026-09-11). El shmiR se expresa en neuronas de
+    # raton humanizado, cuya maquinaria endogena de miARN es MURINA, asi que una seed
+    # limpia contra `hsa-` puede secuestrar un programa regulador en el EXPERIMENTO. Son
+    # dos preguntas y dos columnas: ver `species.WHY_TWO_MIRNA_SETS`.
+    #
+    # **«CATALOGO» AQUI ES EL CONJUNTO DE MADUROS DE ESE ORGANISMO**, no un fichero: el
+    # eje de off-targets son DOS FICHEROS y este son DOS SUBCONJUNTOS DE UNO
+    # (`species.MIRNA_AXIS_IS_ONE_FILE`). Lo que comparten —y por lo que la bandera es
+    # la misma— es la LISTA de organismos, que sale de `species.model_organisms` para los
+    # dos: con una lista por frente, el dia que se declare un segundo fondo genetico uno
+    # de los dos se quedaria con uno solo y el sintoma seria medir la mitad con la forma
+    # correcta.
+    "seed_colision": {"almacen": "seed", "por_hebra": True, "por_catalogo": True},
     # EL EJE DE CATALOGO (2026-09-08). Los candidatos pasan off-targets contra el
     # transcriptoma de la especie DIANA y contra el del FONDO GENETICO del modelo, y las
     # dos celdas no se funden: ver `species.WHY_TWO_CATALOGUES`. Los otros dos frentes no
@@ -2982,6 +3079,16 @@ STORE_FOR_FRONT = {
     "offtarget_seed": {
         "almacen": "offtarget", "por_hebra": True, "por_catalogo": True,
     },
+}
+
+#: QUE MIDE CADA FRENTE CONTRA EL ORGANISMO DEL EJE, en sus palabras. Lo lee el `NOT_RUN`
+#: de una especie sin eje declarado, que tiene que decir de QUE corrida habla: «no se sabe
+#: contra qué organismos barrer los off-targets» sobre la celda de colisión de seed manda
+#: a mirar el frente de al lado. Se DERIVA que hace falta —todo frente `por_catalogo`
+#: tiene entrada, y hay test de que no falta ninguno—, no se recuerda.
+QUE_MIDE_EL_EJE = {
+    "offtarget_seed": "la carga de off-targets por seed",
+    "seed_colision": "la colisión de seed con miARN endógeno",
 }
 
 #: Frentes con almacen que NO caben aqui, con el motivo. `empalme_sitios` se consulta por
@@ -3303,14 +3410,21 @@ def _store_verdict(
     # pregunta de la diana es el colapso que este eje existe para impedir.
     if "background" in firma:
         if not catalogo:
-            # SIN CATALOGO QUE NOMBRAR no se pregunta: `verdict_for` aborta a proposito
-            # y ese aborto tumbaria la tabla entera. La respuesta honesta es un NOT_RUN
-            # que dice que el hueco esta en la DECLARACION de la especie — la misma que
-            # da la ficha, para que las dos digan lo mismo (principio nº 23).
-            from .offtarget_store import verdict_without_catalogue  # noqa: PLC0415
+            # SIN EJE QUE NOMBRAR no se pregunta: `verdict_for` aborta a proposito y ese
+            # aborto tumbaria la tabla entera. La respuesta honesta es un NOT_RUN que
+            # dice que el hueco esta en la DECLARACION de la especie — la misma que da
+            # la ficha, para que las dos digan lo mismo (principio nº 23).
+            #
+            # Y EL TEXTO ES EL DEL FRENTE QUE PREGUNTA. Con el de off-targets escrito
+            # para los dos, la celda de `seed_colision` diria «no se sabe contra que
+            # TRANSCRIPTOMAS barrer» de un frente que no barre ninguno, y el
+            # `FilterResult` saldria ademas con el nombre del otro frente.
+            from .eje_organismo import sin_eje_declarado  # noqa: PLC0415
 
-            sin_catalogo = verdict_without_catalogue(species)
-            return sin_catalogo.state.value, sin_catalogo.reason
+            sin_eje = sin_eje_declarado(
+                species, frente=nombre, que_es=QUE_MIDE_EL_EJE[nombre],
+            )
+            return sin_eje.state.value, sin_eje.reason
         extra["background"] = catalogo
     resultado = almacen.verdict_for(consulta, **extra)
     return resultado.state.value, resultado.reason
@@ -4651,7 +4765,9 @@ def deposit_for_run(kind: str, *, species: str, directory) -> list[dict[str, obj
 #: POR QUE SON DOS CATALOGOS Y NO UN NUMERO FUNDIDO. Se reexporta desde `species` —que
 #: es donde vive la declaracion del fondo genetico— para que la pagina no tenga que
 #: importar el nucleo: una segunda redaccion del mismo motivo envejeceria por su cuenta.
-from .species import WHY_TWO_CATALOGUES  # noqa: E402
+from .species import (  # noqa: E402
+    MIRNA_AXIS_IS_ONE_FILE, WHY_TWO_CATALOGUES, WHY_TWO_MIRNA_SETS,
+)
 
 #: LOS CATALOGOS QUE SE PUEDEN BARRER, para el selector del modal. Uno por catalogo
 #: declarado, con su rol y su fichero — el de la DIANA primero, que es el orden de
@@ -4690,6 +4806,53 @@ def offtarget_catalog_options(*, species: str, directory) -> list[dict[str, obje
             }
         )
     return opciones
+
+
+def seed_axis_options(*, species: str) -> list[dict[str, object]]:
+    """Contra los maduros de QUE organismos se puede correr la colision de seed.
+
+    Es el mismo eje que `offtarget_catalog_options` —sale de `species.model_organisms`
+    para los dos— y la diferencia va escrita en cada opcion: aqui **no hay fichero que
+    depositar**. `mature.fa` trae los 69.020 maduros de todas las especies, asi que cada
+    eje es un FILTRO POR PREFIJO sobre ese mismo fichero
+    (`species.MIRNA_AXIS_IS_ONE_FILE`). Sin esa frase, el selector se lee como si la
+    segunda corrida esperara una descarga y se aplaza por una razon que no existe.
+
+    Sin eje derivable —especie sin declarar— devuelve la lista VACIA, que es lo que hay:
+    sin prefijo de miRBase no se puede filtrar nada y decir «uno» seria inventarlo.
+    """
+    from .species import mirna_axis, resolve  # noqa: PLC0415
+
+    especie = resolve(species)
+    return [
+        {
+            "organismo": slug,
+            "prefijo": prefijo,
+            "es_la_diana": slug == especie.slug,
+            "etiqueta": (
+                f"{resolve(slug).scientific} ({prefijo}) — "
+                + ("la especie DIANA (el paciente)" if slug == especie.slug
+                   else "el FONDO GENÉTICO del modelo (el experimento)")
+            ),
+        }
+        for slug, prefijo in mirna_axis(especie)
+    ]
+
+
+def seed_axis_missing_text(species: str) -> str:
+    """Por que no se puede correr la colision de seed de esta especie. UN solo sitio.
+
+    No es que falte un fichero: `mature.fa` esta y trae los maduros de todas las
+    especies. Lo que falta es la DECLARACION —el prefijo de miRBase, o el fondo genetico
+    del modelo—, y decirlo mal manda a descargar algo que ya esta.
+    """
+    from .eje_organismo import sin_eje_declarado  # noqa: PLC0415
+    from .species import MIRNA_AXIS_IS_ONE_FILE  # noqa: PLC0415
+
+    base = sin_eje_declarado(
+        species, frente="seed_colision", que_es=QUE_MIDE_EL_EJE["seed_colision"],
+    )
+    return f"{base.reason} {MIRNA_AXIS_IS_ONE_FILE}"
 
 
 def offtarget_catalog_from_deposit(*, species: str, directory, gene_map=None,

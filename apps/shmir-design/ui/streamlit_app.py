@@ -186,6 +186,10 @@ from shmir_design.presentation import (  # noqa: E402
     offtarget_catalog_from_deposit,
     offtarget_catalog_options,
     WHY_TWO_CATALOGUES,
+    WHY_TWO_MIRNA_SETS,
+    MIRNA_AXIS_IS_ONE_FILE,
+    seed_axis_options,
+    seed_axis_missing_text,
     blast_database_from_deposit,
     deposit_for_run,
     deposit_note,
@@ -2961,6 +2965,29 @@ def _modal_seed(seleccion, nombre: str, maduros, proyecto=None,
                 f"(por defecto {fila['por_defecto']})"
             )
 
+    # CONTRA LOS MADUROS DE QUIEN. Con un fondo genetico declarado son DOS corridas —el
+    # `mmu-` mide el experimento en el Tg650 y el `hsa-` mide al paciente— y no se
+    # funden (`species.WHY_TWO_MIRNA_SETS`). El selector existe para que se VEA que
+    # falta la segunda: sin el, correr una y ver el frente sin cerrar no dice que falta.
+    ejes = seed_axis_options(species=nombre)
+    elegido = ejes[0] if ejes else None
+    if len(ejes) > 1:
+        st.subheader("Contra qué maduros")
+        st.caption(WHY_TWO_MIRNA_SETS)
+        st.caption(MIRNA_AXIS_IS_ONE_FILE)
+        elegido = st.selectbox(
+            "Organismo de esta corrida",
+            options=ejes,
+            format_func=lambda o: o["etiqueta"],
+            key=f"seed_eje_{nombre}",
+        )
+    if elegido is None:
+        st.warning(
+            seed_axis_missing_text(nombre)
+        )
+        return
+    eje = str(elegido["organismo"])
+
     starts = _selector_de_alcance(
         seleccion, nombre, tipo="corrida_seed", clave="seed"
     )
@@ -2975,20 +3002,30 @@ def _modal_seed(seleccion, nombre: str, maduros, proyecto=None,
     # La HUELLA del panel y los ajustes. Ver `WHY_A_RUN_FINGERPRINT`: sin ella, cambiar
     # la selección o un ajuste dejaba en pantalla el resultado viejo y lo ofrecía para
     # guardar — una corrida con una procedencia que no era la suya.
-    # EL CATALOGO ENTRA EN LA HUELLA. Sin el, cambiar de catalogo dejaria en pantalla
-    # el resultado del anterior y lo ofreceria para guardar — una procedencia falsa, que
-    # es justo por lo que existe la huella (`WHY_A_RUN_FINGERPRINT`).
-    huella = run_fingerprint(tuple(starts), params, fondo)
-    if st.button(f"Buscar colisiones — {nombre}", key=f"seed_go_{nombre}"):
+    # EL EJE ENTRA EN LA HUELLA. Sin el, cambiar de organismo dejaria en pantalla el
+    # resultado del anterior y lo ofreceria para guardar — una procedencia falsa.
+    #
+    # Aqui ponia `fondo`, que es una variable del modal de off-targets: se copio con el
+    # eje de transcriptoma el 2026-09-09 y en ESTE modal no existe, asi que abrirlo
+    # lanzaba un `NameError` que se llevaba la pagina por delante desde ahi hacia abajo.
+    # No lo vio ningun test porque `AppTest` no puede llegar al estado DISEÑADO — el
+    # hueco ya declarado en `data/estados.toml`. Errata nº 158.
+    huella = run_fingerprint(tuple(starts), params, eje)
+    if st.button(
+        f"Buscar colisiones — {nombre} contra {elegido['prefijo']}",
+        key=f"seed_go_{nombre}_{eje}",
+    ):
         # El scan se guarda en `session_state` para que sobreviva al rerun que provoca
         # el boton de guardar. Es ESTADO, no una decision: la pagina sigue sin decidir.
-        st.session_state[f"seed_scan_{nombre}"] = (huella, seed_run(
+        # LA CLAVE LLEVA EL EJE: con una sola, la corrida `mmu-` pisaria en pantalla a
+        # la `hsa-` recien hecha y la ofreceria para guardar con el otro nombre.
+        st.session_state[f"seed_scan_{nombre}_{eje}"] = (huella, seed_run(
             seleccion, mature=maduros, params=params, species=nombre,
-            starts=tuple(starts), guides=True, passengers=True,
+            starts=tuple(starts), guides=True, passengers=True, organism=eje,
         ))
     # La pagina NO decide si lo cacheado sirve: lo decide `cached_run`. Estaba aqui,
     # copiado en los dos modales, y por tanto sin test y pudiendo divergir.
-    cacheado = cached_run(st.session_state.get(f"seed_scan_{nombre}"), huella)
+    cacheado = cached_run(st.session_state.get(f"seed_scan_{nombre}_{eje}"), huella)
     scan = cacheado["resultado"]
     if cacheado["caducado"]:
         st.info(cacheado["aviso"])
@@ -3000,14 +3037,17 @@ def _modal_seed(seleccion, nombre: str, maduros, proyecto=None,
         st.info(destacados["pasajeras"]["texto"])
         _tabla(seed_result_rows(scan), hide_index=True, nombre="seed_result_rows.tsv", clave="tb_seed_result_rows")
         bloque_seed = scan.export_block()
-        nombre_seed = output_name(nombre, "colision_seed.txt")
+        # EL EJE VA EN EL NOMBRE DEL FICHERO: dos corridas del mismo panel producen dos
+        # bloques distintos, y con un nombre unico el segundo pisa al primero en la
+        # carpeta de descargas sin decir nada (principio nº 35).
+        nombre_seed = output_name(nombre, f"colision_seed_{eje}.txt")
         st.download_button(
             "Descargar el bloque para el documento",
             data=bloque_seed,
             file_name=nombre_seed,
-            key=f"seed_dl_{nombre}",
+            key=f"seed_dl_{nombre}_{eje}",
         )
-        _segunda_via(bloque_seed, nombre=nombre_seed, clave=f"seed_{nombre}")
+        _segunda_via(bloque_seed, nombre=nombre_seed, clave=f"seed_{nombre}_{eje}")
         _guardar_corrida(
             proyecto, nombre,
             construir=lambda fecha, quien: seed_run_from_scan(

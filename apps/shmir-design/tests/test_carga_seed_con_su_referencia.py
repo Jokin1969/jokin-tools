@@ -54,12 +54,21 @@ class _CorridaFalsa:
 
 
 class _AlmacenFalso:
-    """Con la MISMA forma que `OfftargetStore`: `latest(consulta)`."""
+    """Con la MISMA forma que `OfftargetStore`: `latest(consulta, background=…)`.
+
+    El `background` NO se ignora, y eso es lo que lo hace un doble y no un decorado: con
+    el eje de catálogo, un almacén que contestara que sí a cualquiera daría verde a un
+    frente cubierto a medias — que es justo lo que ese eje existe para impedir. Un
+    cliente que no se parece al real no prueba nada.
+    """
 
     def __init__(self, scan):
         self.corrida = _CorridaFalsa(scan)
+        self.runs = (self.corrida,)
 
-    def latest(self, consulta):
+    def latest(self, consulta, *, background=None):
+        if background is not None and background != self.corrida.scan.background:
+            return None
         return self.corrida if self.corrida.result_for(consulta) else None
 
 
@@ -81,6 +90,10 @@ def _scan(starts, *, con_controles=True):
             self.percentiles = {c: 97.5 for c in SITE_CLASSES}
 
     class _Scan:
+        #: CONTRA QUE CATALOGO. El doble lo declara porque el de verdad lo declara: una
+        #: corrida sin catálogo no contesta por ninguno (2026-09-11).
+        background = "mouse"
+
         def __init__(self):
             # LA CLAVE SE PIDE, no se escribe: un test que escribe la clave por la
             # que pregunta coincide por construcción (principio nº 25).
@@ -138,14 +151,16 @@ class TestConCorridaLLEGANelPercentilYlosControles(unittest.TestCase):
         from shmir_design.offtarget import SITE_CLASSES
 
         for inicio in (10, 20):
-            celdas = self.vista["por_candidato"][inicio]
+            # POR ORGANISMO DEL EJE: las celdas cuelgan del catálogo contra el que se
+            # contaron, porque el percentil sale de una nula de ESE catálogo.
+            celdas = self.vista["por_candidato"][inicio]["mouse"]
             for clase in SITE_CLASSES:
                 self.assertIn("p97.5", celdas[clase])
 
     def test_NO_hay_percentil_del_total(self):
         # `carga_seed` es una suma de clases y `WHY_NOT_SUMMED` prohibe sumarlas: un
         # percentil de 19.020 seria el percentil de una cantidad que no se refiere a nada.
-        celdas = self.vista["por_candidato"][10]
+        celdas = self.vista["por_candidato"][10]["mouse"]
         self.assertNotIn("carga_seed", celdas)
         self.assertNotIn("total", celdas)
 

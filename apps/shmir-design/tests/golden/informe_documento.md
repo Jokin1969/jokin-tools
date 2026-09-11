@@ -628,7 +628,7 @@ Cobertura por tercios: cuántos sitios elegibles hay en cada tramo, cuántos can
 
 Todas las columnas, con un estado POR FILTRO. No se colapsan ni se omiten los que no corrieron: un filtro ausente de la tabla es indistinguible de uno superado.
 
-| rango | inicio | fin | region | inicio_3utr | fin_3utr | tercio | asimetria_kcal | polyA_hexamero | polyA_clase | polyA_posicion_rel | polyA_hexamero_pos | polyA_dist_extremo3 | polyA_solapa_seed | polyA_veredicto | polyA_estricto | polyA_escalonado | polyA_truncamiento | polyA_truncamiento_propio | polyA_esterico | polyA_dist_corte | polyA_fraccion_isoforma_larga | tilado_8mer | tilado_7mer-m8 | tilado_7mer-A1 | carga_8mer | carga_7mer-m8 | carga_7mer-A1 | carga_6mer | accesibilidad | GC | homopolimero | asimetria | zona_prohibida_polyA | repeticiones | repeticion_polimorfica | seed | especificidad | transgen | seed_colision | homopolimero_molecula | bandera_polyA_debil | biofisicos_ok | riesgo_APA | veredicto | diana | guia |
+| rango | inicio | fin | region | inicio_3utr | fin_3utr | tercio | asimetria_kcal | polyA_hexamero | polyA_clase | polyA_posicion_rel | polyA_hexamero_pos | polyA_dist_extremo3 | polyA_solapa_seed | polyA_veredicto | polyA_estricto | polyA_escalonado | polyA_truncamiento | polyA_truncamiento_propio | polyA_esterico | polyA_dist_corte | polyA_fraccion_isoforma_larga | tilado_8mer | tilado_7mer-m8 | tilado_7mer-A1 | carga_8mer:mouse | carga_7mer-m8:mouse | carga_7mer-A1:mouse | carga_6mer:mouse | accesibilidad | GC | homopolimero | asimetria | zona_prohibida_polyA | repeticiones | repeticion_polimorfica | seed | especificidad | transgen | seed_colision | homopolimero_molecula | bandera_polyA_debil | biofisicos_ok | riesgo_APA | veredicto | diana | guia |
 |---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|
 | 4 | 60 | 81 | 3'UTR | 60 | 81 | proximal | 5.15 |  |  |  |  |  | no | PASS | PASS | PASS | NO_APLICA | NO_APLICA | NO_APLICA |  |  |  |  |  |  |  |  |  | NO_PEDIDO | PASS | PASS | PASS | PASS | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | PASS | False | True | prediccion:no | INCOMPLETE | CCACCTGTAGCTCTTTCAATTG | UAAUUGAAAGAGCUACAGGUGG |
 | 11 | 144 | 165 | 3'UTR | 144 | 165 | proximal | 3.69 | AATATA | APA_POSIBLE | aguas abajo, 70 nt | 3utr:236 | 1001 nt | no | PASS | PASS | PASS | NO_APLICA | NO_APLICA | NO_APLICA |  |  |  |  |  |  |  |  |  | NO_PEDIDO | PASS | PASS | PASS | PASS | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | PASS | False | True | prediccion:no | INCOMPLETE | CCCTGGGAAATGTACAGTAGAC | UUCUACUGUACAUUUCCCAGGG |
@@ -654,7 +654,7 @@ CARGA DE SEED SIN REFERENCIA — NOT_RUN. Los conteos por clase del tilado (`til
 
 Todos, no sólo los seleccionados: la selección es una propuesta y esta tabla es el conjunto sobre el que se hizo. Una columna por frente, derivada de los frentes que el informe conoce.
 
-| elegido | sitio | inicio | tercio | asimetria | rango | empalme_intron | empalme_sitios | especificidad | fraccion_isoforma_larga | offtarget_seed:guia:mouse | offtarget_seed:pasajera:mouse | repeticion_polimorfica | repeticiones | seed | seed_colision:guia | seed_colision:pasajera | transgen | veredicto | guia |
+| elegido | sitio | inicio | tercio | asimetria | rango | empalme_intron | empalme_sitios | especificidad | fraccion_isoforma_larga | offtarget_seed:guia:mouse | offtarget_seed:pasajera:mouse | repeticion_polimorfica | repeticiones | seed | seed_colision:guia:mouse | seed_colision:pasajera:mouse | transgen | veredicto | guia |
 |---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|
 | True | 3utr:1018 | 1018 | NO_FIABLE | 7.65 | 1 | NOT_RUN | NOT_RUN | NOT_RUN | PASS | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | INCOMPLETE | UUUAGUACUGGAUGGAACGGCC |
 | True | 3utr:553 | 553 | NO_FIABLE | 5.86 | 2 | NOT_RUN | NOT_RUN | NOT_RUN | PASS | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | INCOMPLETE | UUAAAGAUCAUUCUAGUGCCCU |
@@ -1009,8 +1009,8 @@ Una ficha por candidato seleccionado, con el veredicto de CADA frente, su proced
   repeticion_polimorfica          NOT_RUN   —            frente abierto del informe
   repeticiones                    NOT_RUN   —            frente abierto del informe
   seed                            NOT_RUN   —            frente abierto del informe
-  seed_colision:guia              NOT_RUN   —            sin corrida en el almacen
-  seed_colision:pasajera          NOT_RUN   —            sin corrida en el almacen
+  seed_colision:guia:mouse        NOT_RUN   —            sin corrida en el almacen
+  seed_colision:pasajera:mouse    NOT_RUN   —            sin corrida en el almacen
   transgen                        NOT_RUN   —            frente abierto del informe
 
 ── Asimetría — las TRES cifras, que son magnitudes distintas ──

@@ -186,8 +186,15 @@ class TestLasSieteSecciones(unittest.TestCase):
             b for b in self._seccion("Tabla de candidatos").blocks if b.kind == "table"
         )
         # `carga_seed` se retiro (2026-09-04): era la SUMA de tres clases y salia sin
-        # sus sumandos. Ahora estan los tres, y las cuatro del frente al lado.
-        for columna in ("inicio", "asimetria_kcal", "tilado_8mer", "carga_8mer",
+        # sus sumandos. Ahora estan los tres, y las del frente al lado — UNA TANDA POR
+        # ORGANISMO del eje desde el 2026-09-11, asi que el nombre se DERIVA en vez de
+        # escribirse: con `carga_8mer` a secas este test preguntaria por una columna que
+        # la app ya no emite, y su ausencia se leeria como que la columna se perdio.
+        from shmir_design.comparative import offtarget_columns
+
+        de_carga = offtarget_columns("mouse")
+        self.assertTrue(de_carga)
+        for columna in ("inicio", "asimetria_kcal", "tilado_8mer", de_carga[0],
                         "veredicto"):
             self.assertIn(columna, tabla.headers)
         self.assertNotIn("carga_seed", tabla.headers)

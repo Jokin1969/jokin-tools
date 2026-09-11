@@ -94,9 +94,16 @@ class TestLasCOLUMNAS_de_la_tabla(unittest.TestCase):
                 self.assertIn(f"offtarget_seed:{hebra}:{catalogo}", columnas)
 
     def test_y_seed_colision_tambien(self):
+        # Y DESDE EL 2026-09-11 con el mismo eje de organismo, por la misma razon y con
+        # la MISMA lista: el shmiR se expresa en neuronas de raton humanizado, asi que
+        # una seed limpia contra `hsa-` puede chocar con un `mmu-` abundante en el
+        # experimento (`species.WHY_TWO_MIRNA_SETS`). Los slugs se piden, no se escriben.
         columnas = self.presentation.front_columns(self.corrida.tiling, self.corrida.selection, species="raton")
-        self.assertIn("seed_colision:guia", columnas)
-        self.assertIn("seed_colision:pasajera", columnas)
+        organismos = self.presentation.catalogue_slugs("raton")
+        self.assertTrue(organismos, "el raton tiene que declarar al menos el suyo")
+        for hebra in ("guia", "pasajera"):
+            for organismo in organismos:
+                self.assertIn(f"seed_colision:{hebra}:{organismo}", columnas)
 
     def test_y_ninguna_columna_de_un_frente_por_hebra_va_SIN_hebra(self):
         # Si quedara la fundida, seria la que alguien lee — y estaria dando el estado de

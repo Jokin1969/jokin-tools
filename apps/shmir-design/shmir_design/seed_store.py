@@ -66,6 +66,11 @@ class SeedRun:
     def query_names(self) -> tuple[str, ...]:
         return tuple(r.query for r in self.scan.results)
 
+    @property
+    def organism(self) -> str:
+        """El organismo del eje de esta corrida. Vacio = anterior al eje (2026-09-11)."""
+        return getattr(self.scan, "organism", "") or ""
+
     def result_for(self, query_name: str):
         return next((r for r in self.scan.results if r.query == query_name), None)
 
@@ -85,9 +90,14 @@ class SeedRun:
             "LIMPIO": FilterState.PASS,
         }[resultado.level]
         nombres = ", ".join(c.name for c in resultado.collisions) or "ninguna"
+        # EL EJE VA EN EL VEREDICTO, no sólo en la cabecera de la corrida. Es el mismo
+        # criterio que puso ahí la ventana y la tasa base: la cabecera se lee una vez y
+        # el veredicto se lee siempre — y además se descarga. Un `LIMPIO` sin decir
+        # contra qué conjunto se leería como limpio contra los dos.
         motivo = (
             f"[{resultado.strand}] ventana {resultado.window}, heptamero "
             f"{resultado.heptamer}: {resultado.level}. Colisiones: {nombres}. "
+            f"{self.scan.axis_line()} "
             f"Corrida {self.run_id} ({self.date}, {self.ran_by}) sobre {self.source}. "
             f"{self.scan.base_rate.describe()}"
         )
@@ -143,19 +153,56 @@ class SeedStore:
             )
         )
 
-    def latest(self, query_name: str) -> SeedRun | None:
+    def latest(self, query_name: str, *, background: str | None = None
+               ) -> SeedRun | None:
+        """La ultima corrida de esa consulta, y —si se pide— CONTRA ESE ORGANISMO.
+
+        `background=None` es «cualquiera», y lo usan las vistas que solo quieren la mas
+        reciente. El VEREDICTO nunca pregunta asi: ver `verdict_for`.
+        """
         historial = self.history(query_name)
+        if background is not None:
+            historial = tuple(
+                r for r in historial if r.organism == str(background)
+            )
         return historial[-1] if historial else None
 
-    def verdict_for(self, query_name: str) -> FilterResult:
-        """Por HEBRA. No hay `verdict_for_candidate` a proposito."""
-        ultima = self.latest(query_name)
+    def verdict_for(self, query_name: str, *, background: str) -> FilterResult:
+        """Por HEBRA **y POR ORGANISMO**. No hay `verdict_for_candidate` a proposito.
+
+        `background` es el SLUG del organismo del eje y va SIN valor por defecto
+        (principio nº 58): con uno, la corrida contra los maduros `mmu-` contestaria a la
+        pregunta del paciente —y al reves— sin que nadie lo decidiera. Es el mismo
+        colapso que fundir guia y pasajera, un eje mas alla. Ver
+        `species.WHY_TWO_MIRNA_SETS`.
+
+        Se llama `background` y no `organism` porque es el nombre por el que
+        `presentation._store_verdict` DESPACHA —mira la firma del almacen—, y dos
+        nombres para el mismo eje serian dos caminos donde hoy hay uno. Lo que nombra es
+        el organismo del eje, tambien cuando ese organismo es la propia diana.
+        """
+        from .eje_organismo import (  # noqa: PLC0415
+            exige_organismo, motivo_corridas_sin_organismo,
+        )
+
+        QUE_ES = "la colisión de seed"
+        organismo = exige_organismo(background, frente=FILTER_NAME, que_es=QUE_ES)
+        sin_declarar = [r for r in self.history(query_name) if not r.organism]
+        ultima = self.latest(query_name, background=organismo)
+        if ultima is None and sin_declarar:
+            return FilterResult(
+                name=FILTER_NAME, state=FilterState.NOT_RUN,
+                reason=motivo_corridas_sin_organismo(
+                    query_name, organismo, que_es=QUE_ES,
+                ),
+            )
         if ultima is None:
             return FilterResult(
                 name=FILTER_NAME, state=FilterState.NOT_RUN,
                 reason=(
-                    f"No hay ninguna corrida de colisión de seed para {query_name}. "
-                    f"NOT_RUN no es PASS."
+                    f"No hay ninguna corrida de colisión de seed para {query_name} "
+                    f"contra los maduros de {organismo!r}. NOT_RUN no es PASS, y no es "
+                    f"LIMPIO: no haber comparado no es no haber chocado."
                 ),
             )
         return ultima.verdict(query_name)
