@@ -23,6 +23,7 @@ from dataclasses import dataclass, field
 
 from .coords import Frame, label, requested, span, tiled_frame
 from .errors import ShmirDesignError
+from .tiling import boundary_note
 from .filters import FilterState
 
 #: Cuando un frente no viene de una corrida fechada, su fecha es esta y se lee como lo
@@ -110,6 +111,10 @@ class Dossier:
     self_sites_span: str = ""
     #: Sitios de ESTA hebra en su propia diana, con su clase.
     self_sites: tuple = ()
+    #: LA VENTANA CRUZA LA FRONTERA CDS/3'UTR, con las cifras de cada lado. Vacia cuando
+    #: no la cruza — una nota que sale siempre deja de leerse. Es un DATO DE DISEÑO y no
+    #: un aviso de fallo: ver `tiling.boundary_note`.
+    boundary_note: str = ""
 
     def render(self) -> str:
         # El ancho de la columna sale del nombre mas largo QUE HAY, no de un numero
@@ -129,6 +134,12 @@ class Dossier:
             f"  {'frente':<{ancho}} {'estado':<9} {'fecha':<12} procedencia",
         ]
         lineas.extend(f"  {f.describe(ancho)}" for f in self.fronts)
+        # LA FRONTERA VA ARRIBA, pegada al sitio y antes que nada mas. Es lo que cambia
+        # como se lee TODO lo de abajo —las heuristicas del 3'UTR y el autoconteo— asi
+        # que debajo de la tabla de frentes llegaria tarde.
+        if self.boundary_note:
+            lineas.extend(["", "── Anatomía de la ventana ──"])
+            lineas.extend(f"  {l}" for l in textwrap.wrap(self.boundary_note, 88))
         lineas.extend(
             [
                 "",
@@ -491,6 +502,9 @@ def build_dossier(
             frame=marco,
         ),
         core_shared_with=compartido,
+        # SE DERIVA DE LA VENTANA, no se decide aqui: `tiling.boundary_note` sale vacia
+        # cuando no cruza, asi que la ficha no tiene que preguntar nada.
+        boundary_note=boundary_note(ventana),
         self_sites=propios,
         module=bloque.module,
         cassette=bloque.cassette,

@@ -189,6 +189,59 @@ def _seed_bootstrap(
     return filter_seed(guide, seeds)
 
 
+
+#: LA FRONTERA, DICHA COMO DATO DE DISEÑO Y NO COMO AVISO DE FALLO. DECIDIDO
+#: (2026-09-11) por el responsable del proyecto, con sus palabras: «`tx:825` empieza 5 nt
+#: dentro del CDS pero su punto medio cae en el 3'UTR y asi entro al panel. No lo sacamos
+#: —eso cambiaria el panel cuando ya esta casi cerrado—. Lo que si quiero es que el
+#: informe deje escrito que su ventana cruza la frontera, de forma que quien lo lea sepa
+#: que los 5 nt de CDS estan incluidos en la diana».
+#:
+#: Va con las CIFRAS de cada lado y no con un «cruza la frontera» a secas: cuanto CDS
+#: lleva dentro es lo que decide si importa, y un candidato con 1 nt y otro con 15 no se
+#: leen igual. Las deriva `boundary_note` de la propia ventana.
+CROSSES_BOUNDARY_HEADING = "CRUZA LA FRONTERA CDS/3'UTR"
+
+
+def boundary_note(window) -> str:
+    """La nota de frontera de UNA ventana, con las cifras de cada lado. Vacia si no cruza.
+
+    Se DERIVA de la anatomia de la corrida, no del nombre de la region: la ventana sale
+    etiquetada `3'UTR` porque se decide por el PUNTO MEDIO, y eso es justo lo que hace
+    que el dato haga falta — la etiqueta sola no dice que parte de la diana no es 3'UTR.
+
+    NO es una advertencia de fallo: el candidato es legitimo y esta en el panel por
+    decision escrita. Es un dato que quien pide el oligo tiene que tener delante.
+    """
+    if not getattr(window, "cruza_frontera", False):
+        return ""
+    # LA LONGITUD SE PIDE, no se resta: `Window` ya la lleva, y `fin - inicio + 1` es la
+    # cuenta que este proyecto tiene contada como duplicada (principio nº 13). Restarla
+    # aqui seria una segunda definicion de un numero que sale en el informe.
+    largo = window.window.length
+    dentro = window.fin_3utr
+    if dentro is None or not 0 < dentro <= largo:
+        # Cruza por el OTRO lado —acaba fuera del 3'UTR— o el reparto no se puede contar.
+        # Se dice igual y SIN inventarlo: no haberlo podido contar no es «no hay nada
+        # fuera», que es la regla de siempre.
+        return (
+            f"{CROSSES_BOUNDARY_HEADING}: parte de la diana NO es 3'UTR. El reparto "
+            f"exacto no se puede dar aquí — el extremo que se sale no tiene coordenada "
+            f"de 3'UTR."
+        )
+    fuera = largo - dentro
+    return (
+        f"{CROSSES_BOUNDARY_HEADING}: de los {largo} nt de la ventana, {fuera} caen "
+        f"FUERA del 3'UTR y {dentro} dentro. La región sale etiquetada 3'UTR porque se "
+        f"decide por el PUNTO MEDIO. NO es un fallo ni una advertencia: el candidato "
+        f"está en el panel por decisión escrita, y esto es lo que hay que saber antes de "
+        f"pedir el oligo — parte de la diana es secuencia CODIFICANTE. Y dos "
+        f"consecuencias que la etiqueta no deja ver: las heurísticas del 3'UTR (polyA, "
+        f"APA, tercios) se aplican a una ventana que no esta entera ahi, y el autoconteo "
+        f"no puede decir cual de los sitios de la propia diana es EL SUYO porque su "
+        f"inicio no tiene coordenada en ese marco."
+    )
+
 def tile_positions(utr_length: int, window_size: int = WINDOW_SIZE) -> list[int]:
     """Posiciones de inicio (1-based) de todas las ventanas que caben."""
     if utr_length < 1:
@@ -232,6 +285,11 @@ class TiledWindow:
     region: Region = Region.UTR3
     inicio_3utr: int | None = None
     fin_3utr: int | None = None
+    #: LA VENTANA PISA DOS TRAMOS, y su etiqueta es la del PUNTO MEDIO. Se calculaba
+    #: desde siempre y NO lo leia nadie: es la quinta vez del patron de `page_run` —un
+    #: hecho medido que no llega a ninguna salida—. Lo consume ahora la ficha, porque de
+    #: el depende algo que hay que saber antes de pedir oligo: parte de la diana de ese
+    #: candidato NO es 3'UTR.
     cruza_frontera: bool = False
     apa_upstream: tuple[PolyASignal, ...] = ()
     senales_debiles: tuple[PolyASignal, ...] = ()

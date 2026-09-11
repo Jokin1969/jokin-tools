@@ -2715,6 +2715,11 @@ def offtarget_self_count_rows(scan):
             "sitios": propio.occurrences,
             "esperado": propio.expected,
             "anomalo": propio.anomalous,
+            # CUAL ES EL SUYO: TRES estados, y el tercero no es «no se sabe cual» a
+            # secas — es que la ventana cruza la frontera CDS/3'UTR y su inicio no tiene
+            # coordenada en el marco de la diana. La columna lo dice con una palabra y
+            # `lectura` lleva el motivo entero.
+            "sitio_propio": "sin identificar" if not propio.own_site_known else "",
             "lectura": propio.describe(),
         }
         for consulta, propio in scan.self_counts.items()

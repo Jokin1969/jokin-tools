@@ -7921,3 +7921,92 @@ aquí. El transcriptoma es un fichero del **MOMENTO 2** («los candidatos ya est
 ficheros no cambian cuáles son, cambian cuáles sobreviven») y el diseño no lo necesita
 para tilar. Conectarlo para tilar no lo decidió nadie: pasó porque `load_from_manifest`
 conecta todo lo que tiene rol.
+
+## UNA VENTANA A MEDIAS NO ES UNA VENTANA — Y `tx:825` LO DEJA ESCRITO (2026-09-11)
+
+Errata nº 162. El modal de off-targets del panel humano moría en la **primera** consulta:
+
+```
+TypeError: '<=' not supported between instances of 'NoneType' and 'int'
+offtarget.py:970  propio = bool(window) and window[0] <= posicion <= window[1]
+```
+
+**`window` NO llegaba `None`. Llegaba `(None, 17)`** — y esa es la distinción entera: una
+**tupla no vacía es verdadera aunque lleve un `None` dentro**, así que `bool(window)`
+pasaba y reventaba en el índice. Es la errata nº 19 con la firma de siempre: *la pregunta
+era por el CONTENIDO y la comprobación miró el CONTINENTE*.
+
+### El caso es UNO, es real, y no tiene nada que ver con el eje dual
+
+`NM_000311.5` tiene el CDS en 68..829, así que el 3'UTR empieza en `tx:830` y la ventana
+`tx:825-846` cae **a caballo**: 5 nt de CDS y 17 de 3'UTR. Su `region` sale `3'UTR`
+porque se decide por el **PUNTO MEDIO** (835) y su `inicio_3utr` sale `None` porque se
+decide por el **INICIO** (825). **Dos definiciones que este proyecto ya tenía registradas
+por separado, chocando justo en esa frontera.** Y como `825` es el menor del panel, la
+corrida entera moría en la primera de sus 22 consultas — así que no es «un candidato
+falla», es «no hay corrida».
+
+**No lo destapó el eje de transcriptoma**: `self_sites` no mira ningún catálogo. Lo
+destapó que sea el **primer panel humano** que corre este modal; el murino no tiene
+ninguna ventana a caballo porque su panel se tiló sobre el 3'UTR y ninguna elegida cruza.
+
+### El proyecto se lo había topado CUATRO veces, y lo resolvió cada vez EN SU SITIO
+
+`tiling` ancla el `inicio_3utr` a 1 para el APA, `outputs` se niega expresamente a hacer
+`inicio_3utr or window.start`, `selection` filtra los `None` y `presentation` los cuenta.
+Éste era el quinto. **Principio nº 31**: un comentario protege su línea, un mecanismo
+protege al siguiente — así que lo que entra no es un `if` más, es `offtarget.complete_window`,
+que devuelve `None` salvo que los **DOS** extremos sean enteros.
+
+### LAS DOS DECISIONES (2026-09-11), del responsable del proyecto
+
+> **1.** *«Si `inicio_3utr` es `None`, no se marca ningún sitio como suyo y se dice. Sin
+> inventar coordenadas con solo `fin_3utr`. El autoconteo de `tx:825` sale con su sitio
+> propio SIN IDENTIFICAR, no con uno inventado.»*
+>
+> **2.** *«`tx:825` lo conservamos — empieza 5 nt dentro del CDS pero su punto medio cae
+> en el 3'UTR y así entró al panel, y sacarlo ahora cambiaría el panel cuando ya está casi
+> cerrado. Lo que sí quiero es que el informe deje escrito explícitamente que su ventana
+> cruza la frontera CDS/3'UTR. No como advertencia de fallo — como DATO DE DISEÑO.»*
+
+- **`SelfSite.own_window` tiene TRES estados y el tercero no es `False`.** `None` es NO
+  COMPROBABLE y sale como **«sin identificar»**; `False` sigue diciendo **«SEGUNDO
+  SITIO»**. Colapsarlos marcaría como segundo sitio al que probablemente **ES** el suyo, y
+  un «segundo sitio» no se lee como un error de formato — se lee como **cooperatividad**,
+  que es exactamente lo que costó la errata nº 122.
+- **Y no pasar ventana sigue siendo `False`, no `None`**: «nadie la pasó» y «la pasó a
+  medias» son dos causas, y fundirlas haría que un alcance sin ventanas se leyera como un
+  panel entero a caballo del CDS.
+- **El motivo VIAJA con el autoconteo** (`SelfCount.own_window_reason`, pegado a
+  `describe()`): «sin identificar» a secas se lee como que el candidato **no tiene** sitio
+  propio, que es la noticia contraria y además anómala («esa hebra no sale de esa diana»).
+
+### La nota de frontera es una SECCIÓN del informe, no una advertencia
+
+`tiling.boundary_note(window)` → **«── Anatomía de la ventana ──»** en la ficha, con las
+**cifras de cada lado**: para `tx:825`, «de los 22 nt de la ventana, **5 caen FUERA** del
+3'UTR y 17 dentro». Va con números y no con un «cruza la frontera» a secas porque cuánto
+CDS lleva dentro es lo que decide si importa: uno con 1 nt y otro con 15 no se leen igual.
+
+Y dice las **dos consecuencias que la etiqueta no deja ver**: las heurísticas del 3'UTR
+(polyA, APA, tercios) se aplican a una ventana que no está entera ahí, y el autoconteo no
+puede decir cuál de los sitios de la propia diana es el suyo. Sin eso, el «sin identificar»
+de arriba queda sin explicación en el mismo documento.
+
+- **`cruza_frontera` LLEVABA CALCULÁNDOSE Y SIN CONSUMIDOR.** Duodécima vez del patrón de
+  `page_run`, y aquí con la vuelta de tuerca de que el dato que hacía falta para escribir
+  la decisión **ya estaba en el objeto**: no hubo que calcular nada, hubo que dejar de
+  tirarlo.
+- **La longitud se le PIDE a `Window.length`**, no se resta: `fin - inicio + 1` es la
+  cuenta que `data/magnitudes.toml` tiene contada como duplicada, y restarla aquí habría
+  subido el trinquete con una segunda definición de un número que sale en el informe.
+
+### Lo que lo fija
+
+`tests/test_una_VENTANA_a_medias_no_es_una_ventana.py`, y **el control adversario es la
+mitad que explica el fallo**: `assertTrue(bool((None, 17)))`. Sin ese caso, «`complete_window`
+devuelve `None`» y «el guardia de antes ya valía» se leerían igual. Más la prueba de vida
+sobre el panel humano real —que siga trayendo **una y sólo una** ventana a caballo, y que
+sea `825`— porque si dejara de traerla todo lo demás pasaría sin comprobar nada
+(principio nº 51), y la ficha **renderizada** de `tx:825` con la sección dentro y la de
+otro candidato sin ella: una nota que saliera siempre dejaría de leerse.
