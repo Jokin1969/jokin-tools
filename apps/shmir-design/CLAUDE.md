@@ -8010,3 +8010,48 @@ sobre el panel humano real —que siga trayendo **una y sólo una** ventana a ca
 sea `825`— porque si dejara de traerla todo lo demás pasaría sin comprobar nada
 (principio nº 51), y la ficha **renderizada** de `tx:825` con la sección dentro y la de
 otro candidato sin ella: una nota que saliera siempre dejaría de leerse.
+
+### Y EL BARRIDO ENCONTRÓ UNA SEGUNDA, VIVA: el informe inventaba la coordenada
+
+Errata nº 163, **sexta de la familia de la nº 18**, y no la reportó ningún traceback —
+la encontró el barrido que la nº 95 dejó como obligación: *«había un segundo, vivo»*.
+
+`text_report` hacía, en el bloque del techo de APA:
+
+```python
+inicio = ventana.inicio_3utr if ventana.inicio_3utr else ventana.window.start
+```
+
+y la línea siguiente lo etiquetaba `Frame.UTR3`. Con `tx:825` —`inicio_3utr` a `None`
+porque empieza dentro del CDS— **el informe humano imprimía**:
+
+```
+INMUNES al TRUNCAMIENTO por ser proximales a esa señal: 3utr:110, 3utr:190 …, 3utr:825
+```
+
+**`3utr:825` EXISTE**: es una ventana distal del 3'UTR humano, con otro veredicto y otro
+techo. Así que la línea mezclaba dos marcos, los otros dos eran correctos, y **el
+invariante de rango no puede cazarlo** — caza lo imposible, no lo equivocado. No daba
+ningún error: daba una conversación equivocada, que es la errata nº 133 otra vez.
+
+**Y SETENTA LÍNEAS MÁS ABAJO, EN LA MISMA FUNCIÓN, `_en_3utr` SE NIEGA A HACER ESO** y lo
+dice con estas palabras: *«NADA de `inicio_3utr or window.start`… es la quinta vez de
+esta familia»*. El `if` estaba escrito, con su motivo, en el mismo fichero y a la vista.
+**Un `if` protege su línea; hacía falta que protegiera las dos** (principio nº 31).
+
+- **Ni se descarta en silencio ni se aborta.** Descartarlo perdería un inmune del
+  recuento —y eso no se ve—; abortar dejaría sin informe a un candidato que está en el
+  panel **por decisión escrita**. Se nombra **APARTE**, en el marco de lo tilado, que es
+  el único en el que su inicio existe, y con su clase (inmune / con techo) y el motivo.
+- **La cifra NO se vuelve a etiquetar, ni para decir que estaría mal.** La primera
+  redacción decía «`3utr:825` es otra ventana» y **el guardia del marco la mordió**: un
+  literal así se copia igual de bien afirmado que citado. Se dice «esa misma cifra leída
+  sobre el 3'UTR es OTRA ventana» — mismo aviso, sin fabricar la etiqueta. El guardia de
+  la errata nº 121 haciendo su trabajo sobre el arreglo de otra errata.
+- **Los goldens del ratón no cambian ni un byte**, y eso es la comprobación: su panel no
+  trae ninguna ventana a caballo, así que la rama nueva no se toca. Un golden que no
+  cambia confirma tanto como uno que cambia.
+
+Lo fija `TestElINFORMEnoINVENTAlaCoordenada`, con las dos mitades: que `825` **no** salga
+etiquetado `3utr:`, y que **siga saliendo** en el recuento con su motivo — sin la segunda,
+«no inventa» y «no imprime nada» darían el mismo verde.

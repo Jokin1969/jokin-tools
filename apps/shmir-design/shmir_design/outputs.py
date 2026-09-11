@@ -738,13 +738,31 @@ def text_report(
             "  MEZCLA DE ISOFORMAS, así que lo que corre es un TECHO de knockdown — "
             "NO ES UN VETO."
         )
-        detras, inmunes = [], []
+        # LA COORDENADA NO SE INVENTA, y aqui se inventaba. `inicio_3utr is None` no es
+        # «falta un dato»: es que la ventana EMPIEZA FUERA del 3'UTR —`tx:825` del panel
+        # humano arranca 5 nt dentro del CDS y entro al panel por el PUNTO MEDIO—, y
+        # `inicio_3utr if inicio_3utr else window.start` rellenaba con la coordenada de
+        # LO TILADO para etiquetarla `Frame.UTR3` en la linea siguiente. Sobre el humano
+        # eso imprimia `3utr:825`, que es OTRA ventana —distal, con otro veredicto y otro
+        # techo— y que EXISTE, asi que el invariante de rango no puede cazarlo: caza lo
+        # imposible, no lo equivocado.
+        #
+        # Es EXACTAMENTE lo que `_en_3utr` se niega a hacer setenta lineas mas abajo, en
+        # esta misma funcion y citando esta misma familia. Un `if` protege su linea; hacia
+        # falta que protegiera las dos (principio nº 31).
+        #
+        # Ni se descarta en silencio —perder un inmune del recuento es peor que no tener
+        # su coordenada— ni se aborta: el candidato esta en el panel por decision escrita
+        # (ver `tiling.boundary_note`). Se nombra APARTE, en el marco de lo tilado, que es
+        # el unico en el que su inicio existe.
+        detras, inmunes, cruzan = [], [], []
         for choice in selection.selection.chosen:
             ventana = selection.window_of(choice)
-            inicio = ventana.inicio_3utr if ventana.inicio_3utr else ventana.window.start
-            (detras if ventana.window.start > dominante.end + 10 else inmunes).append(
-                inicio
-            )
+            por_detras = ventana.window.start > dominante.end + 10
+            if ventana.inicio_3utr is None:
+                cruzan.append((ventana.window.start, por_detras))
+            else:
+                (detras if por_detras else inmunes).append(ventana.inicio_3utr)
         if detras:
             lines.append(
                 f"    con TECHO (por detrás del corte): "
@@ -801,6 +819,27 @@ def text_report(
                 else "ninguno del panel"
             )
         )
+        # Los que no tienen coordenada de 3'UTR van en su propia linea y con su clase,
+        # no colados entre los de arriba: mezclar los dos marcos en una lista es el fallo
+        # que esto cierra. El marco SE RECIBE (`marco`), no se escribe.
+        for inicio, por_detras in sorted(cruzan):
+            lines.append(
+                f"    {label(inicio, marco)} — "
+                + ("con TECHO (por detrás del corte)" if por_detras
+                   else "INMUNE al truncamiento (empieza por delante)")
+                + ", y SIN coordenada de 3'UTR: su ventana CRUZA la frontera CDS/UTR,"
+            )
+            lines.append(
+                "      así que empieza fuera del 3'UTR. No se le pone una de 3'UTR "
+                "porque no la tiene, y esa"
+            )
+            # LA CIFRA NO SE VUELVE A ETIQUETAR, ni siquiera para decir que estaria mal:
+            # un `3utr:825` escrito aqui se copia igual de bien que uno afirmado, y es
+            # exactamente el literal que el guardia del marco prohibe (errata nº 121).
+            lines.append(
+                "      misma cifra leída sobre el 3'UTR es OTRA ventana. El reparto "
+                "exacto, en su ficha."
+            )
         if alternativas:
             top = alternativas[:6]
             lines.append(

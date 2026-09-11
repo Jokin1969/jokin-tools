@@ -218,3 +218,91 @@ class TestElCasoREAL_tx825(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
+
+
+@unittest.skipUnless(
+    fixture_available(HUMANO), "NOT_RUN: falta data/reference/NM_000311.5.fa"
+)
+class TestElINFORMEnoINVENTAlaCoordenada(unittest.TestCase):
+    """La SEXTA de la familia de la errata nº 18, y estaba VIVA en el informe humano.
+
+    **Reportado por el barrido, no por un traceback.** El de arriba reventaba; éste no
+    daba ningún error: `text_report` hacía
+
+        inicio = ventana.inicio_3utr if ventana.inicio_3utr else ventana.window.start
+
+    y la línea siguiente lo etiquetaba `Frame.UTR3`. Con `tx:825` —cuyo `inicio_3utr` es
+    `None` porque empieza dentro del CDS— el informe humano imprimía
+
+        INMUNES al TRUNCAMIENTO ...: 3utr:110, 3utr:190 [esterico PASS], 3utr:825
+
+    y **`3utr:825` EXISTE**: es una ventana distal del 3'UTR humano, con otro veredicto y
+    otro techo de APA. Por eso el invariante de rango no puede cazarlo — *caza lo
+    imposible, no lo equivocado* — y por eso la línea mezclaba dos marcos sin avisar.
+
+    **Setenta líneas más abajo, en la MISMA función, `_en_3utr` se niega a hacer justo
+    eso** y lo dice con estas palabras: *«NADA de `inicio_3utr or window.start`… es la
+    quinta vez de esta familia»*. Un `if` protege su línea; hacía falta que protegiera
+    las dos (principio nº 31).
+
+    Python 3.11+, solo biblioteca estandar (regla 6).
+    """
+
+    @classmethod
+    def setUpClass(cls):
+        from shmir_design.outputs import text_report
+        from shmir_design.scaffold import SGEP_SCAFFOLD
+
+        secuencia = load_reference(HUMANO)
+        anatomia = Anatomy.from_cds(
+            cds=HUMANO.cds, length=len(secuencia),
+            source=RegionSource.FIXTURE_VERIFICADO,
+        )
+        corrida = P.page_run(species="human", sequence=secuencia, anatomy=anatomia)
+        cls.texto = text_report(
+            species="human", tiling=corrida.tiling, selection=corrida.selection,
+            scaffold=SGEP_SCAFFOLD,
+        )
+        cls.linea = next(
+            l for l in cls.texto.splitlines() if "INMUNES al TRUNCAMIENTO" in l
+        )
+
+    def test_la_linea_de_inmunes_NO_etiqueta_825_como_3utr(self):
+        self.assertNotIn(
+            "3utr:825", self.linea,
+            "el informe vuelve a poner la coordenada de lo tilado con una etiqueta "
+            "`3utr:` delante, que es OTRA ventana del 3'UTR humano.",
+        )
+
+    def test_pero_TAMPOCO_desaparece_del_recuento(self):
+        """Descartarlo en silencio es peor: perder un inmune no se ve.
+
+        `tx:825` es inmune al truncamiento por GEOMETRÍA —empieza por delante del corte—
+        y eso sigue siendo cierto no tenga coordenada de 3'UTR o la tenga.
+        """
+        self.assertIn("tx:825", self.texto)
+        self.assertIn("INMUNE al truncamiento", self.texto)
+
+    def test_y_DICE_por_que_no_la_tiene(self):
+        # Sin el motivo, una lista con dos marcos distintos se lee como una errata de
+        # formato. Lo que dice es que esa ventana empieza fuera del 3'UTR.
+        self.assertIn("CRUZA la frontera", self.texto)
+        self.assertIn("SIN coordenada de 3'UTR", self.texto)
+
+    def test_los_QUE_SI_LA_TIENEN_siguen_saliendo_en_su_marco(self):
+        """La otra mitad: sin esto, «no inventa» y «no imprime nada» darían igual."""
+        self.assertIn("3utr:110", self.linea)
+        self.assertIn("3utr:190", self.linea)
+
+    def test_Y_NINGUNA_OTRA_LINEA_del_informe_etiqueta_825_en_el_3utr(self):
+        """El barrido, no el emisor: la familia reaparece en cada bloque nuevo.
+
+        Se admite NOMBRARLO para decir que sería otra ventana —eso es lo que hace el
+        propio motivo—, así que lo que se prohíbe es afirmarlo: aparecer en una línea
+        que NO explique que es otra cosa.
+        """
+        sospechosas = [
+            l for l in self.texto.splitlines()
+            if "3utr:825" in l and "OTRA ventana" not in l
+        ]
+        self.assertEqual(sospechosas, [], f"lo afirman: {sospechosas}")
