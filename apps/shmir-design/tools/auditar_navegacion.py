@@ -32,7 +32,14 @@ PAGINA = RAIZ / "ui" / "streamlit_app.py"
 
 #: Raíces que NO son el modelo. `st` es Streamlit —su contrato lo mantiene otra gente— y
 #: los módulos estándar tampoco son nuestros.
-AJENAS = frozenset({"st", "os", "sys", "time", "json", "re", "Path", "datetime"})
+#:
+#: `pd` entra el 2026-09-11 por la misma razón y con el mismo alcance: pandas está
+#: autorizado SÓLO para declarar el dtype de una columna en el pintor
+#: (`docs/dependencias-autorizadas.md`), así que `pd.DataFrame(...).astype(...)` es el
+#: contrato de otra gente y no una suposición sobre NUESTRO modelo — que es lo único que
+#: este informe existe para encontrar. Declararlo aquí y no exentarlo en el test es la
+#: diferencia entre decirlo una vez y tener dos listas que envejecen por separado.
+AJENAS = frozenset({"st", "os", "sys", "time", "json", "re", "Path", "datetime", "pd"})
 
 #: Lo que marca un camino que sólo se recorre al pulsar algo. `st.button`, `st.form_submit_button`
 #: y `st.download_button` devuelven `True` sólo en el rerun del clic.

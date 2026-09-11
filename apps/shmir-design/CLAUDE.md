@@ -8127,10 +8127,42 @@ atrás.
 comprobación de que el cambio es invisible donde tenía que serlo: el vacío se sigue
 viendo vacío.
 
-### Lo que queda dicho y NO se arregla de paso
+### ~~Lo que queda dicho y NO se arregla de paso~~ — CERRADO el mismo día
 
-La columna sale **`double`**, así que el puesto se pinta `1.0` y no `1`. Dejarlo en
-entero con huecos pide un dtype **nullable de pandas**, o sea importar pandas en la
-página — y eso es una **dependencia nueva en la capa de interfaz**, que en este proyecto
-necesita autorización escrita (regla 6). No se toma de paso. Entre `1.0` bien ordenado y
-`1` ordenado mal, manda el orden.
+Aquí decía que la columna sale **`double`** y el puesto se pinta `1.0`, y que dejarlo
+entero con huecos pedía un dtype nullable de pandas, o sea una **dependencia nueva en la
+capa de interfaz** que en este proyecto necesita autorización escrita (regla 6) y que no
+se toma de paso. **La autorización llegó** ese mismo día:
+
+> *«Autorizo `pandas.Int64Dtype()` para la columna rango. Cambia el tipo a Int64 nullable
+> para que el puesto se muestre como entero (1, 2, 3) y no como float (1.0, 2.0).»*
+> — responsable del proyecto, 2026-09-11.
+
+No se borra el párrafo: la escalera importa: se pidió, se dijo qué costaba, se decidió.
+
+- **Anotada en `docs/dependencias-autorizadas.md`**, que es donde la regla 6 la exige, con
+  **qué cubre y qué no**: declarar el dtype de una columna en el pintor único. Ni cálculo,
+  ni filtrado, ni ordenación, ni pandas en `shmir_design/` — hay test de que el núcleo
+  sigue sin importarlo y de que la página lo importa **en un solo sitio**.
+- **`Int64` con mayúscula es el NULLABLE de pandas**; `int64` en minúscula es el de numpy
+  y **no admite huecos** — con un `None` dentro aborta. Un carácter, y hay test de los dos.
+- **QUÉ columnas lo decide `presentation.integer_columns`** (regla 6) y **el nombre
+  `rango` NO está escrito** (principio nº 13): se declara la PROPIEDAD que lo hace
+  aplicable —los valores presentes son todos enteros y falta alguno—, así que una columna
+  entera de la tabla 27 queda cubierta sin que nadie se acuerde. La autorización nombra
+  esa columna porque es la que se vio; **el ensanchamiento es deliberado y va dicho por
+  escrito** en el registro de dependencias para que se pueda discutir.
+- **Un `float` con decimales NO se declara**: `2.96` de asimetría no es un entero y
+  convertirlo lo truncaría **en silencio**, que es peor que pintar un `.0` de más. La
+  misma tabla lleva las dos columnas, y es lo que obliga a mirar los valores y no el
+  nombre.
+- **Medido** sobre la tabla real: `rango` → `Int64`, valores `1, 2, 3, 4` con `<NA>` en
+  los huecos, Arrow `int64` **a la primera** y sin traceback; `asimetria` sigue `float64`.
+
+**Y DOS GUARDIAS MORDIERON EL ARREGLO, los dos con razón.** El del pintor único, porque
+la primera versión pintaba con un `if/else` y eso son **dos** `st.dataframe` — dos
+llamadas es justo por donde una se queda sin el tratamiento que la otra sí recibe; quedó
+en una sola. Y el de navegación, que vio `pd.DataFrame(filas).astype`: se resolvió
+declarando `pd` en su lista `AJENAS` —donde ya están `st` y los módulos estándar, por la
+misma razón: el contrato lo mantiene otra gente— **y no exentándolo en el test**, que
+habría dejado dos listas envejeciendo por separado.

@@ -139,6 +139,84 @@ class TestLaTABLAdelDOCUMENTOnoImprimeNone(unittest.TestCase):
         )
 
 
+class TestQueCOLUMNAsonENTERAS(unittest.TestCase):
+    """La decisión del `Int64`, en el núcleo y sin nombrar ninguna columna.
+
+    **Autorizado el 2026-09-11** por el responsable del proyecto: *«Autorizo
+    `pandas.Int64Dtype()` para la columna rango. Cambia el tipo a Int64 nullable para que
+    el puesto se muestre como entero (1, 2, 3) y no como float (1.0, 2.0)»*. Anotado en
+    `docs/dependencias-autorizadas.md`, que es donde la regla 6 lo exige.
+    """
+
+    def test_una_columna_ENTERA_CON_HUECOS_se_declara(self):
+        self.assertEqual(
+            P.integer_columns([{"rango": 1}, {"rango": None}, {"rango": 11}]),
+            ("rango",),
+        )
+
+    def test_SIN_HUECOS_no_se_declara(self):
+        # pandas ya infiere `int64`: forzar el dtype sería trabajo para no cambiar nada.
+        self.assertEqual(P.integer_columns([{"rango": 1}, {"rango": 2}]), ())
+
+    def test_un_FLOAT_DE_VERDAD_no_se_declara(self):
+        """`2.96` de asimetría no es un entero, y convertirlo lo truncaría EN SILENCIO.
+
+        Es el caso que hace que esto tenga que mirar los valores y no el nombre: la misma
+        tabla lleva `rango` (entera) y `asimetria` (no), las dos con huecos.
+        """
+        self.assertEqual(
+            P.integer_columns([{"asimetria": 2.96}, {"asimetria": None}]), ()
+        )
+
+    def test_un_BOOL_tampoco(self):
+        self.assertEqual(P.integer_columns([{"elegido": True}, {"elegido": None}]), ())
+
+    def test_un_FLOAT_ENTERO_si(self):
+        # `11.0` es el puesto once escrito como float: declararlo lo pinta `11`.
+        self.assertEqual(
+            P.integer_columns([{"rango": 1.0}, {"rango": None}]), ("rango",)
+        )
+
+    def test_una_columna_de_TEXTO_no(self):
+        self.assertEqual(P.integer_columns([{"region": "3'UTR"}, {"region": None}]), ())
+
+    def test_sin_filas_no_declara_nada(self):
+        self.assertEqual(P.integer_columns([]), ())
+        self.assertEqual(P.integer_columns(None), ())
+        self.assertEqual(P.integer_columns(["texto"]), ())
+
+    def test_EL_NOMBRE_DE_LA_COLUMNA_NO_ESTA_ESCRITO(self):
+        """Principio nº 13: con `"rango"` dentro, la tabla 27 volvería a pintar `1.0`.
+
+        La autorización nombra esa columna porque es la que se vio; lo que se aplica es
+        la propiedad que la hace aplicable. Ensanchado a propósito y dicho por escrito en
+        `docs/dependencias-autorizadas.md`.
+        """
+        import inspect
+
+        self.assertNotIn("rango", inspect.getsource(P.integer_columns).split('"""')[2])
+
+
+class TestElNUCLEOsigueSINpandas(unittest.TestCase):
+    """La condición de la autorización: pandas vive en la página, no en `shmir_design/`."""
+
+    def test_ningun_modulo_del_nucleo_importa_pandas(self):
+        raiz = Path(__file__).resolve().parent.parent / "shmir_design"
+        culpables = [
+            f.name for f in sorted(raiz.glob("*.py"))
+            if re.search(r"^\s*(import pandas|from pandas)", f.read_text(encoding="utf-8"),
+                         re.MULTILINE)
+        ]
+        self.assertEqual(culpables, [], "el núcleo ha dejado de ser stdlib pura")
+
+    def test_y_la_pagina_lo_usa_SOLO_en_el_pintor(self):
+        fuera = [
+            l for l in PAGINA.splitlines()
+            if re.search(r"^\s*(import pandas|from pandas)", l)
+        ]
+        self.assertEqual(len(fuera), 1, f"pandas se importa en más de un sitio: {fuera}")
+
+
 class TestElPintorUNICOloAplica(unittest.TestCase):
     """Mira el FUENTE: `AppTest` no llega al estado DISEÑADO y ninguna tabla se pinta."""
 
@@ -153,6 +231,21 @@ class TestElPintorUNICOloAplica(unittest.TestCase):
         # mismo. Si se normalizara sólo una, el TSV y la tabla discreparían.
         self.assertLess(cuerpo.index("table_cells("), cuerpo.index("st.dataframe("))
         self.assertLess(cuerpo.index("table_cells("), cuerpo.index("table_tsv("))
+
+    def test_y_DECLARA_el_dtype_de_las_enteras(self):
+        # SIN LOS COMENTARIOS: el que explica la diferencia entre `Int64` y `int64` los
+        # nombra a los dos, así que un ancla sobre el texto crudo daría rojo sobre código
+        # correcto. Es la lección de la errata nº 54, donde un test encontró `st.rerun()`
+        # dentro del comentario que lo explicaba.
+        cuerpo = "\n".join(
+            l for l in self._cuerpo("_tabla").splitlines()
+            if not l.lstrip().startswith("#")
+        )
+        self.assertIn("integer_columns(", cuerpo)
+        # `Int64` con mayúscula es el NULLABLE; `int64` de numpy no admite huecos y
+        # abortaría con el primer sitio sin puesto. Un carácter.
+        self.assertIn('"Int64"', cuerpo)
+        self.assertNotIn('"int64"', cuerpo)
 
     def test_y_SIGUE_habiendo_un_solo_pintor(self):
         # Prueba de vida (principio nº 51): si apareciera un segundo `st.dataframe`,

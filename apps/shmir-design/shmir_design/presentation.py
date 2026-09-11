@@ -8086,6 +8086,43 @@ def table_tsv(rows) -> str:
     return "\n".join(lineas)
 
 
+def integer_columns(rows) -> tuple[str, ...]:
+    """Las columnas de UNA tabla que son ENTERAS CON HUECOS. Decide aqui, no la pagina.
+
+    Sale de la errata nº 164 y de la autorizacion escrita del 2026-09-11 para usar
+    `pandas.Int64Dtype()` en el pintor. Una columna numerica con huecos se infiere
+    `float64`, asi que el puesto 1 del panel se pinta `1.0`. El dtype nullable `Int64` es
+    la unica forma de tener a la vez **entero** y **hueco**.
+
+    **EL NOMBRE DE LA COLUMNA NO SE ESCRIBE** (principio nº 13). La autorizacion nombra
+    `rango` porque es la que se vio; lo que decide es la PROPIEDAD que la hace aplicable
+    —todos los valores presentes son enteros, y falta alguno—, asi que una columna entera
+    de la tabla 27 queda cubierta sin que nadie se acuerde. Con `"rango"` escrito volveria
+    a pintarse `1.0` y nadie se enteraria.
+
+    **Sin ningun hueco NO se declara**: ahi pandas ya infiere `int64` y forzar el dtype
+    seria trabajo para no cambiar nada. **Un `bool` no cuenta** —hereda de `int`— y un
+    `float` con parte decimal tampoco: `2.96` de asimetria no es un entero y convertirlo
+    lo truncaria en silencio, que es peor que pintar un `.0` de mas.
+    """
+    filas = [f for f in (list(rows or [])) if isinstance(f, dict)]
+    if not filas:
+        return ()
+    salida = []
+    for col in {clave for fila in filas for clave in fila}:
+        valores = [fila.get(col) for fila in filas]
+        presentes = [v for v in valores if v is not None]
+        if len(presentes) == len(valores) or not presentes:
+            continue  # sin huecos, o sin ningun valor: no hay nada que declarar
+        if all(
+            isinstance(v, int) and not isinstance(v, bool)
+            or isinstance(v, float) and v.is_integer()
+            for v in presentes
+        ):
+            salida.append(str(col))
+    return tuple(sorted(salida))
+
+
 def cell_text(valor) -> str:
     """El texto de UNA celda. `None` sale VACIO, nunca como la palabra «None».
 

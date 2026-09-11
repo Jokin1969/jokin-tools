@@ -36,6 +36,7 @@ from shmir_design.outputs import output_name  # noqa: E402
 from shmir_design.polya import normalize_sequence  # noqa: E402
 from shmir_design.presentation import (  # noqa: E402
     TABLE_ICON_NOTE,
+    integer_columns,
     table_cells,
     table_tsv,
     ACCION_DISENAR,
@@ -1404,7 +1405,24 @@ def _tabla(filas, *, nombre: str, clave: str, **kwargs) -> None:
     # decide `presentation.table_cells` (regla 6), aquí sólo se aplica — y se aplica a las
     # DOS salidas, la pintada y la que se lleva, porque tienen que decir lo mismo.
     filas = table_cells(filas)
-    st.dataframe(filas, **kwargs)
+    # Y las columnas ENTERAS se declaran `Int64` —el dtype nullable—, que es lo único que
+    # tiene a la vez entero y hueco: sin él, el puesto 1 se pinta `1.0`. QUÉ columnas lo
+    # decide `presentation.integer_columns` (regla 6); aquí sólo se aplica. pandas está
+    # autorizado SÓLO para esto: ver `docs/dependencias-autorizadas.md`.
+    enteras = integer_columns(filas)
+    tabla = filas
+    if enteras:
+        import pandas as pd  # noqa: PLC0415
+
+        # `"Int64"` con mayúscula es el dtype NULLABLE de pandas; `"int64"` en minúscula
+        # es el de numpy y NO admite huecos — con un `None` dentro aborta. Un carácter.
+        tabla = pd.DataFrame(filas).astype({c: "Int64" for c in enteras})
+    # UNA sola llamada, no una por rama: el guardia que exige un pintor único saltó con
+    # dos, y tenía razón — dos llamadas es por donde una de ellas se queda sin el
+    # tratamiento que la otra sí recibe.
+    st.dataframe(tabla, **kwargs)
+    # El TSV sale de las FILAS, no del DataFrame: las dos salidas tienen que decir lo
+    # mismo, y `cell_text` ya deja el hueco vacío sin pasar por ningún dtype.
     texto = table_tsv(filas)
     if not texto:
         return
