@@ -3214,6 +3214,27 @@ def _store_state(stores, front: str, species: str, start: int) -> str | None:
 
     `None` significa «los almacenes no dicen nada de esto», que no es lo mismo que
     `NOT_RUN`: quien decide entonces es el filtro de la ventana, como siempre.
+
+    Es una PROYECCION de `_store_verdict`, no una segunda resolucion: el estado y su
+    motivo salen de la misma llamada al almacen. Separarlos daria dos caminos que pueden
+    contestar cosas distintas sobre el mismo candidato, que es el principio nº 27.
+    """
+    resuelto = _store_verdict(stores, front, species, start)
+    return None if resuelto is None else resuelto[0]
+
+
+def _store_verdict(
+    stores, front: str, species: str, start: int,
+) -> tuple[str, str] | None:
+    """`(estado, motivo)` de ESE frente para ESE candidato, o `None`.
+
+    **EL MOTIVO SE CALCULABA Y SE TIRABA** (2026-09-11). `_store_state` devolvia
+    `.state.value` y descartaba `.reason`, asi que aguas arriba no habia forma de decir
+    POR QUE una corrida guardada no cierra su frente — y la tarjeta caia al texto del
+    filtro por ventana, «falta el recurso», que manda a conseguir un fichero cuando lo
+    que bloquea es otra cosa. Reportado sobre el panel humano: once `NO_CIERRA` en la
+    tabla y «NOT_RUN en 2414 de 2414 ventanas» en la tarjeta, las dos ciertas y sobre
+    preguntas distintas.
     """
     # Una columna por hebra llega como `<frente>:guia`. La hebra se saca del NOMBRE de la
     # columna, que es quien la lleva; el frente es lo de delante.
@@ -3240,9 +3261,10 @@ def _store_state(stores, front: str, species: str, start: int) -> str | None:
     # contestado en cuanto alguno de sus pares lo esta. La comparacion entre intrones
     # vive en el modal y en el export, que si tiene UNA COLUMNA POR INTRON.
     if nombre in PAIR_UNIT_FRONTS and not hebra:
-        return _estado_por_par(
+        estado = _estado_por_par(
             stores, PAIR_UNIT_FRONTS[nombre]["almacen"], starts=[start],
         ).get(int(start))
+        return None if estado is None else (estado, "")
     declarado = STORE_FOR_FRONT.get(nombre)
     if not declarado or not stores:
         return None
@@ -3265,7 +3287,7 @@ def _store_state(stores, front: str, species: str, start: int) -> str | None:
         # que no haber corrido nada: se arregla lanzando una corrida que lo incluya, no
         # consiguiendo un fichero. Sin corridas de ningun tipo se devuelve `None` y manda
         # el filtro de la ventana, como siempre.
-        return SIN_CONSULTAR if getattr(almacen, "runs", None) else None
+        return (SIN_CONSULTAR, "") if getattr(almacen, "runs", None) else None
     # LA ESPECIE VIAJA: decide que variantes de transcrito son la diana, y sin ella la
     # corrida no puede eximir su propio blanco (errata nº 56). Los otros tres almacenes
     # no tienen especie que pasar, asi que se MIRA LA FIRMA en vez de probar y cazar el
@@ -3287,9 +3309,11 @@ def _store_state(stores, front: str, species: str, start: int) -> str | None:
             # da la ficha, para que las dos digan lo mismo (principio nº 23).
             from .offtarget_store import verdict_without_catalogue  # noqa: PLC0415
 
-            return verdict_without_catalogue(species).state.value
+            sin_catalogo = verdict_without_catalogue(species)
+            return sin_catalogo.state.value, sin_catalogo.reason
         extra["background"] = catalogo
-    return almacen.verdict_for(consulta, **extra).state.value
+    resultado = almacen.verdict_for(consulta, **extra)
+    return resultado.state.value, resultado.reason
 
 
 #: Un frente se cierra CONSIGUIENDO LA RESPUESTA, no consiguiendo un `PASS`. Un `FAIL`
@@ -3372,7 +3396,7 @@ def fronts_closed_over_panel(
 
 
 def run_coverage(
-    estados_por_frente, *, starts, frame: coords.Frame, origins=None,
+    estados_por_frente, *, starts, frame: coords.Frame, origins=None, reasons=None,
 ) -> dict[str, dict]:
     """CUANTOS candidatos del panel contesta cada frente, y si eso lo cierra.
 
@@ -3393,11 +3417,20 @@ def run_coverage(
     ventanas — la otra forma de la errata nº 138, la que no fabrica una etiqueta sino que
     se salta `coords` entero. Un valor por defecto aqui seria el mismo fallo con otra
     cara (principio nº 58).
+
+    `reasons` es `{frente: {inicio: motivo}}` y sale de `panel_states_by_front`. De ahi
+    sale `bloqueo`, que es el TERCER campo y contesta a una pregunta que ni `motivo` ni
+    `avance` podian contestar: **hay corrida, se consulto a este candidato, y la corrida
+    NO da veredicto**. Ese caso caia en la rama `else` de aqui —`cubiertos` vacio, motivo
+    vacio— asi que salia indistinguible de un proyecto sin ninguna corrida, y la tarjeta
+    acababa pintando el texto del filtro por ventana. Sin `reasons` se comporta como
+    antes: `bloqueo` sale vacio y manda quien mandaba.
     """
     if not starts:
         return {}
     panel = sorted({int(s) for s in starts})
     origenes_por_frente = origins or {}
+    motivos_por_frente = reasons or {}
     salida: dict[str, dict] = {}
     for frente, por_candidato in (estados_por_frente or {}).items():
         cubiertos = [
@@ -3408,6 +3441,20 @@ def run_coverage(
             (origenes_por_frente.get(frente) or {}).get(inicio, ORIGEN_CORRIDA)
             for inicio in cubiertos
         }
+        # LOS QUE NO CONTESTAN SON DE DOS CLASES, y se arreglan con cosas distintas: al
+        # que NADIE MIRO le falta una corrida; al que tiene motivo se le pregunto y la
+        # corrida no pudo dar veredicto —`NO_CIERRA`—, y eso se arregla con lo que diga
+        # el motivo, nunca lanzando otra corrida igual.
+        motivos_del_frente = motivos_por_frente.get(frente) or {}
+        no_cierran = [
+            (inicio, motivos_del_frente[inicio])
+            for inicio in panel
+            if inicio not in cubiertos and motivos_del_frente.get(inicio)
+        ]
+        nadie_miro = [
+            inicio for inicio in panel
+            if inicio not in cubiertos and not motivos_del_frente.get(inicio)
+        ]
         cerrado = len(cubiertos) == len(panel)
         if cerrado:
             motivo = _motivo_cerrado(len(panel), de_donde)
@@ -3415,6 +3462,11 @@ def run_coverage(
             motivo = _motivo_a_medias(panel, cubiertos, de_donde, frame)
         else:
             motivo = ""
+        bloqueo = (
+            ""
+            if cerrado or not no_cierran
+            else _motivo_no_cierra(panel, no_cierran, nadie_miro, frame)
+        )
         # `motivo` y `avance` SON DOS PREGUNTAS y por eso son dos campos (errata nº 108).
         # `motivo` dice por que se cierra —y de ahi sale `frente.reason`, o sea el
         # resultado en VERDE—; `avance` dice CUANTO FALTA, que es para lo que se escribio
@@ -3422,12 +3474,17 @@ def run_coverage(
         # De un frente cerrado no falta nada, asi que ahi `avance` esta vacio: con el
         # mismo texto en los dos, la tarjeta decia lo mismo dos veces y en dos colores —
         # un ambar que dice «pendiente» debajo de un verde que dice «cerrado».
+        # Y `bloqueo` ES UNA TERCERA, no un sinonimo de las otras dos: `motivo` dice por
+        # que se cierra o cuanto falta por consultar, `avance` dice cuanto falta, y
+        # `bloqueo` dice que impide cerrar a los que YA se consultaron. Los tres nunca
+        # llevan el mismo texto — un campo que repite a otro es la errata nº 108.
         salida[frente] = {
             "cerrado": cerrado,
             "cubiertos": len(cubiertos),
             "panel": len(panel),
             "motivo": motivo,
             "avance": "" if cerrado else motivo,
+            "bloqueo": bloqueo,
         }
     return salida
 
@@ -3472,6 +3529,46 @@ def _motivo_a_medias(panel, cubiertos, de_donde: set[str], frame: coords.Frame) 
     )
 
 
+def _motivo_no_cierra(panel, no_cierran, nadie_miro, frame: coords.Frame) -> str:
+    """Se consulto, y la corrida NO da veredicto. El motivo es el de la CORRIDA.
+
+    No es «no se ha hecho nada» y no es «falta un recurso»: la corrida esta, se lee y se
+    le pregunto a estos candidatos. Lo que falta es lo que diga su motivo, y por eso el
+    motivo se emite ENTERO en vez de resumirse — repetir la misma corrida no cambia nada.
+    """
+    cuantos = len(no_cierran)
+    quienes = (
+        f"los {cuantos} candidatos del panel"
+        if cuantos == len(panel)
+        else (
+            f"{cuantos} de {len(panel)} candidatos "
+            f"({coords.labels([inicio for inicio, _ in no_cierran], frame)})"
+        )
+    )
+    # UN MOTIVO REPETIDO SE DICE UNA VEZ. Con once candidatos y la misma causa, once
+    # copias del mismo parrafo esconden el caso en que NO son la misma.
+    unicos = list(dict.fromkeys(motivo for _, motivo in no_cierran if motivo))
+    cabeza = (
+        f"HAY CORRIDA Y NO CIERRA: {quienes} tienen corrida guardada de este frente y "
+        f"esa corrida NO puede dar veredicto. **Repetirla igual no cambia nada** — lo "
+        f"que hay que hacer es lo que dice el motivo."
+    )
+    if len(unicos) == 1:
+        cuerpo = f" Motivo: {unicos[0]}"
+    else:
+        numerados = " ".join(
+            f"({n}) {texto}" for n, texto in enumerate(unicos, start=1)
+        )
+        cuerpo = f" Motivos, {len(unicos)} distintos: {numerados}"
+    if nadie_miro:
+        cuerpo += (
+            f" Y ADEMÁS quedan {len(nadie_miro)} a los que esa corrida no llegó a "
+            f"preguntar, que eso sí se arregla con una corrida que los incluya: "
+            f"{coords.labels(nadie_miro, frame)}."
+        )
+    return cabeza + cuerpo
+
+
 def store_states_by_front(stores, *, species: str, starts) -> dict[str, dict[int, str]]:
     """`{frente: {inicio: estado}}` segun los ALMACENES. Una de las dos mitades.
 
@@ -3489,23 +3586,49 @@ def store_states_by_front(stores, *, species: str, starts) -> dict[str, dict[int
 
     Un frente por hebra se contesta **con las dos**, o no se contesta.
     """
-    salida: dict[str, dict[int, str]] = {}
+    return {
+        frente: {inicio: estado for inicio, (estado, _) in por_candidato.items()}
+        for frente, por_candidato in store_verdicts_by_front(
+            stores, species=species, starts=starts
+        ).items()
+    }
+
+
+def store_verdicts_by_front(
+    stores, *, species: str, starts,
+) -> dict[str, dict[int, tuple[str, str]]]:
+    """`{frente: {inicio: (estado, motivo)}}` segun los almacenes. UNA sola pasada.
+
+    `store_states_by_front` es su proyeccion. Van juntos a proposito: el motivo de un
+    `NO_CIERRA` es lo unico que dice QUE hay que hacer —repetir la corrida, declarar una
+    diana— y calculado en un segundo recorrido podria describir un estado distinto del
+    que se pinta al lado.
+    """
+    salida: dict[str, dict[int, tuple[str, str]]] = {}
     for frente, declarado in STORE_FOR_FRONT.items():
         # LAS MISMAS COLUMNAS QUE EMITE LA TABLA, pedidas al mismo sitio. Estaban
         # construidas aqui otra vez, y al entrar el eje de catalogo esta copia se quedo
         # sin el: la tabla pedia cuatro celdas y esto contestaba dos.
         columnas = store_front_columns(frente, declarado, species=species)
-        por_candidato: dict[int, str] = {}
+        por_candidato: dict[int, tuple[str, str]] = {}
         for inicio in starts:
-            estados = [
-                _store_state(stores, columna, species, int(inicio))
+            resueltos = [
+                _store_verdict(stores, columna, species, int(inicio))
                 for columna in columnas
             ]
-            if any(estado is None for estado in estados):
+            if any(resuelto is None for resuelto in resueltos):
                 # Los almacenes no dicen nada de esta hebra: manda el filtro de la
                 # ventana, como siempre. `None` NO es `NOT_RUN`.
                 continue
-            por_candidato[int(inicio)] = _peor_de(estados)
+            estados = [estado for estado, _ in resueltos]
+            manda = _peor_de(estados)
+            # EL MOTIVO ES EL DE LA COLUMNA QUE MANDA, no el de la primera: con dos
+            # hebras y una sola en `NO_CIERRA`, el motivo de la otra describiria un
+            # estado que no es el que se pinta.
+            motivo = next(
+                (m for e, m in resueltos if e == manda and m), "",
+            )
+            por_candidato[int(inicio)] = (manda, motivo)
         if por_candidato:
             salida[frente] = por_candidato
 
@@ -3513,11 +3636,9 @@ def store_states_by_front(stores, *, species: str, starts) -> dict[str, dict[int
     # frente y un inicio, sino con el PAR — y por eso se quedaron fuera del bucle de
     # arriba durante toda su vida. Ver `PAIR_UNIT_FRONTS`.
     for frente, declarado in PAIR_UNIT_FRONTS.items():
-        por_candidato = _estado_por_par(
-            stores, declarado["almacen"], starts=starts
-        )
-        if por_candidato:
-            salida[frente] = por_candidato
+        por_par = _estado_por_par(stores, declarado["almacen"], starts=starts)
+        if por_par:
+            salida[frente] = {i: (e, "") for i, e in por_par.items()}
     return salida
 
 
@@ -3804,8 +3925,19 @@ def panel_states_by_front(
     La unidad de la pregunta es **el panel**, para las dos. Y no se arregla la tarjeta:
     se junta el origen de las dos aqui, para que no puedan volver a separarse.
 
-    Devuelve `{"estados": {frente: {inicio: estado}}, "origenes": {frente: {inicio: ...}}}`
-    — una sola pasada y dos proyecciones, no dos calculos del mismo numero.
+    Devuelve `{"estados": …, "origenes": …, "motivos": …}`, los tres indexados por
+    `{frente: {inicio: …}}` — una sola pasada y TRES proyecciones, no tres calculos del
+    mismo numero.
+
+    **`motivos` ES LA TERCERA, y entro el 2026-09-11** (accion 2 del panel humano). El
+    motivo lo emite el almacen —`FilterResult.reason`— y se tiraba en `_store_state`,
+    asi que aguas arriba no habia forma de decir POR QUE una corrida guardada no cierra
+    su frente. Con once `NO_CIERRA` la tarjeta caia al texto del filtro por ventana
+    —«NOT_RUN en 2414 de 2414 ventanas: falta el recurso»—, que manda a conseguir un
+    fichero cuando lo que bloquea es otra cosa (aqui, la diana sin declarar). Las dos
+    frases eran ciertas y contestaban a preguntas distintas; la que se pintaba era la que
+    no se habia preguntado. Solo lo llenan los almacenes: el filtro de la ventana no
+    emite motivo por candidato.
     """
     # LOS FRENTES GLOBALES, una vez por corrida: su respuesta es del
     # TRANSCRITO y no de cada candidato (errata nº 141).
@@ -3814,6 +3946,7 @@ def panel_states_by_front(
     ventanas = {int(w.window.start): w for w in tiling.windows}
     estados: dict[str, dict[int, str]] = {}
     origenes: dict[str, dict[int, str]] = {}
+    motivos: dict[str, dict[int, str]] = {}
 
     # 1. LO QUE DICE LA CELDA DE LA TABLA, letra por letra: `_filter_columns` —el unico
     #    sitio del que sale el estado por filtro de una fila— pasado por `_with_stores`,
@@ -3837,14 +3970,16 @@ def panel_states_by_front(
     #    contestar los frentes POR HEBRA, que `_with_stores` deja pasar a proposito
     #    (fundir las dos hebras en una columna daria por buena la de la pasajera con el
     #    estado de la guia). Para los demas, el paso 1 ya trae este mismo estado.
-    for frente, por_candidato in store_states_by_front(
+    for frente, por_candidato in store_verdicts_by_front(
         stores, species=species, starts=starts
     ).items():
-        for inicio, estado in por_candidato.items():
+        for inicio, (estado, motivo) in por_candidato.items():
             estados.setdefault(frente, {})[inicio] = estado
             origenes.setdefault(frente, {})[inicio] = ORIGEN_CORRIDA
+            if motivo:
+                motivos.setdefault(frente, {})[inicio] = motivo
 
-    return {"estados": estados, "origenes": origenes}
+    return {"estados": estados, "origenes": origenes, "motivos": motivos}
 
 
 #: QUE HAY EN LA TABLA, dicho arriba. Sin esto, sus 270 filas se leen como si todas
@@ -9556,12 +9691,14 @@ def front_card_rows(run, *, species: str, stores=None) -> list[dict[str, object]
     )
     cobertura = run_coverage(
         vista["estados"], starts=panel, frame=coords.tiled_frame(run.selection.anatomy),
-        origins=vista["origenes"],
+        origins=vista["origenes"], reasons=vista["motivos"],
     )
     cerrados = {f: d["motivo"] for f, d in cobertura.items() if d["cerrado"]}
+    bloqueados = {f: d["bloqueo"] for f, d in cobertura.items() if d["bloqueo"]}
     tarjetas = []
     for frente in blocking_fronts(
-        run.tiling, run.selection, closed_by_panel=cerrados
+        run.tiling, run.selection,
+        closed_by_panel=cerrados, blocked_by_panel=bloqueados,
     ):
         ficha = resolve_ficha(frente.name, species=especie)
         estado = "HECHO" if not frente.blocking else "SIN_HACER"
@@ -9587,7 +9724,9 @@ def front_card_rows(run, *, species: str, stores=None) -> list[dict[str, object]
                 # ya estaba: un frente abierto y uno cerrado enseñaban lo mismo.
                 "resultado": frente.reason if cerrado else "",
                 # Y NO SE REPITE EN `motivo`: cerrado, el motivo ES el resultado y ya
-                # esta pintado arriba. `motivo` es lo que se dice de un frente ABIERTO.
+                # esta pintado arriba. `motivo` es lo que se dice de un frente ABIERTO —
+                # y con una corrida guardada que no cierra, `frente.reason` ya trae el
+                # motivo del `NO_CIERRA` porque entra por `blocking_fronts`, no aqui.
                 "motivo": "" if cerrado else frente.reason,
                 "ficha_titulo": FICHA_TITLES[ficha.heading_kind(closed=cerrado)],
                 "ficha_texto": ficha.render(closed=cerrado),

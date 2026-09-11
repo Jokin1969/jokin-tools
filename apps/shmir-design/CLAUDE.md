@@ -7517,3 +7517,95 @@ el botón —ni la maquinaria de descarga del navegador ni la pulsación sobre u
 es el corolario de la errata nº 124, y lo que se vea al pegarla es lo único que separa
 los dos casos que quedan abiertos: **si aparece el fichero, lo que falla es el enlace; si
 sale un error, es la ruta — y entonces el error la nombra**.
+
+---
+
+## LA DIANA HUMANA, DECLARADA — Y POR EL CAMINO PREVISTO (2026-09-11)
+
+`especificidad` salía `NO_CIERRA` en los once del panel humano con la corrida
+`blast-2026-09-09` registrada, leída y dando veredicto. **`NO_CIERRA` es la prueba de que
+la corrida se encuentra y se lee**: si la vinculación estuviera rota saldría `NOT_RUN` o
+`SIN_CONSULTAR`. Lo que faltaba era la entrada del humano en `data/diana/variantes.toml`,
+**ausente a propósito** hasta que hubiera una corrida de la que sacar las variantes — y
+eso es exactamente lo que pasó, así que el comentario que lo anunciaba se **sustituye**,
+no se borra: el hueco no era un descuido y su cierre tampoco es una excepción.
+
+- **No hizo falta repetir ningún BLAST**: los seis accessions estaban dentro del
+  `-outfmt 6` de la corrida del panel, que es donde el motivo del `NO_CIERRA` decía que
+  había que mirarlos. Mismo ciclo que cerró el ratón.
+- **`NM_000311.5` se CRUZA sin salir del repositorio**: es la referencia versionada del
+  panel humano (`reference.REFERENCES`, organismo «Homo sapiens»). La procedencia lo
+  afirma y `tests/test_la_DIANA_HUMANA_esta_declarada.py` lo contrasta **derivándolo** de
+  `REFERENCES`, no escribiendo el accession (principio nº 13). El mismo cruce corre para
+  **todas** las especies de la tabla, así que una tercera entra cubierta sola.
+- **El alcance va escrito en `verificado`**: RefSeq Curated **no trae los predichos**
+  (`XM_`/`XR_`), así que si una corrida futura acierta contra una isoforma predicha de
+  PRNP, ésa no está en la lista y saldrá como off-target — el motivo del FAIL la nombrará
+  y se añade aquí. Es el ciclo previsto, no un fallo.
+- **Medido**: con la entrada puesta, la misma corrida guardada pasa de `NO_CIERRA` a
+  **`PASS`** en los once.
+
+### Y DECLARARLA PUSO ROJO EL CONTROL DE «NUNCA UN PASS POR UNA LISTA VACÍA»
+
+`test_la_diana_no_es_un_offtarget` usaba `species="human"` como su especie **sin
+declarar**. El test no estaba mal escrito para lo que probaba: estaba **atado a que nadie
+declarara esa especie**, que es justo lo que el propio fichero de datos anuncia que va a
+pasar.
+
+**Y el rojo es el caso AFORTUNADO.** Si el orden hubiera sido el contrario —declarar una
+especie que un test usa como control y que ese control siguiera pasando por otra razón—
+el guardia de la errata nº 56 se habría quedado sin ejercitar **en silencio**, que es el
+`verify()` de la errata nº 29.
+
+Así que la especie de control **se DERIVA de la tabla** (`tests/especie_sin_diana.py`):
+un slug que la tabla NO declara, comprobado por los dos caminos —la tabla y el cargador—
+y que **ABORTA** si algún día todas las candidatas están declaradas. Devolver una
+cualquiera dejaría a esos tests comprobando el camino CONTRARIO al que creen y pasando
+igual.
+
+## HAY CORRIDA Y NO CIERRA: LA TARJETA DECÍA «FALTA EL RECURSO» (2026-09-11)
+
+Con los once en `NO_CIERRA`, la tarjeta de `especificidad` pintaba **«NOT_RUN en 2414 de
+2414 ventanas: falta el recurso»**. Las dos frases eran ciertas y contestaban a preguntas
+distintas: la de la tarjeta es del **escáner de ventana**, que no ha corrido porque falta
+`refseq_rna_human.fa`; la de la celda es la de la **corrida guardada**, que sí está y lo
+que dice es que no puede dar veredicto. **Se pintaba la de la pregunta que nadie había
+hecho**, y manda a descargar una base de decenas de GB que no habría desbloqueado nada —
+y que, con `MAX_SCANNABLE_NT`, tampoco cerraría el frente por esa vía.
+
+Eran **dos huecos y ninguno sustituye al otro**:
+
+- **el motivo se calculaba y se tiraba.** `_store_state` devolvía `.state.value` y
+  descartaba `.reason`, así que aguas arriba no había forma de decir POR QUÉ una corrida
+  guardada no cierra su frente. Ahora `_store_verdict` devuelve el par y `_store_state` es
+  su **proyección**: separarlos daría dos caminos que pueden contestar cosas distintas
+  sobre el mismo candidato (principio nº 27). Lo mismo con
+  `store_verdicts_by_front` / `store_states_by_front`, cuya forma **no cambia** porque de
+  ella dependen muchos llamadores;
+- **`run_coverage` no tenía estado para «se consultó y no cierra».** `NO_CIERRA` es una
+  laguna —con razón: no da veredicto—, así que `cubiertos` salía **0** y el frente caía en
+  la rama «nadie ha tocado esto»: **indistinguible de un proyecto sin ninguna corrida**.
+
+`panel_states_by_front` emite ahora **tres** proyecciones de una sola pasada —`estados`,
+`origenes` y **`motivos`**— y `run_coverage` un tercer campo, **`bloqueo`**, que es lo que
+impide cerrar a los que YA se consultaron. **Los tres campos nunca llevan el mismo
+texto**: `motivo` dice por qué se cierra o cuánto falta por consultar, `avance` dice
+cuánto falta, y `bloqueo` dice qué bloquea — un campo que repite a otro es la errata
+nº 108.
+
+- **ENTRA POR `blocking_fronts`, no por la tarjeta** (`blocked_by_panel`). Ese motivo lo
+  leen la tarjeta, **el informe descargable** y la ficha, y metido por cada consumidor se
+  arregla uno y los demás siguen igual — que es exactamente lo que costó la errata nº 54.
+  Se aplica al final, sobre la lista entera, y no dentro de cada sitio que construye un
+  `BlockingFront`: esa función tiene cuatro `return` y siete puntos donde añade uno, así
+  que metido dentro quedaría fuera de los que se añadan después (principio nº 31).
+- **Sólo pisa a los que siguen ABIERTOS**: un frente cerrado ya tiene su motivo y
+  `closed_by_panel` manda.
+- **Los que NADIE MIRÓ se dicen APARTE**, en el mismo texto: a uno le falta una corrida y
+  al otro lo que diga su motivo. Repetir la misma corrida no cambia nada, y eso va escrito
+  con esas palabras.
+- **Y un motivo repetido se dice UNA vez**: con once candidatos y la misma causa, once
+  copias del mismo párrafo esconden el caso en que **no** son la misma.
+- **COMPROBADO que el guardia muerde**: con el `blocked_by_panel` desconectado, el test
+  reproduce el texto reportado letra por letra. Sin ese control, «la tarjeta dice el
+  motivo de la corrida» y «la tarjeta dice cualquier cosa» darían el mismo verde.

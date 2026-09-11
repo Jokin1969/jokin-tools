@@ -1022,9 +1022,9 @@ def build_document(
     """
     from .presentation import (
         chosen_starts,
-        fronts_closed_over_panel,
         log_fingerprint,
         panel_states_by_front,
+        run_coverage,
         run_provenance_rows,
     )
     from .selection import blocking_fronts
@@ -1049,13 +1049,25 @@ def build_document(
     vista_del_panel = panel_states_by_front(
         tiling, selection, species=species, stores=stores
     )
-    cerrados = fronts_closed_over_panel(
+    cobertura_del_panel = run_coverage(
         vista_del_panel["estados"],
         starts=panel_para_frentes,
         frame=_marco_del_panel(selection),
         origins=vista_del_panel["origenes"],
+        reasons=vista_del_panel["motivos"],
     )
-    frentes = blocking_fronts(tiling, selection, closed_by_panel=cerrados)
+    cerrados = {
+        f: d["motivo"] for f, d in cobertura_del_panel.items() if d["cerrado"]
+    }
+    # Y EL MOTIVO DE UN FRENTE QUE NO CIERRA ENTRA TAMBIEN AQUI (principio nº 23). El
+    # texto que decide si alguien sale a conseguir un fichero o a repetir una corrida no
+    # puede vivir solo en la pantalla: este documento es lo que se lee sin la app
+    # delante, y con «falta el recurso» mandaria al sitio equivocado.
+    bloqueados = {f: d["bloqueo"] for f, d in cobertura_del_panel.items() if d["bloqueo"]}
+    frentes = blocking_fronts(
+        tiling, selection,
+        closed_by_panel=cerrados, blocked_by_panel=bloqueados,
+    )
     abiertos = tuple(f.name for f in frentes if f.blocking)
     if dossier_starts is None:
         dossier_starts = tuple(c.start for c in selection.selection.chosen)

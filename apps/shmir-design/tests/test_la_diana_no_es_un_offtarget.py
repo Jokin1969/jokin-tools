@@ -23,6 +23,8 @@ import unittest
 from shmir_design import blast, blast_store, specificity
 from shmir_design.errors import ShmirDesignError
 from shmir_design.filters import FilterState
+
+from tests import especie_sin_diana
 from shmir_design.presentation import query_name
 
 #: SE LE PIDE al productor, no se transcribe. Escribir aqui el formato haria que este
@@ -134,7 +136,13 @@ class TestSinDIANAdeclaradaNOhayVEREDICTO(unittest.TestCase):
     """La condición sin la cual la exención sería un colador."""
 
     def test_una_especie_sin_declarar_da_NO_CIERRA_y_NO_un_PASS(self):
-        resultado = _corrida(_hit(DIANA[0])).verdict(CONSULTA, species="human")
+        # LA ESPECIE SE DERIVA DE LA TABLA. Aqui ponia `species="human"`, y el
+        # 2026-09-11 el humano se declaro: el test se puso rojo, y el rojo fue el caso
+        # AFORTUNADO — un control atado a que nadie declare cierta especie se desarma
+        # solo, y puede hacerlo en silencio. Ver `tests/especie_sin_diana.py`.
+        resultado = _corrida(_hit(DIANA[0])).verdict(
+            CONSULTA, species=especie_sin_diana.una()
+        )
         self.assertIs(resultado.state, FilterState.NO_CIERRA)
         self.assertIn("variantes de transcrito", resultado.reason)
 
