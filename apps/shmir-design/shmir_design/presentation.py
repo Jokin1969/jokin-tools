@@ -1952,6 +1952,23 @@ def seed_highlights(scan):
             ),
         },
         "tasa_base": {"activo": True, "texto": scan.base_rate.describe()},
+        # LA DEL EJE Y LA DE LA UNION SON DOS, y por eso son dos bloques. La primera es
+        # la del conjunto contra el que se emite ESTE veredicto; la segunda contesta la
+        # pregunta del CANDIDATO —«¿es notable estar limpio en los DOS?»— y con un solo
+        # organismo declarado no sale, porque ahi no hay union que contar.
+        "union": {
+            "activo": (
+                scan.union_rate is not None and scan.union_rate.is_union
+            ),
+            "texto": (
+                scan.union_rate.describe()
+                if scan.union_rate is not None and scan.union_rate.is_union else ""
+            ),
+        },
+        # CONTRA QUIEN se ha medido, arriba y no en el bloque descargable: con el eje
+        # dual, una tabla de resultados sin decir de que eje es se lee como si fuera de
+        # los dos.
+        "eje": {"activo": bool(scan.organism), "texto": scan.axis_line()},
     }
 
 
@@ -2434,13 +2451,26 @@ def seed_params_from_form(valores: dict):
     )
 
 
-def seed_run(selection, *, mature, params, species: str, starts, guides, passengers):
-    """Atajo con nombre estable para la pagina. La logica esta en `seed_scan`."""
+def seed_run(selection, *, mature, params, species: str, starts, guides, passengers,
+             organism: str):
+    """Atajo con nombre estable para la pagina. La logica esta en `seed_scan`.
+
+    **`organism` FALTABA AQUI y el modal no podia correr** (errata nº 159). Este atajo
+    TRANSCRIBE la firma de `run_scan`, asi que es una segunda definicion de la misma
+    lista de parametros: al entrar el eje de organismo se actualizo la de abajo y esta se
+    quedo atras, y la pagina —que llama por aqui— reventaba con un `TypeError` al pulsar.
+    Va **sin valor por defecto**, como en `run_scan`: el que saldria decidiria contra que
+    conjunto de maduros se compara (principio nº 58).
+
+    Lo que impide que vuelva a separarse no es este comentario: es
+    `tests/test_la_PAGINA_no_puede_llamar_a_lo_que_no_existe.py`, que cruza cada llamada
+    de la pagina contra la firma de verdad.
+    """
     from .seed_scan import run_scan
 
     return run_scan(
         selection, mature=mature, params=params, species=species, starts=starts,
-        guides=guides, passengers=passengers,
+        guides=guides, passengers=passengers, organism=organism,
     )
 
 

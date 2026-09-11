@@ -451,7 +451,12 @@ def union_base_rate(mature, params: SeedParams, prefixes) -> BaseRate:
     return BaseRate(
         matures=nombres, distinct=len(seeds), space=params.space,
         window=params.window, species_prefix="+".join(limpios), level=params.level,
-        union_of=tuple(limpios),
+        # `union_of` SOLO CON MAS DE UNO, y no es un detalle de formato: de ese campo
+        # depende QUE PREGUNTA dice contestar esta cifra. Con un solo eje no hay una
+        # segunda pregunta —«¿es notable estar limpio en los DOS?» no existe— y
+        # marcarla como union haria que la app pintara dos veces el mismo numero, una
+        # de ellas diciendo que no es la de ningun veredicto. Que es justo al reves.
+        union_of=tuple(limpios) if len(limpios) > 1 else (),
     )
 
 

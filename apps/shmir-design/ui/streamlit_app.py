@@ -3031,7 +3031,11 @@ def _modal_seed(seleccion, nombre: str, maduros, proyecto=None,
         st.info(cacheado["aviso"])
     if scan is not None:
         destacados = seed_highlights(scan)
+        if destacados["eje"]["activo"]:
+            st.info(destacados["eje"]["texto"])
         st.warning(destacados["tasa_base"]["texto"])
+        if destacados["union"]["activo"]:
+            st.caption(destacados["union"]["texto"])
         if destacados["mir30"]["activo"]:
             st.error(destacados["mir30"]["texto"])
         st.info(destacados["pasajeras"]["texto"])

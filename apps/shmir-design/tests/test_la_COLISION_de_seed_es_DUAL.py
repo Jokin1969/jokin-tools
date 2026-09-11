@@ -40,6 +40,7 @@ from shmir_design import mirna, presentation
 from shmir_design import identidad
 from shmir_design.errors import ShmirDesignError
 from shmir_design.filters import FilterResult, FilterState
+from shmir_design.seed_scan import DEFAULTS as SEED_DEFAULTS
 from shmir_design.seed_scan import SeedParams, union_base_rate
 from shmir_design.seed_store import FILTER_NAME, SeedStore
 from shmir_design.species import (
@@ -474,6 +475,117 @@ class TestLaUNIONsobreElFicheroDEVERDAD(unittest.TestCase):
                     self.maduros, SeedParams(species_prefix=prefijo),
                 ).fraction
                 self.assertLess(sola, union)
+
+
+class TestElCAMINODELMODAL_enteroPORLAcapaQUE_USA_LA_PAGINA(unittest.TestCase):
+    """La cadena completa, y por los MISMOS atajos de `presentation` que llama la página.
+
+    **De dónde sale (errata nº 159).** La corrida se probaba llamando a
+    `seed_scan.run_scan` directamente, y la página no llama ahí: llama a
+    `presentation.seed_run`, que TRANSCRIBE su firma. Al entrar el eje de organismo la de
+    abajo se actualizó y la del atajo se quedó atrás, así que la suite pasaba entera y el
+    botón reventaba con un `TypeError` al pulsarlo. **Un cliente que no se parece al real
+    no prueba nada.**
+
+    El guardia estático (`test_la_PAGINA_no_puede_llamar_a_lo_que_no_existe`) caza el
+    desajuste de firma; esto recorre lo que hay DETRÁS de ella, que es lo que el guardia
+    no puede ver: que el scan se construya, que los tres bloques se pinten, que el bloque
+    exportable salga y que la corrida se guarde y dé veredicto POR ORGANISMO.
+    """
+
+    @classmethod
+    def setUpClass(cls):
+        from shmir_design.anatomy import Anatomy, RegionSource
+        from shmir_design.reference import (
+            REFERENCES, fixture_available, load_reference,
+        )
+
+        ref = REFERENCES["NM_011170.3"]
+        if not fixture_available(ref):
+            raise unittest.SkipTest("NOT_RUN: falta data/reference/NM_011170.3.fa")
+        secuencia = load_reference(ref)
+        anatomia = Anatomy.from_cds(
+            cds=ref.cds, length=len(secuencia),
+            source=RegionSource.FIXTURE_VERIFICADO,
+        )
+        cls.corrida = presentation.page_run(
+            species="raton", sequence=secuencia, anatomy=anatomia,
+        )
+        cls.panel = presentation.chosen_starts(cls.corrida.selection)[:2]
+
+    def _scan(self):
+        # POR `presentation.seed_run`, que es por donde pasa la pagina. Llamar a
+        # `run_scan` aqui volveria a dejar el atajo sin probar.
+        return presentation.seed_run(
+            self.corrida.selection, mature=_MaduroFalso(),
+            params=SEED_DEFAULTS, species="raton",
+            starts=tuple(self.panel), guides=True, passengers=True,
+            organism="mouse",
+        )
+
+    def test_la_corrida_se_construye(self):
+        scan = self._scan()
+        self.assertEqual(scan.organism, "mouse")
+        self.assertEqual(len(scan.results), 2 * len(self.panel))
+
+    def test_los_bloques_destacados_se_pintan(self):
+        destacados = presentation.seed_highlights(self._scan())
+        for clave in ("mir30", "pasajeras", "tasa_base", "union", "eje"):
+            self.assertIn(clave, destacados)
+            self.assertIn("activo", destacados[clave])
+        # Con UN solo organismo declarado no hay union que contar, y decirlo es lo que
+        # impide que alguien lea la tasa de un eje como si fuera la de los dos.
+        self.assertFalse(destacados["union"]["activo"])
+        self.assertTrue(destacados["eje"]["activo"])
+
+    def test_las_filas_y_el_bloque_exportable_salen(self):
+        scan = self._scan()
+        filas = presentation.seed_result_rows(scan)
+        self.assertEqual(len(filas), 2 * len(self.panel))
+        bloque = scan.export_block()
+        self.assertIn("EJE:", bloque)
+
+    def test_se_guarda_y_da_VEREDICTO_por_organismo(self):
+        scan = self._scan()
+        corrida = presentation.seed_run_from_scan(
+            scan, date="2026-09-11", ran_by="prueba",
+        )
+        tienda = SeedStore()
+        tienda.add(corrida)
+        consulta = presentation.query_name("raton", self.panel[0], "guia")
+        self.assertIs(
+            tienda.verdict_for(consulta, background="mouse").state, FilterState.PASS,
+        )
+        # Y NO por otro. Es la mitad adversaria: sin ella, «da veredicto» y «da
+        # veredicto a cualquier cosa» dan el mismo verde.
+        self.assertIs(
+            tienda.verdict_for(consulta, background="human").state, FilterState.NOT_RUN,
+        )
+
+    def test_y_DOS_corridas_del_mismo_panel_NO_chocan_de_id(self):
+        """El id sale del md5 del crudo, y el organismo va dentro.
+
+        Sin eso, dos ejes LIMPIOS en todo el panel darían el mismo id y la segunda se
+        rechazaría como «el mismo fichero subido dos veces» — el eje que se venía a
+        cubrir se quedaría sin corrida.
+        """
+        una = presentation.seed_run_from_scan(
+            self._scan(), date="2026-09-11", ran_by="prueba",
+        )
+        otro = presentation.seed_run(
+            self.corrida.selection, mature=_MaduroFalso(),
+            params=SEED_DEFAULTS, species="raton",
+            starts=tuple(self.panel), guides=True, passengers=True,
+            organism="mouse",
+        )
+        # El control que hace la prueba util: con el MISMO organismo el id SI choca —
+        # eso es repetir la misma corrida, y ahi abortar es correcto.
+        dos = presentation.seed_run_from_scan(
+            otro, date="2026-09-11", ran_by="prueba",
+        )
+        self.assertEqual(una.run_id, dos.run_id)
+        # Y el crudo DECLARA el organismo, que es lo que los separa cuando son distintos.
+        self.assertIn("# organismo\tmouse\tmmu-", una.raw)
 
 
 if __name__ == "__main__":

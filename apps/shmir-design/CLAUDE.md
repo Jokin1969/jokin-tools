@@ -7754,3 +7754,49 @@ no es «el modal de seed falla» — es **«la página se corta por la mitad»**
   que había, y que NO muerde sobre las tres formas correctas que más aparecen en esa
   página —una variable atada dentro de un `if`, el objetivo de un `for`, un nombre que
   entra por un `import` local—. Más la prueba de vida: que el barrido encuentre la página.
+
+## Y AL DÍA SIGUIENTE, SOBRE EL ARREGLO DEL ANTERIOR: UN ATAJO QUE TRANSCRIBE UNA FIRMA (2026-09-11)
+
+Errata nº 159, reportada al pulsar el botón:
+
+```
+TypeError: seed_run() got an unexpected keyword argument 'organism'
+```
+
+`presentation.seed_run` es un **atajo con nombre estable para la página** que transcribe
+la firma de `seed_scan.run_scan`. Al entrar el eje de organismo se actualizó la de abajo
+y **la del atajo se quedó atrás**, así que la suite pasó entera —5415 en verde— y el modal
+reventaba al pulsar. Es el principio nº 13 sobre una **FIRMA**: una lista de parámetros
+transcrita es una segunda definición, y envejece por su cuenta.
+
+**Y entró en el mismo commit que arreglaba el `NameError` del día anterior**, lo cual es
+el argumento entero y no una anécdota: *quien acaba de mirar ese código es quien más cree
+que no le hace falta un guardia* (principio nº 26, otra vez y sobre sí mismo). El guardia
+de nombres no podía verlo — `seed_run` **sí** existe; lo que no existe es su parámetro.
+
+- **El mecanismo se derivó de la causa, no del síntoma.** La causa común de las dos
+  erratas es que la página **no se puede ejecutar en la suite**, así que las dos clases de
+  fallo que eso deja vivas —un nombre que no existe y una llamada que no encaja— se miran
+  en el FUENTE. El fichero pasa a llamarse
+  `test_la_PAGINA_no_puede_llamar_a_lo_que_no_existe.py` y cubre las dos.
+- **CALIBRADO contra el código que había** (principio nº 34): con `seed_run` sin
+  `organism`, el detector da **un hallazgo y es el fallo, en la línea 3022** — la misma
+  del traceback; con el arreglo, cero. Y sobre el paquete ENTERO, cero: no hay ninguna
+  otra llamada imposible.
+- **Se salta lo que no puede saber y lo dice**: llamadas con `*args`/`**kwargs`
+  desempaquetados, y callables sin firma introspectable. Un hallazgo sobre eso sería
+  adivinar. Sólo mira lo importado de `shmir_design.*`: de Streamlit y de la estándar no
+  movemos nosotros las firmas, y meterlas daría rojos ciertos sobre código correcto el día
+  que una versión cambie un opcional.
+- **Y NO BASTA CON EL GUARDIA ESTÁTICO**, así que entra además la cadena entera por los
+  MISMOS atajos que usa la página (`presentation.seed_run` → `seed_highlights` →
+  `seed_result_rows` → `export_block` → `seed_run_from_scan` → `verdict_for`). La corrida
+  se probaba llamando a `run_scan` **directamente**, y la página no llama ahí: **un cliente
+  que no se parece al real no prueba nada**, que es la lección del test de humo del hub
+  aplicada un piso más abajo.
+
+**Un detalle que salió al recorrer la cadena**: `union_base_rate` marcaba como UNIÓN la
+tasa de un solo prefijo, así que con el ratón la app habría pintado **dos veces el mismo
+número**, uno de ellos diciendo «no es la de ningún veredicto» — que es justo al revés. De
+ese campo depende qué pregunta dice contestar la cifra, así que `union_of` sólo se rellena
+con más de uno.
