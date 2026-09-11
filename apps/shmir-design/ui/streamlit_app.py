@@ -185,6 +185,7 @@ from shmir_design.presentation import (  # noqa: E402
     obtencion_rows,
     offtarget_catalog_from_deposit,
     offtarget_catalog_options,
+    offtarget_catalog_summary,
     WHY_TWO_CATALOGUES,
     WHY_TWO_MIRNA_SETS,
     MIRNA_AXIS_IS_ONE_FILE,
@@ -3445,10 +3446,16 @@ def _modal_offtarget(seleccion, nombre: str, maduros, diana: str,
         return
     fondo = str(elegido["catalogo"])
 
-    catalogo = offtarget_catalog_from_deposit(
+    # EL CATALOGO NO SE ABRE AQUI (2026-09-11, errata nº 160). Abrirlo es leer el
+    # fichero entero, calcularle el md5, parsearlo y auditarle las isoformas — y esto se
+    # ejecuta en CADA repintado, o sea en cada tecla. Con un catalogo humano eso son ~6 s
+    # y ~340 MB por pulsacion. Lo que hace falta antes de correr no es el catalogo: es
+    # saber CUAL es y que esta, y eso lo dice la linea del manifiesto. El fichero se abre
+    # dentro del boton, que es cuando hace falta.
+    resumen = offtarget_catalog_summary(
         species=nombre, directory=reference_dir(), role=str(elegido["rol"]),
     )
-    if catalogo is None:
+    if not resumen["presente"]:
         # SOLO se ofrece subida si el fichero NO esta. `presentation` lo decide.
         if not any(
             f["ofrecer_subida"] and f["nombre"] == elegido["nombre"] for f in filas
@@ -3518,7 +3525,11 @@ def _modal_offtarget(seleccion, nombre: str, maduros, diana: str,
                 st.rerun()
         return
 
-    st.success(offtarget_placeholder(catalogo)["texto"])
+    st.success(resumen["texto"])
+    # LO QUE VA A COSTAR, ANTES de pulsar. Con un catalogo humano son decenas de segundos
+    # y cientos de MB: si el contenedor no tiene ese margen el proceso muere y la pagina
+    # se queda en «Connecting», que NO es que la corrida siga.
+    st.warning(resumen["coste"])
 
     st.subheader("Ajustes")
     valores = {}
@@ -3568,11 +3579,22 @@ def _modal_offtarget(seleccion, nombre: str, maduros, diana: str,
     ):
         # Mismo motivo que en el modal de seed: el scan tiene que sobrevivir al rerun.
         # Y con la misma HUELLA, por el mismo motivo: ver `WHY_A_RUN_FINGERPRINT`.
-        st.session_state[f"ot_scan_{nombre}_{fondo}"] = (huella, offtarget_run(
-            seleccion, catalog=catalogo, mature=maduros, params=params,
-            species=nombre, starts=tuple(starts), guides=True, passengers=True,
-            target=diana, target_label=f"3'UTR de {nombre}", background=fondo,
-        ))
+        #
+        # AQUI, Y NO ARRIBA, es donde se abre el catalogo: leerlo entero, calcularle el
+        # md5, parsearlo y auditarle las isoformas cuesta el fichero completo, y arriba
+        # eso se ejecutaba en cada repintado (errata nº 160).
+        with st.spinner(resumen["coste"]):
+            catalogo = offtarget_catalog_from_deposit(
+                species=nombre, directory=reference_dir(), role=str(elegido["rol"]),
+            )
+            if catalogo is None:
+                st.error(offtarget_placeholder(None, species=nombre)["texto"])
+                return
+            st.session_state[f"ot_scan_{nombre}_{fondo}"] = (huella, offtarget_run(
+                seleccion, catalog=catalogo, mature=maduros, params=params,
+                species=nombre, starts=tuple(starts), guides=True, passengers=True,
+                target=diana, target_label=f"3'UTR de {nombre}", background=fondo,
+            ))
     # La pagina NO decide si lo cacheado sirve: lo decide `cached_run`. Estaba aqui,
     # copiado en los dos modales, y por tanto sin test y pudiendo divergir.
     cacheado = cached_run(st.session_state.get(f"ot_scan_{nombre}_{fondo}"), huella)

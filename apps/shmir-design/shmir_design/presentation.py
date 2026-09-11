@@ -4885,6 +4885,81 @@ def seed_axis_missing_text(species: str) -> str:
     return f"{base.reason} {MIRNA_AXIS_IS_ONE_FILE}"
 
 
+#: LO QUE CUESTA ABRIR EL CATALOGO, MEDIDO (2026-09-11) y no estimado. Son tasas, no
+#: tiempos: el tiempo sale de multiplicarlas por el tamaño del fichero que se cargue.
+#:
+#: Medido en este entorno sobre FASTA sintetico —se mide COSTE, no biologia— con los
+#: mismos `validate_upload` y `build_index` que corre la app:
+#:   · leer + md5 + parsear + auditar isoformas … ~29 Mnt/s
+#:   · construir el indice de 8-meros ……………………… ~4 Mnt/s, y ~3,2 bytes de RSS por nt
+#:
+#: Con un catalogo humano de ~170 Mnt eso es ~6 s de apertura y ~42 s de indice, con un
+#: pico de ~550 MB POR ENCIMA de lo que ya ocupa Streamlit. No es una curiosidad: es lo
+#: que decide si el contenedor aguanta, y hasta hoy `COSTE_POR_ALCANCE` declaraba este
+#: modal como NO MEDIDO — o sea que el boton se ofrecia sin saber lo que costaba.
+COSTE_DEL_CATALOGO = {
+    "abrir_mnt_por_s": 29.0,
+    "indice_mnt_por_s": 4.0,
+    "indice_bytes_por_nt": 3.2,
+}
+
+
+def offtarget_catalog_summary(*, species: str, directory, role: str = "") -> dict:
+    """Lo que se sabe del catalogo SIN ABRIRLO. Es lo que se pinta antes de correr.
+
+    **POR QUE EXISTE (2026-09-11).** `offtarget_catalog_from_deposit` LEE EL FICHERO
+    ENTERO, le calcula el md5, lo parsea y le audita las isoformas — y el modal lo
+    llamaba **fuera del boton**, o sea en CADA repintado. En Streamlit cada tecla es un
+    repintado, asi que con un catalogo humano eso son ~6 s y ~340 MB por pulsacion de
+    tecla. Es la errata nº 59 en el camino vivo y con un fichero veinte veces mayor.
+
+    Lo que hace falta ANTES de correr no es el catalogo: es saber **cual es** y que esta.
+    Y eso lo dice la linea del manifiesto —ensamblaje, tabla, fecha, md5, tamaño—, que
+    ya esta leida. El fichero se abre cuando se pulsa, que es cuando hace falta.
+
+    Lo unico que se pierde es el RECUENTO de registros, que solo se sabe parseando. Se
+    dice **cuando se corre**, y hasta entonces sale el tamaño — que identifica el
+    fichero igual de bien y no cuesta nada.
+    """
+    from .deposito import read_deposit  # noqa: PLC0415
+    from .species import ROL_CATALOGO_DIANA, resolve  # noqa: PLC0415
+
+    fichero = read_deposit(
+        role or ROL_CATALOGO_DIANA, species=resolve(species), directory=directory
+    )
+    if not fichero.present:
+        return {"presente": False, "nombre": fichero.filename, "texto": "", "coste": ""}
+    entrada = fichero.entry
+    procedencia = (
+        f"{entrada.assembly}, {entrada.table_date}" if entrada is not None
+        and str(getattr(entrada, "assembly", "")).strip() else "procedencia incompleta"
+    )
+    mnt = fichero.size / 1e6
+    return {
+        "presente": True,
+        "nombre": fichero.filename,
+        "md5": fichero.md5,
+        "mnt": mnt,
+        "texto": (
+            f"CARGA DE OFF-TARGETS POR SEED — catálogo en el depósito: "
+            f"`{fichero.filename}` ({procedencia}, {mnt:.0f} MB, md5 "
+            f"{fichero.md5[:8]}…). El recuento de registros sale al correr: leerlo "
+            f"entero para pintarlo costaría el fichero completo en cada repintado."
+        ),
+        # LO QUE VA A COSTAR, ANTES de pulsar y no despues. Sale de tasas MEDIDAS por el
+        # tamaño de ESTE fichero, no de un numero escrito.
+        "coste": (
+            f"Al pulsar: abrir y auditar el catálogo ~"
+            f"{mnt / COSTE_DEL_CATALOGO['abrir_mnt_por_s']:.0f} s, construir el índice "
+            f"de 8-meros ~{mnt / COSTE_DEL_CATALOGO['indice_mnt_por_s']:.0f} s, con un "
+            f"pico de ~{mnt * COSTE_DEL_CATALOGO['indice_bytes_por_nt']:.0f} MB de "
+            f"memoria POR ENCIMA de lo que ya ocupa la interfaz. Si el contenedor no "
+            f"tiene ese margen, el proceso muere y la página se queda en «Connecting»: "
+            f"eso NO es que la corrida siga — es que se ha caído."
+        ),
+    }
+
+
 def offtarget_catalog_from_deposit(*, species: str, directory, gene_map=None,
                                    role: str = ""):
     """El catálogo Y SU PROCEDENCIA, del depósito. Cero campos que rellenar.
@@ -5098,12 +5173,15 @@ COSTE_POR_ALCANCE: dict[str, CosteDelAlcance] = {
     ),
     "corrida_offtarget": CosteDelAlcance(
         unidad="consulta de off-target", unidad_plural="consultas de off-target",
-        medido=False,
+        medido=True,
         texto=(
-            "El coste NO está medido con el catálogo delante: el índice se construye una "
-            "vez, pero la distribución nula son 10.000 sorteos POR CONSULTA. Con el "
-            "alcance grande eso se multiplica, y aquí nadie ha cronometrado cuánto. Se "
-            "dice en vez de dar un número inventado."
+            "MEDIDO (2026-09-11), y lo caro NO es el alcance: es el CATÁLOGO. El índice "
+            "de 8-meros se construye UNA vez y cuesta ~4 Mnt/s con un pico de ~3,2 bytes "
+            "por nt —con un catálogo humano, decenas de segundos y cientos de MB—; la "
+            "nula son 10.000 sorteos por consulta pero sólo hay ~5.000 permutaciones "
+            "distintas de un heptámero y se cachean, así que doblar el alcance casi no "
+            "mueve el total. Lo que decide si esto cabe es la memoria del contenedor, y "
+            "sale escrito antes de pulsar."
         ),
     ),
     "corrida_empalme": CosteDelAlcance(

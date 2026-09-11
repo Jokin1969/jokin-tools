@@ -103,23 +103,52 @@ class TestLoQueDICE_la_etiqueta(unittest.TestCase):
             fila["consultas"], fila["candidatos"] * len(presentation.STRANDS)
         )
 
+    #: Los tipos que necesitan `units` para poder emitir el alcance. Se declara aqui
+    #: porque es de la LLAMADA, no de la clasificacion del coste.
+    UNIDADES = {"corrida_empalme": ("mvm_actual",)}
+
+    def _fila(self, tipo):
+        return presentation.scope_rows(
+            self.sel, kind=tipo, units=self.UNIDADES.get(tipo),
+        )[1]
+
     def test_donde_el_coste_NO_esta_medido_la_etiqueta_LO_DICE(self):
         # Es la condicion con la que se pidio: mejor «no medido» que un numero inventado.
-        for tipo, unidades in (
-            ("corrida_offtarget", None), ("corrida_empalme", ("mvm_actual",)),
-        ):
+        #
+        # QUE TIPOS SON SE DERIVA de `COSTE_POR_ALCANCE`, no se escriben (principio
+        # nº 13). Estaban transcritos, y el dia que uno se midiera —`corrida_offtarget`,
+        # el 2026-09-11— este test se ponia rojo sobre un cambio correcto: afirmaba una
+        # clasificacion en vez de comprobar la invariante.
+        sin_medir = [
+            k for k, c in presentation.COSTE_POR_ALCANCE.items() if not c.medido
+        ]
+        for tipo in sin_medir:
             with self.subTest(tipo):
-                fila = presentation.scope_rows(self.sel, kind=tipo, units=unidades)[1]
+                fila = self._fila(tipo)
                 self.assertFalse(fila["coste_medido"])
                 self.assertIn("NO está medido", fila["coste"])
 
     def test_y_donde_SI_lo_esta_no_dice_que_no(self):
         # Control adversario: si todo dijera «no medido», la distincion no distinguiria.
-        for tipo in ("corrida_blast", "corrida_seed"):
+        medidos = [k for k, c in presentation.COSTE_POR_ALCANCE.items() if c.medido]
+        for tipo in medidos:
             with self.subTest(tipo):
-                fila = presentation.scope_rows(self.sel, kind=tipo)[1]
+                fila = self._fila(tipo)
                 self.assertTrue(fila["coste_medido"])
                 self.assertNotIn("NO está medido", fila["coste"])
+
+    def test_y_HAY_DE_LOS_DOS_porque_si_no_la_distincion_no_distingue(self):
+        # Prueba de vida (principio nº 51): con todo medido —o nada— los dos tests de
+        # arriba pasarian sin comprobar nada. El dia que se mida el ultimo, esto lo dice
+        # y se decide si la distincion sigue haciendo falta.
+        medidos = {k for k, c in presentation.COSTE_POR_ALCANCE.items() if c.medido}
+        sin_medir = set(presentation.COSTE_POR_ALCANCE) - medidos
+        self.assertTrue(medidos, "ningun coste declarado como medido")
+        self.assertTrue(
+            sin_medir,
+            "ya estan TODOS medidos: los dos tests de arriba dejan de distinguir nada "
+            "y hay que decidir si la etiqueta «NO está medido» sigue teniendo caso.",
+        )
 
     def test_el_coste_esta_declarado_para_los_CUATRO_modales(self):
         # Se cruza contra `insumos.CONSUMIDOS`, que es la tabla que ya declara los tipos

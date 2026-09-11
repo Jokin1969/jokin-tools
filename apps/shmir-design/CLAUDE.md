@@ -7800,3 +7800,63 @@ tasa de un solo prefijo, así que con el ratón la app habría pintado **dos vec
 número**, uno de ellos diciendo «no es la de ningún veredicto» — que es justo al revés. De
 ese campo depende qué pregunta dice contestar la cifra, así que `union_of` sólo se rellena
 con más de uno.
+
+## «CONNECTING» EN OFF-TARGETS: EL CATÁLOGO SE ABRÍA EN CADA REPINTADO (2026-09-11)
+
+Errata nº 160. Se pulsa «Contar off-targets — Homo sapiens contra human» y la página se
+queda en **«Connecting»**.
+
+**Lo primero, porque decide qué se mira**: «Connecting» es el cartel de RECONEXIÓN de
+Streamlit — el WebSocket con el servidor se ha caído. **No es que la corrida siga**: es que
+del otro lado ya no hay nadie. Leerlo como «está trabajando» es lo que hace esperar media
+hora a algo que ya ha muerto.
+
+**LA CAUSA NO SE HA PODIDO REPRODUCIR DESDE AQUÍ Y NO SE LE ASIGNA** (principio nº 3): no
+hay catálogo humano en este repositorio ni acceso al contenedor. Lo que sí se ha medido es
+lo que cuesta, y lo que había es indefendible por su cuenta.
+
+### MEDIDO, no estimado
+
+Sobre FASTA sintético —se mide COSTE, no biología— con las mismas funciones que corre la
+app (`validate_upload`, `build_index`):
+
+| | tasa medida | con un catálogo humano (~170 Mnt) |
+|---|---|---|
+| abrir: leer + md5 + parsear + auditar isoformas | **~29 Mnt/s** | **~6 s** |
+| construir el índice de 8-meros | **~4 Mnt/s** | **~42 s** |
+| memoria del índice | **~3,2 B por nt** | **~550 MB** de pico |
+
+Los ~550 MB van **POR ENCIMA** de lo que ya ocupa Streamlit con pandas, pyarrow y numpy
+dentro. Si el contenedor no tiene ese margen, el proceso muere y lo que se ve es
+exactamente «Connecting».
+
+### Y `_modal_offtarget` llamaba a `offtarget_catalog_from_deposit` FUERA DEL BOTÓN
+
+O sea: leer el fichero entero, calcularle el md5, parsearlo y auditarle las isoformas **en
+cada repintado** — y en Streamlit **cada tecla es un repintado**. Con el catálogo humano,
+~6 s y ~340 MB por pulsación de tecla, antes siquiera de pulsar el botón. Es la **errata
+nº 59 en el camino vivo** y con un fichero veinte veces mayor.
+
+Lo que hace falta ANTES de correr no es el catálogo: es saber **cuál es y que está**, y eso
+lo dice la línea del manifiesto, que ya está leída. `offtarget_catalog_summary` la emite —
+ensamblaje, tabla, fecha, md5, tamaño— **sin abrir nada**, y el fichero se abre dentro del
+botón.
+
+- **Lo único que se pierde es el RECUENTO de registros**, que sólo se sabe parseando. Sale
+  al correr, y hasta entonces se da el **tamaño**, que identifica el fichero igual de bien
+  y no cuesta nada. Decirlo importa: un campo que desaparece sin explicación se lee como
+  que se ha perdido el dato.
+- **EL COSTE SALE ESCRITO ANTES DE PULSAR**, derivado de las tasas medidas × los MB de ESE
+  fichero — no un texto fijo. Y dice la consecuencia con esas palabras: *si el contenedor
+  no tiene ese margen, el proceso muere y la página se queda en «Connecting»; eso NO es que
+  la corrida siga*.
+- **`COSTE_POR_ALCANCE` declaraba este modal `medido=False`** —«aquí nadie ha cronometrado
+  cuánto»— y el botón se ofrecía igual. Ya no: y lo que la medida enseña es que **lo caro
+  no es el alcance, es el CATÁLOGO**. El índice se construye una vez, y la nula son 10.000
+  sorteos por consulta pero sólo hay ~5.000 permutaciones distintas de un heptámero **y se
+  cachean**, así que doblar el alcance casi no mueve el total. Lo que decide si esto cabe
+  es la memoria.
+- **El guardia resuelve sobre el AST, no por sangrado**: una llamada dentro de un `with`
+  dentro del `if` sigue colgando del botón, y contarla sería un falso positivo.
+  CALIBRADO: sobre `origin/main` da **un hallazgo y es el fallo**; sobre el árbol
+  arreglado, cero.
