@@ -9050,6 +9050,50 @@ def run_fingerprint(*partes) -> str:
     return hashlib.md5(crudo.encode("utf-8")).hexdigest()
 
 
+def deposit_fingerprint(directory, *, species: str) -> str:
+    """La HUELLA del deposito: cambia si cambia cualquier fichero, y NO cuesta nada.
+
+    Sale de `stat` —nombre, tamaño y mtime de cada fichero— mas la especie, que decide
+    QUE roles se conectan. **No se usa el md5**, y es a proposito: recalcularlo obligaria
+    a leer los ficheros enteros, que es exactamente lo que esta huella existe para
+    evitar. Un fichero reemplazado cambia tamaño o mtime; uno editado a mano conservando
+    los dos es el caso que esto no ve, y ahi manda el cargador, que si compara md5.
+
+    **De donde sale (2026-09-11, errata nº 161).** `load_from_manifest` CONECTA todos los
+    ficheros del deposito, y la pagina lo llamaba en cada repintado — o sea en cada
+    tecla. Con `transcriptoma_3utr_human.fa` dentro eso son, MEDIDOS sobre FASTA
+    sintetico con el mismo `load_utr3_set`: **~36 MB/s y ~4,4 MB de RSS por MB de
+    fichero**. Con un catalogo humano de ~170 MB, **~5 s y ~750 MB en cada repintado** —
+    y durante el repintado conviven la copia vieja y la nueva, asi que el pico dobla.
+    Es la errata nº 59 un piso mas arriba: alli era el barrido por ventana, aqui es la
+    CONEXION entera.
+    """
+    from pathlib import Path  # noqa: PLC0415
+
+    raiz = Path(directory)
+    piezas = [f"especie={species}"]
+    if raiz.is_dir():
+        for fichero in sorted(raiz.iterdir()):
+            if not fichero.is_file():
+                continue
+            info = fichero.stat()
+            piezas.append(f"{fichero.name}:{info.st_size}:{int(info.st_mtime)}")
+    from .identidad import result_fingerprint  # noqa: PLC0415
+
+    return result_fingerprint("\n".join(piezas))
+
+
+#: POR QUE LA CONEXION SE CACHEA, dicho donde se decide. No es una optimizacion suelta:
+#: sin esto la pagina no se puede usar con un catalogo de transcriptoma dentro.
+WHY_THE_DEPOSIT_IS_CACHED = (
+    "Conectar el depósito lee y parsea TODOS sus ficheros, y en Streamlit cada tecla es "
+    "un repintado. Con un catálogo de transcriptoma dentro eso son segundos y cientos de "
+    "MB por pulsación, así que la conexión se reutiliza mientras el depósito no cambie — "
+    "y la huella se calcula con `stat`, que no cuesta nada. Lo que NO se cachea es el "
+    "veredicto: el cargador sigue comprobando el md5 de cada fichero cuando conecta."
+)
+
+
 def cached_run(guardado, huella: str) -> dict:
     """¿Sirve todavía la corrida cacheada? El GUARDIA, y vive aquí, no en la página.
 

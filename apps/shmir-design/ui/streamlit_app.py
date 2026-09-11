@@ -50,6 +50,7 @@ from shmir_design.presentation import (  # noqa: E402
     anatomy_payload,
     load_stores,
     cached_run,
+    deposit_fingerprint,
     run_allowed,
     run_fingerprint,
     intron_architecture_note,
@@ -2263,9 +2264,26 @@ def main() -> None:
         # ROL sin mirar que especie se esta diseñando, y `rmsk_mouse.out` cabe de sobra
         # en un transcrito humano sin salirse de rango. Es el mismo agujero que cierra
         # `RepeatMask.query_length` un nivel mas abajo.
-        recursos = load_from_manifest(
-            reference_dir(), species=resolve_species(nombre_modelo),
+        #
+        # Y SE REUTILIZA MIENTRAS EL DEPOSITO NO CAMBIE (errata nº 161). Conectar lee y
+        # parsea TODOS los ficheros, y esto corre en CADA repintado: con
+        # `transcriptoma_3utr_human.fa` dentro son ~5 s y ~750 MB por tecla, y durante el
+        # repintado conviven la copia vieja y la nueva. La decision de si lo cacheado
+        # sirve NO vive aqui —la toma `cached_run`, el mismo guardia que usan los
+        # modales—; la pagina solo guarda y pregunta.
+        huella_deposito = deposit_fingerprint(
+            reference_dir(), species=nombre_modelo,
         )
+        conectado = cached_run(
+            st.session_state.get("recursos_conectados"), huella_deposito,
+        )
+        recursos = conectado["resultado"]
+        if recursos is None:
+            with st.spinner("Conectando los ficheros del depósito…"):
+                recursos = load_from_manifest(
+                    reference_dir(), species=resolve_species(nombre_modelo),
+                )
+            st.session_state["recursos_conectados"] = (huella_deposito, recursos)
 
         secuencias = {nombre_modelo: secuencia_modelo}
         genbanks = {nombre_modelo: gb_modelo}

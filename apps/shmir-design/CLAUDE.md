@@ -7860,3 +7860,64 @@ botón.
   dentro del `if` sigue colgando del botón, y contarla sería un falso positivo.
   CALIBRADO: sobre `origin/main` da **un hallazgo y es el fallo**; sobre el árbol
   arreglado, cero.
+
+## Y LO MISMO UN PISO MÁS ARRIBA: EL DEPÓSITO SE CONECTABA EN CADA REPINTADO (2026-09-11)
+
+Errata nº 161. Reportado el mismo día que la anterior y con otro botón: **«Generar los
+bloques listos para pedir de Homo sapiens» también se queda en «Connecting»**.
+
+**Dos botones que no comparten código cayendo igual apuntan a una causa COMÚN y arriba, no
+a dos arreglos abajo** — que es exactamente la lección de la errata nº 55, y es lo que
+hizo mirar en el sitio correcto a la primera.
+
+**MEDIDO: la rama de los bloques es INSTANTÁNEA con el humano.** El vector es el plásmido
+murino, así que `block_rows` devuelve la lista vacía (`vector_applies_to`) y el fragmento
+no se emite sin casete: `check_can_emit_dna`, `vector_note`, `block_rows`,
+`cassette_sequence` y `fragment_rows` suman **0,01 s**. Lo caro está antes, y corre pase lo
+que pase:
+
+```python
+recursos = load_from_manifest(reference_dir(), species=…)
+```
+
+`load_from_manifest` **conecta TODOS los ficheros del depósito por su rol**, y eso incluye
+el catálogo de transcriptoma. Medido sobre FASTA sintético —se mide COSTE, no biología—
+con el mismo `seed_load.load_utr3_set` que corre la app: **~36 MB/s y ~4,4 MB de RSS por MB
+de fichero**.
+
+| depósito | por repintado | RSS |
+|---|---|---|
+| `transcriptoma_3utr_human.fa` (~170 MB) | ~5 s | **~750 MB** |
+| + `transcriptoma_3utr.fa` (el fondo murino) | ~7 s | **~1,1 GB** |
+
+**En cada repintado, y en Streamlit cada tecla es un repintado** — y durante el repintado
+conviven la copia vieja y la nueva, así que el pico dobla. Es la errata nº 59 un piso más
+arriba: allí era el barrido por ventana, aquí es la CONEXIÓN entera.
+
+- **La causa del «Connecting» sigue sin declararse** (principio nº 3): no hay catálogo
+  humano en este repositorio ni acceso al contenedor. Lo que sí se declara es que esto no
+  se puede sostener aunque no fuera la causa.
+- **La conexión se REUTILIZA mientras el depósito no cambie.** La huella sale de `stat`
+  —nombre, tamaño y mtime de cada fichero, más la especie, que decide qué roles se
+  conectan— y cuesta **0,5 ms**. El md5 se descarta **a propósito**: recalcularlo obligaría
+  a leer los ficheros enteros, que es justo lo que esta huella existe para evitar.
+- **Y lo que la huella NO ve va escrito**: un fichero editado a mano conservando tamaño y
+  mtime no la mueve. Ahí manda el cargador, que sí compara md5 en cada conexión. Sin esa
+  frase, una huella de `stat` se lee como una garantía de integridad y no lo es.
+- **La decisión de si lo cacheado sirve NO vive en la página**: la toma `cached_run`, el
+  mismo guardia que ya usan los modales. Escrita a mano en `main()` sería la tercera copia
+  de esa regla.
+- **El guardia es de SIGNIFICADO, no de forma**: una conexión es segura si la función que
+  la contiene consulta antes `cached_run` con la huella. Exigir un `if` concreto daría
+  rojos sobre código correcto escrito de otra manera. CALIBRADO: sobre `origin/main` da
+  **un hallazgo y es el fallo, en la línea 2266**; sobre el árbol arreglado, cero.
+
+**LO QUE ESTO NO ARREGLA, y hay que decidirlo aparte**: cacheada o no, la conexión del
+panel humano deja **~1,1 GB residentes** mientras la pestaña esté abierta. Si el contenedor
+no tiene ese margen, sigue muriendo. Y lo que ese gigabyte compra en el diseño son **tres
+columnas comparativas** (`tilado_8mer`, `tilado_7mer-m8`, `tilado_7mer-A1`) cuya versión
+autorizada —con percentil y con el `6mer`— sale de la corrida guardada del modal, no de
+aquí. El transcriptoma es un fichero del **MOMENTO 2** («los candidatos ya están; estos
+ficheros no cambian cuáles son, cambian cuáles sobreviven») y el diseño no lo necesita
+para tilar. Conectarlo para tilar no lo decidió nadie: pasó porque `load_from_manifest`
+conecta todo lo que tiene rol.
