@@ -36,6 +36,7 @@ from shmir_design.outputs import output_name  # noqa: E402
 from shmir_design.polya import normalize_sequence  # noqa: E402
 from shmir_design.presentation import (  # noqa: E402
     TABLE_ICON_NOTE,
+    table_cells,
     table_tsv,
     ACCION_DISENAR,
     ACCION_ESTIMAR,
@@ -1398,6 +1399,11 @@ def _tabla(filas, *, nombre: str, clave: str, **kwargs) -> None:
     Una tabla VACÍA se pinta y no ofrece salida: no hay nada que llevarse, y un enlace a
     un fichero vacío se lee como una descarga hecha.
     """
+    # Los vacíos de una columna numérica llegan como `None` y no como `""`, que es lo que
+    # convertía la columna entera en texto y ordenaba el puesto 11 entre el 1 y el 2. Lo
+    # decide `presentation.table_cells` (regla 6), aquí sólo se aplica — y se aplica a las
+    # DOS salidas, la pintada y la que se lleva, porque tienen que decir lo mismo.
+    filas = table_cells(filas)
     st.dataframe(filas, **kwargs)
     texto = table_tsv(filas)
     if not texto:

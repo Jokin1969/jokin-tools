@@ -4307,9 +4307,14 @@ def site_table_rows(tiling, selection, *, species,
                     None if ventana.evaluation.asymmetry is None
                     else round(ventana.evaluation.asymmetry, 2)
                 ),
+                # UNA CELDA NUMERICA VACIA ES `None`, NO `""`. Ver `EMPTY_NUMBER_IS_NULL`:
+                # `""` es una CADENA, asi que mezclaba texto con enteros en la misma
+                # columna y la tabla acababa siendo de TEXTO — con el puesto 11 ordenando
+                # entre el 1 y el 2. El significado no cambia: los ~270 sitios que no
+                # estan en el panel NO TIENEN puesto, y eso sigue saliendo vacio.
                 "rango": (
                     selection.selection.rank_of(ventana.window.start)
-                    if elegido is not None else ""
+                    if elegido is not None else None
                 ),
                 # El almacen MANDA donde tiene algo que decir; donde no, decide el
                 # filtro de la ventana. Y sólo sobre SU columna: `STORE_FOR_FRONT`.
@@ -8081,9 +8086,91 @@ def table_tsv(rows) -> str:
     return "\n".join(lineas)
 
 
+def cell_text(valor) -> str:
+    """El texto de UNA celda. `None` sale VACIO, nunca como la palabra «None».
+
+    Es la regla de siempre —una celda sin valor va vacia, nunca a cero y nunca a un texto
+    que parece un dato— y vive en un solo sitio porque tiene **dos** consumidores: el TSV
+    que se lleva una tabla y la tabla del informe descargable.
+
+    Lo cazo el diff del golden: al escribirse los vacios numericos como `None` (errata
+    nº 164), `informe_doc` hacia `str(f[c])` y empezo a imprimir `None` en la columna del
+    puesto de 273 filas. Escrita dos veces, una de las dos se habria quedado atras.
+    """
+    return "" if valor is None else str(valor)
+
+
 def _celda_tsv(valor) -> str:
     """El valor de una celda sin nada que descuadre la fila."""
-    return " ".join(str(valor).split("\t")).replace("\r\n", " ").replace("\n", " ")
+    texto = cell_text(valor)
+    return " ".join(texto.split("\t")).replace("\r\n", " ").replace("\n", " ")
+
+
+#: POR QUE UNA CELDA NUMERICA VACIA ES `None` Y NO `""` (errata nº 164).
+#:
+#: La regla de este proyecto es que un numero que no se calculo va **vacio, nunca a
+#: cero**: no haber contado y contar cero son cosas distintas. Lo que no dice esa regla
+#: es COMO se escribe ese vacio, y se venia escribiendo `""` — que es una CADENA.
+#:
+#: Con eso, `rango` llevaba 11 enteros y 273 cadenas vacias en la misma columna. Medido
+#: sobre la tabla real: pyarrow no puede tipar una columna mixta, **Streamlit lo registra
+#: con un traceback entero** («Applying automatic fixes…», que es un `_LOGGER.info`, no un
+#: error) y **se recupera convirtiendo la columna ENTERA a texto**.
+#:
+#: Y ahi esta el fallo que no se ve: una columna de puestos en TEXTO ordena
+#: lexicograficamente, asi que con once candidatos el 10 y el 11 se cuelan **entre el 1 y
+#: el 2**. La tabla se pinta perfecta y se ordena mal. Con `None` la columna sale numerica
+#: con huecos —Arrow la tipa a la primera— y el vacio se sigue viendo vacio.
+#:
+#: NO es un `0` disfrazado: `None` es exactamente «aqui no hay valor», que es lo que
+#: significa un sitio que no esta en el panel — no tiene puesto.
+EMPTY_NUMBER_IS_NULL = (
+    "Una celda numérica sin valor va a `None`, no a `\"\"`: la cadena vacía convierte la "
+    "columna entera en texto y entonces el puesto 11 ordena entre el 1 y el 2. Vacío se "
+    "sigue viendo vacío, y sigue sin ser cero."
+)
+
+
+def table_cells(rows):
+    """Las filas de UNA tabla con los vacios numericos como `None`. Decide aqui, no la
+    pagina (regla 6).
+
+    El criterio es POR COLUMNA y se DERIVA del contenido: una columna que lleva algun
+    numero y alguna cadena vacia es una columna numerica con huecos, y esos huecos son
+    nulos. Una columna de texto con celdas vacias **no se toca** — ahi `""` es el valor.
+
+    Se hace en el PINTOR UNICO y no en cada emisor: son 26 tablas, y arreglar la que
+    reventó dejaría a las otras 25 esperando su turno (principio nº 31). El emisor que ya
+    se conocia emite `None` por su cuenta; esto cubre a los que vengan.
+
+    Un `bool` NO cuenta como numero aunque Python lo herede de `int`: una columna de
+    `True`/`False`/`""` no es numerica, y tratarla como tal cambiaria lo que significa.
+    """
+    # Se materializa UNA vez: con un generador, recorrerlo dos veces lo dejaria vacio en
+    # la segunda y la tabla saldria sin filas, sin dar ningun error.
+    todas = list(rows or [])
+    filas = [f for f in todas if isinstance(f, dict)]
+    if len(filas) != len(todas):
+        # Algo que no es una fila: se devuelve tal cual en vez de adivinar su forma.
+        return todas
+    columnas = {clave for fila in filas for clave in fila}
+    numericas = {
+        col for col in columnas
+        if any(
+            isinstance(f.get(col), (int, float)) and not isinstance(f.get(col), bool)
+            for f in filas
+        )
+    }
+    if not numericas:
+        return filas
+    return [
+        {
+            clave: (None if clave in numericas and valor == "" and isinstance(valor, str)
+                    else valor)
+            for clave, valor in fila.items()
+        }
+        for fila in filas
+    ]
 
 
 def check_project_slug(slug: str) -> str:

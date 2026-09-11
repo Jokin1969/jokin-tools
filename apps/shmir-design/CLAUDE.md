@@ -8055,3 +8055,82 @@ esta familia»*. El `if` estaba escrito, con su motivo, en el mismo fichero y a 
 Lo fija `TestElINFORMEnoINVENTAlaCoordenada`, con las dos mitades: que `825` **no** salga
 etiquetado `3utr:`, y que **siga saliendo** en el recuento con su motivo — sin la segunda,
 «no inventa» y «no imprime nada» darían el mismo verde.
+
+## UNA CELDA NUMÉRICA VACÍA SE ESCRIBE `None`, NO `""` (2026-09-11)
+
+Errata nº 164. En la salida del proceso de producción:
+
+```
+pyarrow.lib.ArrowInvalid: ("Could not convert '' with type str: tried to convert to
+int64", 'Conversion failed for column rango with type object')
+```
+
+La regla de este proyecto es que un número que no se calculó va **vacío, nunca a cero**.
+Lo que esa regla **no** dice es CÓMO se escribe ese vacío, y se venía escribiendo `""` —
+que es una **cadena**. `site_table_rows` emitía 11 enteros y **273 cadenas vacías** en la
+misma columna: los ~270 sitios que no están en el panel no tienen puesto.
+
+### LO PRIMERO, porque decide qué se mira: NO ES LO QUE TUMBÓ EL PROCESO
+
+**Medido sobre el Streamlit que corre la app** (1.63.0), leyendo su fuente y
+reproduciéndolo: `convert_pandas_df_to_arrow_table` **captura** `pa.ArrowInvalid`, lo
+registra con un **`_LOGGER.info`** —de ahí el traceback entero en el log, debajo de
+«Applying automatic fixes for column types»— y **se recupera**. Sólo lanza si el segundo
+intento también falla.
+
+O sea: **es un INFO, no un error**, y que aparezca **demuestra que el proceso llegó a
+renderizar el panel de candidatos**. Confundirlo con la causa de un 503 es el principio
+nº 3, y el propio hub tiene escrito por qué enseña las últimas líneas **sin interpretar**:
+*un diagnóstico equivocado cuesta más que ninguno*.
+
+### EL FALLO REAL ES EL QUE NO SE VE: LA COLUMNA PASA A TEXTO
+
+Lo que hace `fix_arrow_incompatible_column_types` es convertir la columna **entera** a
+texto. Medido:
+
+| | tipo en Arrow | valores |
+|---|---|---|
+| con `""` (antes) | **`large_string`** | `['1', '', '11']` |
+| con `None` (ahora) | `double`, **a la primera** | `[1.0, None, 11.0]` |
+
+**Una columna de puestos en TEXTO ordena lexicográficamente**, así que con once
+candidatos el **10 y el 11 se cuelan entre el 1 y el 2**. La tabla se pinta perfecta y se
+ordena mal — la familia de siempre. `None` no es un cero disfrazado: es exactamente «aquí
+no hay valor», que es lo que significa un sitio sin puesto, y se sigue viendo vacío.
+
+### EL ARREGLO VA EN EL PINTOR ÚNICO, NO EN EL EMISOR QUE SALIÓ EN EL LOG
+
+Son **26 tablas** y `_tabla` es el único sitio que llama a `st.dataframe`. Arreglar
+`rango` y parar dejaría a las otras 25 esperando su turno (principio nº 31).
+
+- **`presentation.table_cells`** decide (regla 6): una columna que lleva **algún número y
+  alguna cadena vacía** es numérica con huecos, y esos huecos son nulos. Una columna de
+  **texto** con celdas vacías **no se toca** — ahí `""` es el valor. Y un `bool` **no
+  cuenta como número** aunque Python lo herede de `int`.
+- Se aplica a las **dos** salidas —la pintada y la que se lleva— porque tienen que decir
+  lo mismo.
+- El emisor conocido (`site_table_rows`) emite `None` por su cuenta: es lo que significa.
+
+### Y AL CAMBIARLO, EL GOLDEN CAZÓ LA OTRA MITAD
+
+`informe_doc` construía sus celdas con `str(f[c])`, así que el informe descargable empezó
+a imprimir **la palabra «None»** en la columna del puesto de **273 filas** — un texto que
+parece un dato. **19 líneas de diff, y ninguna la habría visto un test de presencia.**
+
+Y eran **CUATRO** sitios construyendo celdas a mano. La regla se puso en **`table()`**, el
+constructor de celdas del documento, no en los cuatro: ahí la tabla número cinco no puede
+volver a imprimirlo. `presentation.cell_text` es la única definición de «qué se imprime en
+una celda» y la leen el TSV y el documento — escrita dos veces, una se habría quedado
+atrás.
+
+**Con la regla puesta, el golden vuelve a ser idéntico byte a byte.** Eso es la
+comprobación de que el cambio es invisible donde tenía que serlo: el vacío se sigue
+viendo vacío.
+
+### Lo que queda dicho y NO se arregla de paso
+
+La columna sale **`double`**, así que el puesto se pinta `1.0` y no `1`. Dejarlo en
+entero con huecos pide un dtype **nullable de pandas**, o sea importar pandas en la
+página — y eso es una **dependencia nueva en la capa de interfaz**, que en este proyecto
+necesita autorización escrita (regla 6). No se toma de paso. Entre `1.0` bien ordenado y
+`1` ordenado mal, manda el orden.

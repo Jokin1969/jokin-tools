@@ -23,10 +23,14 @@ from shmir_design import presentation
 
 class TestElOrden(unittest.TestCase):
 
+    #: El sitio que no está en el panel NO TIENE puesto, y eso se escribe `None` desde la
+    #: errata nº 164 — con `""` la columna entera pasaba a texto y el puesto 11 ordenaba
+    #: entre el 1 y el 2. El fixture copia la forma que emite `site_table_rows`: un
+    #: cliente que no se parece al real no prueba nada.
     FILAS = [
-        {"elegido": False, "inicio": 100, "rango": ""},
+        {"elegido": False, "inicio": 100, "rango": None},
         {"elegido": True, "inicio": 200, "rango": 2},
-        {"elegido": False, "inicio": 300, "rango": ""},
+        {"elegido": False, "inicio": 300, "rango": None},
         {"elegido": True, "inicio": 400, "rango": 1},
     ]
 
