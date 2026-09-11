@@ -13,8 +13,18 @@ de un dato.
 
 from pathlib import Path
 
-RUTA = Path(__file__).resolve().parent.parent / "data" / "reference" / "addgene_111170.gb"
-HAY = RUTA.is_file()
+from tests.ficheros_del_deposito import falta, hay
+
+NOMBRE = "addgene_111170.gb"
+RUTA = Path(__file__).resolve().parent.parent / "data" / "reference" / NOMBRE
+
+#: Para `@unittest.skipUnless`. **NO es `RUTA.is_file()`**, que es lo que ponía aquí: un
+#: fichero de 0 bytes pasa `is_file()` y no contiene nada, así que los tests que cuelgan
+#: de esto correrían contra un GenBank vacío — y lo que sale de ahí no es un fallo de
+#: fichero, es una horquilla que no pliega y una densidad de dianas de cero, o sea un
+#: resultado con la forma correcta. Errata nº 15.
+HAY = hay(NOMBRE)
+FALTA = falta(NOMBRE)
 
 
 def texto() -> str:

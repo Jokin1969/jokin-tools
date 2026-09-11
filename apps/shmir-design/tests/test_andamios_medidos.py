@@ -16,6 +16,17 @@ from pathlib import Path
 
 from shmir_design.folding import VIENNA_AVAILABLE, dot_bracket
 
+from tests.ficheros_del_deposito import falta, hay
+
+#: Los tres plásmidos que se pliegan aquí, y ninguno está versionado. `cargar()` devuelve
+#: CADENA VACÍA cuando el fichero no está —regla 1: no se inventa secuencia— y eso es
+#: correcto y no basta: plegar una cadena vacía da `ΔG = 100000.0` y cero dianas, o sea
+#: un rojo que se lee como «este plásmido no pliega» en vez de como «no hay plásmido».
+#: Por eso el fichero ausente SALTA, con su nombre en el motivo.
+HAY_SGEP, FALTA_SGEP = hay("addgene_111170.gb"), falta("addgene_111170.gb")
+HAY_20670, FALTA_20670 = hay("addgene_20670.gb"), falta("addgene_20670.gb")
+HAY_78126, FALTA_78126 = hay("addgene_78126.gb"), falta("addgene_78126.gb")
+
 
 def bucles_terminales(estructura: str) -> int:
     """Cuántos BUCLES TERMINALES tiene. Una horquilla limpia tiene UNO.
@@ -62,13 +73,16 @@ def ventana_centrada(loop_a: int, loop_b: int, largo: int = 71) -> tuple[int, in
 
 
 @unittest.skipUnless(VIENNA_AVAILABLE, "NOT_RUN: falta ViennaRNA")
+@unittest.skipUnless(HAY_SGEP, FALTA_SGEP)
 class TestElCONTROLpositivo(unittest.TestCase):
     """SGEP, donde el andamio SÍ se conoce. Sin esto, los otros dos plegados no tienen
     contra qué compararse y un ΔG suelto no dice nada."""
 
     def test_centrar_el_loop_anotado_recupera_UNA_horquilla(self):
         sgep = cargar("addgene_111170.gb")
-        self.assertTrue(sgep, "falta addgene_111170.gb")
+        # Que ESTÉ ya lo decide el `skipUnless` de la clase; lo que esto exige es que
+        # además tenga secuencia — un `.gb` sin bloque ORIGIN pasaría lo otro.
+        self.assertTrue(sgep, "addgene_111170.gb está y no trae secuencia")
         a, b = ventana_centrada(1801, 1815)
         self.assertEqual((a, b), (1773, 1843))
         estructura, dg = dot_bracket(sgep[a - 1 : b])
@@ -90,6 +104,7 @@ class TestElVeredictoDE20670(unittest.TestCase):
     def test_la_ventana_derivada_es_126_196(self):
         self.assertEqual((self.a, self.b), (126, 196))
 
+    @unittest.skipUnless(HAY_20670, FALTA_20670)
     def test_las_bases_AMBIGUAS_caen_FUERA(self):
         """El fichero tiene 10 N desde la 710. Si cayeran dentro, el plegado no valdría
         y habría que decirlo en vez de dar un número."""
@@ -98,6 +113,7 @@ class TestElVeredictoDE20670(unittest.TestCase):
         self.assertLess(self.b, primera_n)
         self.assertEqual(self.seq[self.a - 1 : self.b].count("N"), 0)
 
+    @unittest.skipUnless(HAY_20670, FALTA_20670)
     def test_sale_una_horquilla_comparable_al_control(self):
         estructura, dg = dot_bracket(self.seq[self.a - 1 : self.b])
         emparejadas = sum(1 for c in estructura if c in "()")
@@ -105,6 +121,7 @@ class TestElVeredictoDE20670(unittest.TestCase):
         self.assertGreater(emparejadas / 71, 0.70, estructura)
         self.assertEqual(bucles_terminales(estructura), 1, estructura)
 
+    @unittest.skipUnless(HAY_20670, FALTA_20670)
     def test_y_el_rango_del_prompt_sale_PEOR_de_medida(self):
         """No es una corrección de estilo: son 14 kcal/mol y dos elementos en vez de uno.
         Centrar el loop no era un detalle."""
@@ -115,6 +132,7 @@ class TestElVeredictoDE20670(unittest.TestCase):
 
 
 @unittest.skipUnless(VIENNA_AVAILABLE, "NOT_RUN: falta ViennaRNA")
+@unittest.skipUnless(HAY_78126, FALTA_78126)
 class TestElVeredictoDE78126(unittest.TestCase):
     """NO sale horquilla: el hueco sin anotar es un POLILINKER VACÍO, y se descarta con
     motivo medido en vez de por ausencia de etiqueta."""

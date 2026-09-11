@@ -25,16 +25,30 @@ TABLA = tomllib.loads(
 
 
 class TestLaListaSeDERIVA(unittest.TestCase):
-    """Los artefactos salen del directorio, no de una lista transcrita: uno nuevo en
-    `data/reference/` entra solo en el radar (principio nº 13)."""
+    """Los artefactos salen del directorio Y del manifiesto, no de una lista transcrita:
+    uno nuevo en `data/reference/` entra solo en el radar (principio nº 13)."""
 
-    def test_los_artefactos_salen_del_DIRECTORIO(self):
-        reales = auditoria.artefactos_reales()
-        en_disco = sorted(
+    def test_TODO_lo_que_esta_en_el_DIRECTORIO_esta_en_la_lista(self):
+        reales = set(auditoria.artefactos_reales())
+        en_disco = {
             p.name for p in (RAIZ / "data" / "reference").iterdir() if p.is_file()
-        )
-        self.assertEqual(reales, en_disco)
-        self.assertIn("mature.fa", reales)
+        }
+        self.assertEqual(en_disco - reales, set())
+
+    def test_y_TAMBIEN_lo_que_el_MANIFIESTO_registra_aunque_no_este_bajado(self):
+        """La mitad que faltaba, y sin ella el auditor dependía de la máquina.
+
+        Casi ningún fichero de referencia entra en git —`mature.fa` son 5,6 MB, el
+        RefSeq entero cientos—, así que en un clon limpio el directorio tiene la mitad.
+        Derivando sólo de él, el auditor DEJABA DE VER las fabricaciones de la otra
+        mitad: seis se quedaban sin pedir justificación y cinco justificaciones vivas
+        pasaban a leerse como caducadas. El manifiesto está versionado, así que contesta
+        lo mismo aquí y en la máquina de quien ya se lo bajó todo.
+        """
+        reales = set(auditoria.artefactos_reales())
+        for nombre in ("mature.fa", "refseq_rna.fa", "transcriptoma_3utr.fa"):
+            with self.subTest(nombre):
+                self.assertIn(nombre, reales)
 
     def test_y_el_manifiesto_REAL_esta_entre_ellos(self):
         """El caso que enseñó la errata: existe de verdad y había un fixture parcial."""

@@ -25,11 +25,19 @@ from shmir_design import deposito, manifest, presentation, species
 from shmir_design.errors import ShmirDesignError
 from tests.sin_logica import comprobar_sin_logica
 
+from tests.ficheros_del_deposito import falta, hay
+
 RAIZ = Path(__file__).resolve().parent.parent
 DATOS = RAIZ / "data" / "reference"
 PAGINA = (RAIZ / "ui" / "streamlit_app.py").read_text(encoding="utf-8")
 
 CONEJO = "Oryctolagus cuniculus"
+
+#: Los dos ficheros del depósito que estos tests miran POR SU NOMBRE. No están
+#: versionados, así que en un clon limpio su ausencia no es un fallo del panel: es que no
+#: están. Se salta nombrándolos, que es lo que dice qué hay que conseguir.
+HAY_MATURE, FALTA_MATURE = hay("mature.fa"), falta("mature.fa")
+HAY_SGEP, FALTA_SGEP = hay("addgene_111170.gb"), falta("addgene_111170.gb")
 
 
 # ─────────────────────────── 1. el desplegable de especies ───────────────────────────
@@ -185,6 +193,7 @@ class TestLosFicherosQueNecesitaCadaEspecie(unittest.TestCase):
 
 class TestElPanelDeFicherosDeReferencia(unittest.TestCase):
 
+    @unittest.skipUnless(HAY_MATURE, FALTA_MATURE)
     def test_dice_cuales_ESTAN_y_cuales_NO(self):
         filas = presentation.reference_panel_rows("raton", directory=DATOS)
         por_nombre = {f["nombre"]: f for f in filas}
@@ -223,6 +232,7 @@ class TestElPanelDeFicherosDeReferencia(unittest.TestCase):
         self.assertIn("total", resumen)
         self.assertLessEqual(resumen["cerrables"], resumen["total"])
 
+    @unittest.skipUnless(HAY_SGEP, FALTA_SGEP)
     def test_y_el_recuento_esta_ANTES_de_ejecutar_nada(self):
         """No hace falta ni haber subido la secuencia para saberlo."""
         resumen = presentation.reference_panel_summary(CONEJO, directory=DATOS)
@@ -446,6 +456,7 @@ class TestIgnorarUnFicheroEsPOR_FICHERO_Y_CON_MOTIVO(unittest.TestCase):
         )
         self.assertIn("release 22", ignorado.reason)
 
+    @unittest.skipUnless(HAY_MATURE, FALTA_MATURE)
     def test_el_motivo_VIAJA_al_veredicto_no_se_queda_en_la_pantalla(self):
         from shmir_design.resources import load_from_manifest
 
@@ -458,6 +469,7 @@ class TestIgnorarUnFicheroEsPOR_FICHERO_Y_CON_MOTIVO(unittest.TestCase):
             any("prueba del motivo" in n for n in recursos.notes), recursos.notes
         )
 
+    @unittest.skipUnless(HAY_MATURE, FALTA_MATURE)
     def test_y_dice_QUE_FICHERO_se_ignoro_no_solo_que_algo_falta(self):
         from shmir_design.resources import load_from_manifest
 
@@ -482,6 +494,7 @@ class TestIgnorarUnFicheroEsPOR_FICHERO_Y_CON_MOTIVO(unittest.TestCase):
         recursos = load_from_manifest(DATOS, species=species.resolve("raton"))
         self.assertIsNotNone(recursos.mask)
 
+    @unittest.skipUnless(HAY_MATURE, FALTA_MATURE)
     def test_sin_ignorar_nada_el_fichero_se_usa(self):
         from shmir_design.reference import PACKAGE_REFERENCE_DIR
         from shmir_design.resources import load_from_manifest
@@ -530,6 +543,7 @@ class TestLosCuatroPasos(unittest.TestCase):
         self.assertIn(str(quinto["cerrables"]), quinto["detalle"])
         self.assertIn(str(quinto["total_frentes"]), quinto["detalle"])
 
+    @unittest.skipUnless(HAY_SGEP, FALTA_SGEP)
     def test_y_la_cifra_esta_CALCULADA_antes_de_ejecutar_nada(self):
         """Se sigue pudiendo saber que frentes cierran sin haber corrido: lo que cambia
         es DONDE se enseña, no cuando se puede saber."""

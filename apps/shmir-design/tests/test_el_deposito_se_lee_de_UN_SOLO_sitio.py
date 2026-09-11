@@ -31,14 +31,25 @@ from shmir_design.errors import ShmirDesignError
 from tests.test_el_transcriptoma_ENTRA import UCSC
 from tests.test_la_procedencia_se_pide_al_SUBIR import PROCEDENCIA
 
+from tests.ficheros_del_deposito import falta as _falta
+from tests.ficheros_del_deposito import hay as _hay
+
 RAIZ = Path(__file__).resolve().parent.parent
 DATOS = RAIZ / "data" / "reference"
+
+#: `mature.fa` es el fichero que estos dos tests usan como «el que SÍ está», y no está
+#: versionado. Sin él no fallan por lo que miran —el depósito se sigue leyendo de un solo
+#: sitio— sino porque el ejemplo elegido no existe: se salta nombrándolo. Los ayudantes
+#: llegan con guion bajo porque en este fichero `falta` ya es el nombre de una variable
+#: local, y dos cosas con el mismo nombre en el mismo módulo es como se lee una por otra.
+HAY_MATURE, FALTA_MATURE = _hay("mature.fa"), _falta("mature.fa")
 PAGINA = (RAIZ / "ui" / "streamlit_app.py").read_text(encoding="utf-8")
 RATON = species.resolve("raton")
 
 
 class TestLoQueElDepositoSABE(unittest.TestCase):
 
+    @unittest.skipUnless(HAY_MATURE, FALTA_MATURE)
     def test_un_fichero_que_ESTA_sale_con_su_md5_y_su_linea(self):
         fichero = deposito.read_deposit("mirbase", species=RATON, directory=DATOS)
         self.assertTrue(fichero.present)
@@ -192,6 +203,7 @@ class TestLosCUATRO_MODALES_preguntan_al_mismo_sitio(unittest.TestCase):
             presentation.deposit_note("corrida_empalme").lower(),
         )
 
+    @unittest.skipUnless(HAY_MATURE, FALTA_MATURE)
     def test_la_fila_dice_si_hay_que_OFRECER_SUBIDA(self):
         # «Sólo ofrece subida propia si el fichero no está.»
         falta = presentation.deposit_for_run(

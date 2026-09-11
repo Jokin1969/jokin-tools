@@ -35,6 +35,40 @@ FIXTURES = [
 
 sys.path.insert(0, str(RAIZ))
 
+from tests.ficheros_del_deposito import falta, hay  # noqa: E402
+
+#: La cabecera del bloque que cada informe escribe con los ficheros del depósito que usó.
+_PROCEDENCIA = "Procedencia de los ficheros de referencia usados"
+
+
+def deposito_del_golden(texto: str) -> list[str]:
+    """Los ficheros del depósito que ESE golden dice haber usado. Se DERIVAN de él.
+
+    **Por qué hace falta.** Las variantes con `--usar-manifiesto` conectan lo que haya en
+    el depósito, así que su salida depende de él — y casi nada del depósito entra en git.
+    En un clon limpio, sin `mature.fa`, los dos informes con manifiesto salen con una
+    ventana elegible más y el bloque de seed en `NOT_RUN`: un diff de 78 líneas que se lee
+    como «el informe ha cambiado» cuando lo que falta es un fichero de 5,6 MB.
+
+    **Y la lista no se escribe aquí.** El propio informe la lleva dentro —ese bloque
+    existe porque «sin estas líneas, dentro de un año nadie podrá saber con qué versión de
+    cada base se sacó este veredicto»— así que el golden ya declara contra qué depósito se
+    generó. Transcribirla sería la errata nº 28: una copia más que envejece por su cuenta,
+    y encima de un dato que el artefacto trae escrito.
+    """
+    lineas = texto.splitlines()
+    for i, linea in enumerate(lineas):
+        if _PROCEDENCIA not in linea:
+            continue
+        nombres = []
+        for siguiente in lineas[i + 1 :]:
+            if siguiente.strip().startswith("──"):
+                break
+            if siguiente.startswith("    ") and " — " in siguiente:
+                nombres.append(siguiente.strip().split(" — ", 1)[0])
+        return nombres
+    return []
+
 
 @unittest.skipUnless(
     all(f.is_file() for f in FIXTURES),
@@ -153,12 +187,35 @@ class TestLasVariantesTambienSeComparanENTERAS(unittest.TestCase):
         for nombre, argv in VARIANTES.items():
             with self.subTest(nombre):
                 destino = GOLDEN.parent / nombre
+                esperado = destino.read_text(encoding="utf-8")
+                # El golden declara contra qué depósito se generó; sin uno de ésos, lo
+                # que se compararía son dos corridas distintas.
+                ausentes = [f for f in deposito_del_golden(esperado) if not hay(f)]
+                if ausentes:
+                    self.skipTest(falta(*ausentes))
                 self.assertEqual(
                     generar(destino, argv),
-                    destino.read_text(encoding="utf-8"),
+                    esperado,
                     f"{nombre} ha cambiado. Si es deliberado: "
                     f"python3 tools/regenerar_golden.py, y el diff entra en la revisión.",
                 )
+
+    def test_y_la_lista_de_ese_deposito_SE_LEE_de_verdad(self):
+        """Prueba de vida (principio nº 51). Si el lector dejara de encontrar el bloque
+        —porque cambia su título o su sangría— devolvería una lista vacía, y el salto de
+        arriba no saltaría nunca: el diff de 78 líneas volvería, esta vez con un guardia
+        en verde al lado diciendo que había mirado."""
+        from tools.regenerar_golden import VARIANTES
+
+        con_manifiesto = [n for n in VARIANTES if "usar_manifiesto" in n]
+        self.assertTrue(con_manifiesto, "ninguna variante usa el manifiesto")
+        for nombre in con_manifiesto:
+            with self.subTest(nombre):
+                texto = (GOLDEN.parent / nombre).read_text(encoding="utf-8")
+                nombres = deposito_del_golden(texto)
+                self.assertIn("mature.fa", nombres)
+                # Y no se traga el informe entero: son nombres de fichero, no prosa.
+                self.assertTrue(all(" " not in n for n in nombres), nombres)
 
     def test_el_de_por_defecto_NO_lleva_ningun_parametro_puesto_a_mano(self):
         """La contramedida del principio nº 18, comprobada sobre el propio generador.
