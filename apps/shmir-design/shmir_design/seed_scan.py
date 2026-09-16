@@ -798,6 +798,25 @@ def run_scan(
     # tiene que decir por si solo contra que se midio (principio nº 35).
     crudas.insert(0, f"# organismo\t{eje}\t{prefijo}")
 
+    # LA IDENTIDAD DEL PANEL VA DENTRO DEL CRUDO. El `result_md5` es el md5 del crudo, y
+    # el crudo llevaba la posicion, el heptamero y la colision de cada consulta pero NO su
+    # SECUENCIA. PRNP esta muy conservado entre humano y raton, asi que dos paneles
+    # distintos pueden dar el MISMO heptamero en cada posicion; si ademas coincidieran las
+    # posiciones, sus crudos serian identicos y el segundo se rechazaria como «el mismo
+    # fichero subido dos veces» aunque son candidatos DISTINTOS sobre secuencias distintas
+    # (reporte 2026-09-11). La huella de las secuencias consultadas ATA el md5 al panel:
+    # misma secuencia, mismo panel; una sola base distinta, otro panel. No entra en el
+    # bloque exportable (`export_block`), que es lo que descarga la pagina, sino solo en el
+    # crudo que produce la huella, por la misma razon que el organismo de arriba. El md5
+    # se calcula en UN solo sitio (`identidad.panel_fingerprint`, que delega en
+    # `result_fingerprint`): aqui no se hashea a mano (principio nº 24).
+    from .identidad import panel_fingerprint  # noqa: PLC0415
+
+    panel_md5 = panel_fingerprint(
+        (r.start, r.strand, r.sequence) for r in resultados
+    )
+    crudas.insert(0, f"# panel\t{panel_md5}")
+
     return SeedScan(
         params=params, source=mature.provenance, results=tuple(resultados),
         base_rate=base_rate(mature, params), raw="\n".join(crudas) + "\n",
