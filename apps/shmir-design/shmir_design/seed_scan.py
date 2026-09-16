@@ -633,9 +633,27 @@ def run_scan(
         )
         crudas.append(f"{consulta}\t{hepta}\t{nivel}\t{','.join(nombres)}")
 
+    # LA CABECERA DEL PANEL EN EL RAW: dos paneles con las MISMAS seeds (PRNP
+    # conservado entre humano y ratón) tendrían `raw` idéntico SIN ella, y por tanto
+    # `result_md5` idéntico — el sistema lo rechazaría como duplicado aunque sean
+    # corridas sobre paneles distintos. La cabecera incluye el md5 de la secuencia de
+    # referencia del panel, que es ÚNICA para cada panel y diferente aunque los
+    # heptámeros sean iguales. Se calcula sobre esto, no se pinta: `result_fingerprint`
+    # la usa, pero no llega al fichero descargable (errata nº 158).
+    from .reference import sequence_md5
+    from .identidad import result_fingerprint
+
+    sequence_hash = sequence_md5(selection.sequence)
+    raw_with_panel_header = (
+        f"# Panel sequence: {sequence_hash}\n"
+        f"# Consulted starts: {','.join(str(q.split('_pos')[1].split('_')[0]) for q in (r.query for r in resultados))}\n"
+        f"\n"
+        f"{chr(10).join(crudas)}\n"
+    )
+
     return SeedScan(
         params=params, source=mature.provenance, results=tuple(resultados),
-        base_rate=base_rate(mature, params), raw="\n".join(crudas) + "\n",
+        base_rate=base_rate(mature, params), raw=raw_with_panel_header,
         core_note=nota_nucleo, species=species,
         mature_md5=mature.checksum, mature_version=mature.version,
     )
