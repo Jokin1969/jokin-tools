@@ -2738,6 +2738,7 @@ def _guardar_corrida(proyecto, nombre: str, *, construir, guardar, clave: str,
                     resumen = verdicts_changed(
                         tiling, seleccion, species=nombre,
                         before=antes, after=load_stores(proyecto),
+                        front=frente,
                     )
                     resumen = {
                         "verde": bool(resumen["con_veredicto"]),

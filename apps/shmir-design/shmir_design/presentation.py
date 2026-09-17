@@ -10608,8 +10608,8 @@ def run_provenance_rows(stores) -> list[dict[str, str]]:
 
 
 
-def verdicts_changed(tiling, selection, *, species: str, before, after
-                     ) -> dict[str, object]:
+def verdicts_changed(tiling, selection, *, species: str, before, after,
+                     front: str | None = None) -> dict[str, object]:
     """Que cambia una corrida al guardarla. Y DISTINGUE ganar un veredicto de no ganarlo.
 
     «Guardada en el log del proyecto» se leia como «hecho», y durante dias fue un guardado
@@ -10672,10 +10672,34 @@ def verdicts_changed(tiling, selection, *, species: str, before, after
             f"las de este panel."
         )
     else:
-        texto = (
-            "Guardada, y **0 veredictos actualizados**. Si esperabas que cerrara un "
-            "frente, algo no encaja: puede que sus consultas no sean las de este panel."
+        # CERO CAMBIOS TIENE DOS CAUSAS OPUESTAS, y una alarma para la otra confunde
+        # (reporte 2026-09-16, tras desbloquear el guardado de la corrida `mmu-` del
+        # panel humano): o el frente YA estaba cerrado por una corrida equivalente
+        # —volver a correrlo no añade nada y NO es un fallo— o la corrida se guardó pero
+        # sus consultas no son las de este panel y no tocó a ningún candidato. Se
+        # distinguen mirando si el frente GUARDADO ya tiene algún veredicto decisivo en
+        # la tabla: si lo tiene, estaba cerrado; si no, la corrida no llegó a este panel
+        # —porque si sus consultas fueran las de aquí, habrían pasado a PASS/FAIL y esto
+        # no sería cero—. Se DERIVA de la tabla ya calculada, sin volver al almacén. Sin
+        # `front` (otros llamadores) se mantiene el texto de siempre.
+        del_frente = {
+            c for c in columnas if front and (c == front or c.startswith(f"{front}:"))
+        }
+        cerrado = any(
+            v in decisivos for (_, c), v in despues.items() if c in del_frente
         )
+        if cerrado:
+            texto = (
+                "Guardada. Este frente **ya estaba cerrado** por una corrida "
+                "equivalente, así que no quedaba ningún veredicto por actualizar — no "
+                "es un fallo. La corrida queda registrada en el historial."
+            )
+        else:
+            texto = (
+                "Guardada, y **0 veredictos actualizados**. Si esperabas que cerrara un "
+                "frente, algo no encaja: puede que sus consultas no sean las de este "
+                "panel."
+            )
     return {
         "cambiados": len(cambiados),
         "con_veredicto": con_veredicto,
