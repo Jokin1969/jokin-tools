@@ -375,6 +375,16 @@ router.get('/api/person/:id(\\d+)/plan', (req, res) => {
     res.json({ plan: planView(p.id) });
   } catch (err) { fail(res, err); }
 });
+router.post('/api/person/:id(\\d+)/plan-empty', (req, res) => {
+  try {
+    const p = qrDb.getPerson(Number(req.params.id));
+    if (!p) return res.status(404).json({ error: 'Persona no encontrada en QR (TIS).' });
+    // Create an empty plan if it doesn't exist yet. This ensures the person stays in the
+    // overview even if they click "Asignar medicación" but don't add any medications.
+    try { db.createEmptyPlan(p.id, req.user ? req.user.id : null); } catch { /* plan might already exist */ }
+    res.json({ plan: planView(p.id) });
+  } catch (err) { fail(res, err); }
+});
 router.post('/api/person/:id(\\d+)/plan', json, (req, res) => {
   try {
     const p = qrDb.getPerson(Number(req.params.id));
