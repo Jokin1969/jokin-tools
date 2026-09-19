@@ -23,6 +23,7 @@ from dataclasses import dataclass, field
 
 from .coords import Frame, label, requested, span, tiled_frame
 from .errors import ShmirDesignError
+from .tiling import boundary_note
 from .filters import FilterState
 
 #: Cuando un frente no viene de una corrida fechada, su fecha es esta y se lee como lo
@@ -110,6 +111,10 @@ class Dossier:
     self_sites_span: str = ""
     #: Sitios de ESTA hebra en su propia diana, con su clase.
     self_sites: tuple = ()
+    #: LA VENTANA CRUZA LA FRONTERA CDS/3'UTR, con las cifras de cada lado. Vacia cuando
+    #: no la cruza — una nota que sale siempre deja de leerse. Es un DATO DE DISEÑO y no
+    #: un aviso de fallo: ver `tiling.boundary_note`.
+    boundary_note: str = ""
 
     def render(self) -> str:
         # El ancho de la columna sale del nombre mas largo QUE HAY, no de un numero
@@ -129,6 +134,12 @@ class Dossier:
             f"  {'frente':<{ancho}} {'estado':<9} {'fecha':<12} procedencia",
         ]
         lineas.extend(f"  {f.describe(ancho)}" for f in self.fronts)
+        # LA FRONTERA VA ARRIBA, pegada al sitio y antes que nada mas. Es lo que cambia
+        # como se lee TODO lo de abajo —las heuristicas del 3'UTR y el autoconteo— asi
+        # que debajo de la tabla de frentes llegaria tarde.
+        if self.boundary_note:
+            lineas.extend(["", "── Anatomía de la ventana ──"])
+            lineas.extend(f"  {l}" for l in textwrap.wrap(self.boundary_note, 88))
         lineas.extend(
             [
                 "",
@@ -334,17 +345,37 @@ def build_dossier(
     estados.pop("seed_colision", None)
     procedencia_de.pop("seed_colision", None)
     fecha_de.pop("seed_colision", None)
+    # Y SE PARTE ADEMAS POR ORGANISMO (2026-09-11), por el mismo motivo que
+    # `offtarget_seed` y con la misma lista: el shmiR se expresa en neuronas de raton
+    # humanizado, asi que una seed limpia contra `hsa-` puede chocar con un `mmu-`
+    # abundante EN EL EXPERIMENTO. Ver `species.WHY_TWO_MIRNA_SETS`.
+    from .eje_organismo import sin_eje_declarado
+    from .species import model_organism_slugs
+
+    organismos = model_organism_slugs(species) or ("",)
     for hebra in ("guia", "pasajera"):
-        nombre = f"seed_colision:{hebra}"
-        consulta_hebra = query_name(species, start, hebra)
-        resultado_hebra = seeds.verdict_for(consulta_hebra)
-        corrida = seeds.latest(consulta_hebra)
-        estados[nombre] = (resultado_hebra.state, resultado_hebra.reason)
-        procedencia_de[nombre] = (
-            f"corrida {corrida.run_id} ({corrida.source.split(',')[0]})" if corrida
-            else "sin corrida en el almacen"
-        )
-        fecha_de[nombre] = corrida.date if corrida else SIN_FECHA
+        for organismo in organismos:
+            partes = ["seed_colision", hebra, organismo]
+            nombre = ":".join(p for p in partes if p)
+            consulta_hebra = query_name(species, start, hebra)
+            resultado_hebra = (
+                seeds.verdict_for(consulta_hebra, background=organismo) if organismo
+                # SIN EJE QUE NOMBRAR no se pregunta: `verdict_for` aborta a proposito.
+                else sin_eje_declarado(
+                    species, frente="seed_colision",
+                    que_es="la colisión de seed con miARN endógeno",
+                )
+            )
+            corrida = (
+                seeds.latest(consulta_hebra, background=organismo) if organismo
+                else None
+            )
+            estados[nombre] = (resultado_hebra.state, resultado_hebra.reason)
+            procedencia_de[nombre] = (
+                f"corrida {corrida.run_id} ({corrida.source.split(',')[0]})" if corrida
+                else "sin corrida en el almacen"
+            )
+            fecha_de[nombre] = corrida.date if corrida else SIN_FECHA
 
     # `offtarget_seed` se PARTE igual, y por el mismo motivo. Ademas es el frente que
     # estuvo invisible: si la ficha lo enseñara como una sola fila por candidato, la
@@ -471,6 +502,9 @@ def build_dossier(
             frame=marco,
         ),
         core_shared_with=compartido,
+        # SE DERIVA DE LA VENTANA, no se decide aqui: `tiling.boundary_note` sale vacia
+        # cuando no cruza, asi que la ficha no tiene que preguntar nada.
+        boundary_note=boundary_note(ventana),
         self_sites=propios,
         module=bloque.module,
         cassette=bloque.cassette,

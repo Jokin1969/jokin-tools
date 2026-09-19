@@ -35,8 +35,21 @@ from shmir_design import presentation
 from shmir_design.anatomy import Anatomy, RegionSource
 from shmir_design.reference import REFERENCES, fixture_available, load_reference
 
+from tests.ficheros_del_deposito import falta, hay
+
 RATON = REFERENCES["NM_011170.3"]
-HAY = fixture_available(RATON)
+
+#: Hacen falta los TRES: el transcrito, y los dos ficheros que cierran los dos frentes.
+#: Sin `mature.fa` el propio CONTROL de abajo lo dice —«sin ellos conectados el resto de
+#: esta clase pasaría sin probar nada»— así que lo honesto es saltarla nombrando lo que
+#: falta, no dejarla en rojo diciendo que un frente no cierra cuando lo que no hay es el
+#: fichero que lo cierra.
+HAY = fixture_available(RATON) and hay("aav_casete.fa", "mature.fa")
+FALTA = (
+    "NOT_RUN: falta data/reference/NM_011170.3.fa"
+    if not fixture_available(RATON)
+    else falta("aav_casete.fa", "mature.fa")
+)
 
 #: Los dos frentes del reporte: los cierra un fichero que YA está en el depósito, sin
 #: ninguna corrida. Se nombran aquí para que el test diga de qué habla.
@@ -58,7 +71,7 @@ def _corrida_con_el_deposito():
     ), recursos
 
 
-@unittest.skipUnless(HAY, "falta data/reference/NM_011170.3.fa")
+@unittest.skipUnless(HAY, FALTA)
 class TestLaTarjetaYLaColumnaNOpuedenDiscrepar(unittest.TestCase):
     """El criterio de aceptación, tal cual se pidió, sobre la corrida de verdad."""
 

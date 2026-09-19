@@ -911,7 +911,13 @@ class SelfSite:
 
     position: int
     site_class: str
-    own_window: bool
+    #: TRES estados, y el tercero NO es «no es el suyo»: `True` es el suyo, `False` es un
+    #: segundo sitio, y **`None` es NO COMPROBABLE** — la ventana del candidato cruza la
+    #: frontera CDS/3'UTR y su inicio no tiene coordenada en el marco de la diana, asi
+    #: que no se puede decir cual es el suyo. Colapsarlo en `False` marcaria «SEGUNDO
+    #: SITIO» el que probablemente ES el suyo, y eso no se lee como un hueco: se lee como
+    #: una anomalia del candidato. Ver `WINDOW_WITHOUT_UTR3_START`.
+    own_window: bool | None
     #: En qué región del `target` cae. Vacío cuando no se ha declarado la anatomía: no
     #: haberlo podido decir NO es «está en el 3'UTR» (regla 3 aplicada a una etiqueta).
     region: str = ""
@@ -921,7 +927,11 @@ class SelfSite:
     frame: Frame = field(kw_only=True)
 
     def describe(self) -> str:
-        marca = "el suyo" if self.own_window else "SEGUNDO SITIO"
+        marca = (
+            "sin identificar" if self.own_window is None
+            else "el suyo" if self.own_window
+            else "SEGUNDO SITIO"
+        )
         region = f" [{self.region}]" if self.region else ""
         return f"{label(self.position, self.frame)} {self.site_class}{region} ({marca})"
 
@@ -944,6 +954,47 @@ SITES_OUTSIDE_UTR3 = (
 )
 
 
+#: POR QUE UNA VENTANA A MEDIAS NO MARCA NINGUN SITIO. Va aqui y no en un comentario
+#: porque VIAJA: lo lee el autoconteo, la ficha y el bloque exportable, y sin el un
+#: «SEGUNDO SITIO» en todos los sitios de un candidato se lee como una anomalia suya.
+WINDOW_WITHOUT_UTR3_START = (
+    "La ventana de este candidato CRUZA la frontera CDS/3'UTR: cuenta como 3'UTR porque "
+    "su punto medio cae ahí, pero su inicio NO tiene coordenada de 3'UTR. Las posiciones "
+    "del autoconteo van en el marco de la diana —el 3'UTR—, así que con medio intervalo "
+    "no se puede decir cuál de los sitios es EL SUYO. NO se marca ninguno: deducirlo del "
+    "extremo que sí se conoce sería inventar una coordenada, y un sitio marcado «el "
+    "suyo» por conjetura se lee igual que uno medido."
+)
+
+
+def complete_window(window) -> tuple[int, int] | None:
+    """El intervalo SOLO si se conocen los DOS extremos. `None` si falta alguno.
+
+    **LA PREGUNTA ES POR EL CONTENIDO, NO POR EL CONTINENTE** (errata nº 19, y ésta es la
+    nº 162). `self_sites` comprobaba `bool(window)`, y una TUPLA NO VACIA ES VERDADERA
+    aunque lleve un `None` dentro: con `(None, 17)` el guardia pasaba y reventaba en
+    `window[0] <= posicion` con un `TypeError` que se llevaba la corrida entera.
+
+    El caso es real y es UNO: `tx:825` del panel humano. `NM_000311.5` tiene el CDS en
+    68..829, así que el 3'UTR empieza en `tx:830` y la ventana `tx:825-846` cae A CABALLO
+    —5 nt de CDS y 17 de 3'UTR—. Su `region` sale `3'UTR` porque se decide por el PUNTO
+    MEDIO y su `inicio_3utr` sale `None` porque se decide por el INICIO: dos definiciones
+    que ya estaban registradas, chocando justo en esa frontera.
+
+    Y el proyecto ya se lo habia topado CUATRO veces —`tiling` lo ancla a 1 para el APA,
+    `outputs` se niega a hacer `inicio_3utr or window.start`, `selection` filtra los
+    `None`, `presentation` los cuenta— y cada una lo resolvio en su sitio. Este era el
+    quinto. Principio nº 31: un comentario protege su linea, un mecanismo protege al
+    siguiente.
+    """
+    if not window:
+        return None
+    inicio, fin = window[0], window[1]
+    if inicio is None or fin is None:
+        return None
+    return (int(inicio), int(fin))
+
+
 def self_sites(
     strand: str, *, target: str, frame: Frame, window=None, anatomy=None,
 ) -> tuple[SelfSite, ...]:
@@ -952,6 +1003,9 @@ def self_sites(
     `window` es el intervalo (inicio, fin) de la ventana del candidato, para poder decir
     cual de los sitios es EL SUYO. Sin ella no se marca ninguno: inventar cual es el
     propio a partir del orden seria un supuesto.
+
+    **Y «sin ella» incluye A MEDIAS.** Un intervalo con un extremo desconocido no es una
+    ventana: ver `complete_window` y `WINDOW_WITHOUT_UTR3_START`.
     """
     patrones = site_patterns(strand)
     seq = _normalize(target)
@@ -967,7 +1021,14 @@ def self_sites(
         else:
             clase = "7mer-A1" if siguiente == "A" else "6mer"
         posicion = i + 1
-        propio = bool(window) and window[0] <= posicion <= window[1]
+        # LOS DOS EXTREMOS, no la tupla. Ver `complete_window`. Y con la ventana a
+        # medias el veredicto es `None` —NO COMPROBABLE—, no `False`: decir «segundo
+        # sitio» del que probablemente es el suyo es peor que no decir nada.
+        completa = complete_window(window)
+        propio = (
+            None if window and completa is None
+            else completa is not None and completa[0] <= posicion <= completa[1]
+        )
         sitios.append(
             SelfSite(
                 position=posicion, site_class=clase, own_window=propio, frame=frame,
@@ -1032,12 +1093,29 @@ class SelfCount:
     sites: dict[str, int]
     detail: tuple[SelfSite, ...] = ()
     expected: int = 1
+    #: POR QUE no se ha podido decir cual de los sitios es EL SUYO. Vacio = si se ha
+    #: podido. Es un campo y no una deduccion sobre `detail` porque VIAJA: lo leen la
+    #: ficha, el bloque exportable y la tabla del modal, y sin el un «sin identificar»
+    #: en todas las filas de un candidato no dice de que es el hueco.
+    own_window_reason: str = ""
 
     @property
     def anomalous(self) -> bool:
         return self.occurrences != self.expected
 
+    @property
+    def own_site_known(self) -> bool:
+        """¿Se ha podido decir cual es el suyo? NO haberlo podido no es «no lo hay»."""
+        return not self.own_window_reason
+
     def describe(self) -> str:
+        texto = self._describe()
+        # EL MOTIVO VA PEGADO AL AUTOCONTEO, no en una nota aparte: esta linea se copia
+        # a un correo y se descarga, y sin ella «sin identificar» se lee como que el
+        # candidato no tiene su propio sitio — que es justo lo contrario.
+        return f"{texto} {self.own_window_reason}".strip()
+
+    def _describe(self) -> str:
         if self.occurrences == self.expected:
             return (
                 f"{self.query}: {self.occurrences} sitio(s) en {self.target_label}, que "
@@ -1104,6 +1182,13 @@ def self_count(strand: str, *, target: str, target_label: str, frame: Frame,
             strand, target=target, frame=frame, window=window, anatomy=anatomy
         ),
         expected=expected_self_count(strand_name),
+        # SOLO cuando HAY ventana y esta a medias. Sin ventana ninguna el motivo es otro
+        # —nadie la paso— y ya lo dice el docstring de `self_sites`; mezclarlos haria que
+        # un alcance sin ventanas se leyera como una frontera CDS/3'UTR.
+        own_window_reason=(
+            WINDOW_WITHOUT_UTR3_START
+            if window and complete_window(window) is None else ""
+        ),
     )
 
 

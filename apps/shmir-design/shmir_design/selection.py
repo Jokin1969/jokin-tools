@@ -2468,9 +2468,23 @@ def _missing_file(report) -> str:
 
 
 def blocking_fronts(
-    report: TilingReport, selection: ReportSelection, *, closed_by_panel=None,
+    report: TilingReport, selection: ReportSelection, *,
+    closed_by_panel=None, blocked_by_panel=None,
 ) -> list[BlockingFront]:
     """Los frentes abiertos: los filtros que no han corrido POR FALTA DE RECURSO.
+
+    `blocked_by_panel` es `{frente: motivo}` con lo que impide cerrar a los candidatos
+    del panel que YA SE CONSULTARON, y entra por aqui por la misma razon que su hermano:
+    el motivo de un frente abierto lo leen la tarjeta, el informe descargable y la ficha,
+    y metido por cada consumidor se arregla uno y los demas siguen igual (errata nº 54).
+    Solo pisa el motivo de un frente que sigue ABIERTO; un frente cerrado ya tiene el
+    suyo, y `closed_by_panel` manda.
+
+    **POR QUE HACE FALTA** (2026-09-11): el motivo de abajo cuenta VENTANAS —«NOT_RUN en
+    N de N ventanas: falta el recurso»— y es cierto del escaner de ventana. Con una
+    corrida guardada que cubre el panel entero y sale `NO_CIERRA`, esa frase manda a
+    conseguir un fichero que no desbloquea nada: lo que bloquea lo dice la corrida, y
+    aqui no hay forma de saberlo. El motivo correcto es el que viene del `NO_CIERRA`.
 
     `closed_by_panel` es `{frente: motivo}` con lo que esta CONTESTADO EN TODO EL PANEL
     —lo cierre el fichero del deposito o una corrida guardada—, y entra POR AQUI a
@@ -2502,6 +2516,27 @@ def blocking_fronts(
     Un frente es un filtro que **se cierra consiguiendo algo**: un fichero, o una lectura
     de banco. Lo demas se cuenta en el semaforo, con las ventanas tiladas.
     """
+    frentes = _frentes_del_informe(report, selection, closed_by_panel=closed_by_panel)
+    bloqueos = dict(blocked_by_panel or {})
+    if not bloqueos:
+        return frentes
+    # SE APLICA AL FINAL, sobre la lista ENTERA, y no dentro de cada sitio que construye
+    # un `BlockingFront`: esa funcion tiene cuatro `return` y siete puntos donde añade
+    # uno, asi que metido dentro quedaria fuera de los que se añadan despues — un
+    # comentario protege su linea y un mecanismo protege al siguiente (principio nº 31).
+    # Solo pisa a los que siguen ABIERTOS: un frente cerrado ya tiene su motivo.
+    return [
+        replace(frente, reason=bloqueos[frente.name])
+        if frente.blocking and bloqueos.get(frente.name)
+        else frente
+        for frente in frentes
+    ]
+
+
+def _frentes_del_informe(
+    report: TilingReport, selection: ReportSelection, *, closed_by_panel=None,
+) -> list[BlockingFront]:
+    """El cuerpo de `blocking_fronts`. Ver alli: aqui no se decide nada mas."""
     from .coords import Frame, label, tiled_frame
     from .filters import BIOPHYSICAL_FILTERS
     from .polya import CLEAVAGE_MIN, SignalClass

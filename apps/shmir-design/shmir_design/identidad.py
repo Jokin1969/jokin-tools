@@ -33,7 +33,7 @@ from .errors import ShmirDesignError
 
 __all__ = [
     "ETIQUETAS", "file_fingerprint", "mensaje_de_id_repetido",
-    "result_fingerprint", "run_id",
+    "panel_fingerprint", "result_fingerprint", "run_id",
 ]
 
 
@@ -66,6 +66,28 @@ def result_fingerprint(raw) -> str:
             f"identifica la corrida."
         )
     return hashlib.md5(raw.encode("utf-8"), usedforsecurity=False).hexdigest()
+
+
+def panel_fingerprint(consultas) -> str:
+    """La huella del CONJUNTO CONSULTADO de un panel: sus secuencias, en orden.
+
+    El `result_md5` de una corrida de seed sale del crudo, y el crudo lleva por cada
+    consulta la posicion, el heptamero y la colision, pero NO su SECUENCIA. PRNP esta muy
+    conservado entre humano y raton, asi que dos paneles DISTINTOS pueden dar el mismo
+    heptamero en cada posicion; si ademas coincidieran las posiciones, sus crudos serian
+    identicos y el segundo se rechazaria como «el mismo fichero subido dos veces» aunque
+    son candidatos distintos sobre secuencias distintas (reporte 2026-09-11). Esta huella
+    va DENTRO del crudo y ata el `result_md5` al panel por su secuencia.
+
+    NO es el md5 del crudo (`result_fingerprint`) ni la huella de pantalla
+    (`run_fingerprint`): es de las secuencias consultadas, en el orden en que se corren.
+    Recibe `(inicio, hebra, secuencia)` por consulta y aborta si no es texto por la misma
+    razon que `result_fingerprint`: un `repr` con la forma correcta entraria en el md5.
+    """
+    texto = "\n".join(
+        f"{inicio}\t{hebra}\t{secuencia}" for inicio, hebra, secuencia in consultas
+    )
+    return result_fingerprint(texto)
 
 
 def file_fingerprint(datos: bytes) -> str:

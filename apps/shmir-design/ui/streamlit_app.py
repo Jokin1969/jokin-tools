@@ -32,9 +32,12 @@ from shmir_design.seed_scan import DEFAULTS as SEED_DEFAULTS  # noqa: E402
 from shmir_design.offtarget import DEFAULTS as OFFTARGET_DEFAULTS  # noqa: E402
 from shmir_design.offtarget import WHY_THE_EXPECTED_DIFFERS  # noqa: E402
 from shmir_design.masking import RepeatMask  # noqa: E402
+from shmir_design.outputs import output_name  # noqa: E402
 from shmir_design.polya import normalize_sequence  # noqa: E402
 from shmir_design.presentation import (  # noqa: E402
     TABLE_ICON_NOTE,
+    integer_columns,
+    table_cells,
     table_tsv,
     ACCION_DISENAR,
     ACCION_ESTIMAR,
@@ -49,6 +52,7 @@ from shmir_design.presentation import (  # noqa: E402
     anatomy_payload,
     load_stores,
     cached_run,
+    deposit_fingerprint,
     run_allowed,
     run_fingerprint,
     intron_architecture_note,
@@ -75,6 +79,7 @@ from shmir_design.presentation import (  # noqa: E402
     library_delete,
     library_file,
     library_note,
+    link_usable,
     library_rows,
     library_save,
     project_create,
@@ -186,7 +191,12 @@ from shmir_design.presentation import (  # noqa: E402
     obtencion_rows,
     offtarget_catalog_from_deposit,
     offtarget_catalog_options,
+    offtarget_catalog_summary,
     WHY_TWO_CATALOGUES,
+    WHY_TWO_MIRNA_SETS,
+    MIRNA_AXIS_IS_ONE_FILE,
+    seed_axis_options,
+    seed_axis_missing_text,
     blast_database_from_deposit,
     deposit_for_run,
     deposit_note,
@@ -1031,7 +1041,7 @@ def _tarjeta_de_frente(tarjeta) -> None:
         st.link_button(
             f"↗ {tarjeta['fuente']}",
             tarjeta["url"],
-            disabled=not tarjeta["url"].startswith("http"),
+            disabled=not link_usable(tarjeta["url"]),
         )
 
 
@@ -1336,14 +1346,35 @@ def _segunda_via(texto: str, *, nombre: str, clave: str) -> None:
         entrega = None
         st.caption(f"No se pudo preparar la pestaña: {exc}")
     if entrega is not None:
+        # Pasa por `link_usable` como los otros dos, sin excepcion declarada: hoy
+        # `publish` construye siempre una ruta que empieza por «/», asi que la
+        # comprobacion no muerde — y una excepcion escrita es una HIPOTESIS sobre codigo
+        # que puede cambiar (errata nº 133). Si algun dia no cuadrara, el boton sale
+        # desactivado y la direccion de abajo sigue estando para copiarla.
         st.link_button(
             f"Abrir «{entrega['guardar_como']}» en una pestaña",
             entrega["url"],
+            disabled=not link_usable(entrega["url"]),
         )
         st.caption(
             f"Se abre como texto, {entrega['bytes']:,} bytes: guárdalo desde ahí con el "
             f"nombre `{entrega['guardar_como']}`. No pasa por la descarga del navegador."
         )
+        # LA URL, A LA VISTA Y COPIABLE — tercera vía, y la OBSERVACIÓN que falta.
+        # Si el enlace no hace nada al pulsarlo, pegarla en la barra de direcciones no
+        # comparte NADA con el botón (errata nº 124, su corolario): ni la maquinaria de
+        # descarga del navegador ni la pulsación sobre un ancla. Y lo que se vea al
+        # pegarla es lo único que separa los dos casos de la errata nº 130, que sigue SIN
+        # CAUSA ASIGNADA: si la página aparece, lo que falla es el enlace; si sale un
+        # error, lo que falla es la ruta — y entonces el error DICE cuál.
+        with st.expander("Si el enlace no hace nada: la dirección, para pegarla"):
+            st.caption(
+                "Pégala en la barra de direcciones de una pestaña nueva. No pasa por el "
+                "botón ni por el gestor de descargas, así que lo que salga aquí dice "
+                "dónde está el problema: si se ve el fichero, lo que falla es el enlace; "
+                "si sale un error, es la ruta y el error lo nombra."
+            )
+            st.code(entrega["url"], language=None)
     with st.expander(f"O copia el contenido de `{nombre}`"):
         st.caption(
             f"El mismo contenido que el botón, {len(texto.encode('utf-8')):,} bytes. "
@@ -1479,7 +1510,30 @@ def _tabla(filas, *, nombre: str, clave: str, **kwargs) -> None:
     Una tabla VACÍA se pinta y no ofrece salida: no hay nada que llevarse, y un enlace a
     un fichero vacío se lee como una descarga hecha.
     """
-    st.dataframe(filas, **kwargs)
+    # Los vacíos de una columna numérica llegan como `None` y no como `""`, que es lo que
+    # convertía la columna entera en texto y ordenaba el puesto 11 entre el 1 y el 2. Lo
+    # decide `presentation.table_cells` (regla 6), aquí sólo se aplica — y se aplica a las
+    # DOS salidas, la pintada y la que se lleva, porque tienen que decir lo mismo.
+    filas = table_cells(filas)
+    # Y las columnas ENTERAS se declaran `Int64` —el dtype nullable—, que es lo único que
+    # tiene a la vez entero y hueco: sin él, el puesto 1 se pinta `1.0`. QUÉ columnas lo
+    # decide `presentation.integer_columns` (regla 6); aquí sólo se aplica. pandas está
+    # autorizado SÓLO para esto: ver `docs/dependencias-autorizadas.md`.
+    enteras = integer_columns(filas)
+    tabla = filas
+    if enteras:
+        import pandas as pd  # noqa: PLC0415
+
+        # `"Int64"` con mayúscula es el dtype NULLABLE de pandas; `"int64"` en minúscula
+        # es el de numpy y NO admite huecos — con un `None` dentro aborta. Un carácter.
+        tabla = pd.DataFrame(filas).astype({c: "Int64" for c in enteras})
+    # UNA sola llamada, no una por rama: el guardia que exige un pintor único saltó con
+    # dos, y tenía razón — dos llamadas es por donde una de ellas se queda sin el
+    # tratamiento que la otra sí recibe.
+    st.dataframe(tabla, **kwargs)
+    # Los dos botones de la tabla (diseñar / llevársela) los calcula
+    # `presentation.table_actions` (regla 6): la vista no calcula. Trae el TSV ya montado
+    # sobre las MISMAS filas ya tratadas, así la salida dice lo mismo que lo pintado.
     accion = table_actions(filas, nombre=nombre)
     if accion["vacia"]:
         return
@@ -2057,9 +2111,16 @@ def main() -> None:
         # los botones no se estiren a todo el ancho. Las dos ultimas quedan vacias.
         for columna, herramienta in zip(enlaces, EXTERNAL_TOOLS):
             with columna:
+                # SIN DIRECCION NO SE OFRECE EL ENLACE. Medido con Chromium por el proxy:
+                # `st.link_button(label, "")` pinta un `<a href="">` que resuelve a la
+                # PROPIA pagina, asi que abre una pestaña con la app y no hace nada de lo
+                # que anuncia. La regla 4 prohibe inventarle la URL, asi que lo honesto es
+                # el boton desactivado con el motivo en el tooltip (`url_note`).
+                utilizable = link_usable(herramienta.url)
                 st.link_button(
-                    f"↗ {herramienta.name}", herramienta.url, help=herramienta.tooltip,
-                    width="stretch",
+                    f"↗ {herramienta.name}", herramienta.url,
+                    help=herramienta.tooltip if utilizable else herramienta.url_note,
+                    width="stretch", disabled=not utilizable,
                 )
         st.caption(
             "Sus direcciones no se han podido comprobar desde este entorno y **ningun "
@@ -2323,9 +2384,26 @@ def main() -> None:
         # ROL sin mirar que especie se esta diseñando, y `rmsk_mouse.out` cabe de sobra
         # en un transcrito humano sin salirse de rango. Es el mismo agujero que cierra
         # `RepeatMask.query_length` un nivel mas abajo.
-        recursos = load_from_manifest(
-            reference_dir(), species=resolve_species(nombre_modelo),
+        #
+        # Y SE REUTILIZA MIENTRAS EL DEPOSITO NO CAMBIE (errata nº 161). Conectar lee y
+        # parsea TODOS los ficheros, y esto corre en CADA repintado: con
+        # `transcriptoma_3utr_human.fa` dentro son ~5 s y ~750 MB por tecla, y durante el
+        # repintado conviven la copia vieja y la nueva. La decision de si lo cacheado
+        # sirve NO vive aqui —la toma `cached_run`, el mismo guardia que usan los
+        # modales—; la pagina solo guarda y pregunta.
+        huella_deposito = deposit_fingerprint(
+            reference_dir(), species=nombre_modelo,
         )
+        conectado = cached_run(
+            st.session_state.get("recursos_conectados"), huella_deposito,
+        )
+        recursos = conectado["resultado"]
+        if recursos is None:
+            with st.spinner("Conectando los ficheros del depósito…"):
+                recursos = load_from_manifest(
+                    reference_dir(), species=resolve_species(nombre_modelo),
+                )
+            st.session_state["recursos_conectados"] = (huella_deposito, recursos)
 
         secuencias = {nombre_modelo: secuencia_modelo}
         genbanks = {nombre_modelo: gb_modelo}
@@ -2660,6 +2738,7 @@ def _guardar_corrida(proyecto, nombre: str, *, construir, guardar, clave: str,
                     resumen = verdicts_changed(
                         tiling, seleccion, species=nombre,
                         before=antes, after=load_stores(proyecto),
+                        front=frente,
                     )
                     resumen = {
                         "verde": bool(resumen["con_veredicto"]),
@@ -2884,8 +2963,16 @@ def _modal_blast(seleccion, nombre: str, proyecto=None, tiling=None) -> None:
     for aviso in blast_warnings(params):
         (st.error if aviso["bloquea"] else st.warning)(aviso["texto"])
 
-    ruta = f"{nombre}_consulta.fasta"
-    st.code(blast_command_text(params, query_path=ruta, out_path=f"{nombre}_blast.tsv"))
+    # EL NOMBRE LO PONE `output_name`, NO UNA f-STRING. `nombre` es el nombre CIENTÍFICO
+    # que pone el desplegable, así que aquí salía `Homo sapiens_consulta.fasta` — y esta
+    # misma línea es una orden PARA PEGAR EN UNA CONSOLA, donde el espacio la parte en
+    # dos argumentos: medido, `blastn` recibía `-query Homo`.
+    ruta = output_name(nombre, "consulta.fasta")
+    st.code(
+        blast_command_text(
+            params, query_path=ruta, out_path=output_name(nombre, "blast.tsv")
+        )
+    )
 
     if marcados and (guias or pasajeras):
         consulta = blast_query(
@@ -3030,6 +3117,29 @@ def _modal_seed(seleccion, nombre: str, maduros, proyecto=None,
                 f"(por defecto {fila['por_defecto']})"
             )
 
+    # CONTRA LOS MADUROS DE QUIEN. Con un fondo genetico declarado son DOS corridas —el
+    # `mmu-` mide el experimento en el Tg650 y el `hsa-` mide al paciente— y no se
+    # funden (`species.WHY_TWO_MIRNA_SETS`). El selector existe para que se VEA que
+    # falta la segunda: sin el, correr una y ver el frente sin cerrar no dice que falta.
+    ejes = seed_axis_options(species=nombre)
+    elegido = ejes[0] if ejes else None
+    if len(ejes) > 1:
+        st.subheader("Contra qué maduros")
+        st.caption(WHY_TWO_MIRNA_SETS)
+        st.caption(MIRNA_AXIS_IS_ONE_FILE)
+        elegido = st.selectbox(
+            "Organismo de esta corrida",
+            options=ejes,
+            format_func=lambda o: o["etiqueta"],
+            key=f"seed_eje_{nombre}",
+        )
+    if elegido is None:
+        st.warning(
+            seed_axis_missing_text(nombre)
+        )
+        return
+    eje = str(elegido["organismo"])
+
     starts = _selector_de_alcance(
         seleccion, nombre, tipo="corrida_seed", clave="seed"
     )
@@ -3044,39 +3154,56 @@ def _modal_seed(seleccion, nombre: str, maduros, proyecto=None,
     # La HUELLA del panel y los ajustes. Ver `WHY_A_RUN_FINGERPRINT`: sin ella, cambiar
     # la selección o un ajuste dejaba en pantalla el resultado viejo y lo ofrecía para
     # guardar — una corrida con una procedencia que no era la suya.
-    # EL CATALOGO ENTRA EN LA HUELLA. Sin el, cambiar de catalogo dejaria en pantalla
-    # el resultado del anterior y lo ofreceria para guardar — una procedencia falsa, que
-    # es justo por lo que existe la huella (`WHY_A_RUN_FINGERPRINT`).
-    huella = run_fingerprint(tuple(starts), params, fondo)
-    if st.button(f"Buscar colisiones — {nombre}", key=f"seed_go_{nombre}"):
+    # EL EJE ENTRA EN LA HUELLA. Sin el, cambiar de organismo dejaria en pantalla el
+    # resultado del anterior y lo ofreceria para guardar — una procedencia falsa.
+    #
+    # Aqui ponia `fondo`, que es una variable del modal de off-targets: se copio con el
+    # eje de transcriptoma el 2026-09-09 y en ESTE modal no existe, asi que abrirlo
+    # lanzaba un `NameError` que se llevaba la pagina por delante desde ahi hacia abajo.
+    # No lo vio ningun test porque `AppTest` no puede llegar al estado DISEÑADO — el
+    # hueco ya declarado en `data/estados.toml`. Errata nº 158.
+    huella = run_fingerprint(tuple(starts), params, eje)
+    if st.button(
+        f"Buscar colisiones — {nombre} contra {elegido['prefijo']}",
+        key=f"seed_go_{nombre}_{eje}",
+    ):
         # El scan se guarda en `session_state` para que sobreviva al rerun que provoca
         # el boton de guardar. Es ESTADO, no una decision: la pagina sigue sin decidir.
-        st.session_state[f"seed_scan_{nombre}"] = (huella, seed_run(
+        # LA CLAVE LLEVA EL EJE: con una sola, la corrida `mmu-` pisaria en pantalla a
+        # la `hsa-` recien hecha y la ofreceria para guardar con el otro nombre.
+        st.session_state[f"seed_scan_{nombre}_{eje}"] = (huella, seed_run(
             seleccion, mature=maduros, params=params, species=nombre,
-            starts=tuple(starts), guides=True, passengers=True,
+            starts=tuple(starts), guides=True, passengers=True, organism=eje,
         ))
     # La pagina NO decide si lo cacheado sirve: lo decide `cached_run`. Estaba aqui,
     # copiado en los dos modales, y por tanto sin test y pudiendo divergir.
-    cacheado = cached_run(st.session_state.get(f"seed_scan_{nombre}"), huella)
+    cacheado = cached_run(st.session_state.get(f"seed_scan_{nombre}_{eje}"), huella)
     scan = cacheado["resultado"]
     if cacheado["caducado"]:
         st.info(cacheado["aviso"])
     if scan is not None:
         destacados = seed_highlights(scan)
+        if destacados["eje"]["activo"]:
+            st.info(destacados["eje"]["texto"])
         st.warning(destacados["tasa_base"]["texto"])
+        if destacados["union"]["activo"]:
+            st.caption(destacados["union"]["texto"])
         if destacados["mir30"]["activo"]:
             st.error(destacados["mir30"]["texto"])
         st.info(destacados["pasajeras"]["texto"])
         _tabla(seed_result_rows(scan), hide_index=True, nombre="seed_result_rows.tsv", clave="tb_seed_result_rows")
         bloque_seed = scan.export_block()
-        nombre_seed = f"{nombre}_colision_seed.txt"
+        # EL EJE VA EN EL NOMBRE DEL FICHERO: dos corridas del mismo panel producen dos
+        # bloques distintos, y con un nombre unico el segundo pisa al primero en la
+        # carpeta de descargas sin decir nada (principio nº 35).
+        nombre_seed = output_name(nombre, f"colision_seed_{eje}.txt")
         st.download_button(
             "Descargar el bloque para el documento",
             data=bloque_seed,
             file_name=nombre_seed,
-            key=f"seed_dl_{nombre}",
+            key=f"seed_dl_{nombre}_{eje}",
         )
-        _segunda_via(bloque_seed, nombre=nombre_seed, clave=f"seed_{nombre}")
+        _segunda_via(bloque_seed, nombre=nombre_seed, clave=f"seed_{nombre}_{eje}")
         _guardar_corrida(
             proyecto, nombre,
             construir=lambda fecha, quien: seed_run_from_scan(
@@ -3470,10 +3597,16 @@ def _modal_offtarget(seleccion, nombre: str, maduros, diana: str,
         return
     fondo = str(elegido["catalogo"])
 
-    catalogo = offtarget_catalog_from_deposit(
+    # EL CATALOGO NO SE ABRE AQUI (2026-09-11, errata nº 160). Abrirlo es leer el
+    # fichero entero, calcularle el md5, parsearlo y auditarle las isoformas — y esto se
+    # ejecuta en CADA repintado, o sea en cada tecla. Con un catalogo humano eso son ~6 s
+    # y ~340 MB por pulsacion. Lo que hace falta antes de correr no es el catalogo: es
+    # saber CUAL es y que esta, y eso lo dice la linea del manifiesto. El fichero se abre
+    # dentro del boton, que es cuando hace falta.
+    resumen = offtarget_catalog_summary(
         species=nombre, directory=reference_dir(), role=str(elegido["rol"]),
     )
-    if catalogo is None:
+    if not resumen["presente"]:
         # SOLO se ofrece subida si el fichero NO esta. `presentation` lo decide.
         if not any(
             f["ofrecer_subida"] and f["nombre"] == elegido["nombre"] for f in filas
@@ -3543,7 +3676,11 @@ def _modal_offtarget(seleccion, nombre: str, maduros, diana: str,
                 st.rerun()
         return
 
-    st.success(offtarget_placeholder(catalogo)["texto"])
+    st.success(resumen["texto"])
+    # LO QUE VA A COSTAR, ANTES de pulsar. Con un catalogo humano son decenas de segundos
+    # y cientos de MB: si el contenedor no tiene ese margen el proceso muere y la pagina
+    # se queda en «Connecting», que NO es que la corrida siga.
+    st.warning(resumen["coste"])
 
     st.subheader("Ajustes")
     valores = {}
@@ -3593,11 +3730,22 @@ def _modal_offtarget(seleccion, nombre: str, maduros, diana: str,
     ):
         # Mismo motivo que en el modal de seed: el scan tiene que sobrevivir al rerun.
         # Y con la misma HUELLA, por el mismo motivo: ver `WHY_A_RUN_FINGERPRINT`.
-        st.session_state[f"ot_scan_{nombre}_{fondo}"] = (huella, offtarget_run(
-            seleccion, catalog=catalogo, mature=maduros, params=params,
-            species=nombre, starts=tuple(starts), guides=True, passengers=True,
-            target=diana, target_label=f"3'UTR de {nombre}", background=fondo,
-        ))
+        #
+        # AQUI, Y NO ARRIBA, es donde se abre el catalogo: leerlo entero, calcularle el
+        # md5, parsearlo y auditarle las isoformas cuesta el fichero completo, y arriba
+        # eso se ejecutaba en cada repintado (errata nº 160).
+        with st.spinner(resumen["coste"]):
+            catalogo = offtarget_catalog_from_deposit(
+                species=nombre, directory=reference_dir(), role=str(elegido["rol"]),
+            )
+            if catalogo is None:
+                st.error(offtarget_placeholder(None, species=nombre)["texto"])
+                return
+            st.session_state[f"ot_scan_{nombre}_{fondo}"] = (huella, offtarget_run(
+                seleccion, catalog=catalogo, mature=maduros, params=params,
+                species=nombre, starts=tuple(starts), guides=True, passengers=True,
+                target=diana, target_label=f"3'UTR de {nombre}", background=fondo,
+            ))
     # La pagina NO decide si lo cacheado sirve: lo decide `cached_run`. Estaba aqui,
     # copiado en los dos modales, y por tanto sin test y pudiendo divergir.
     cacheado = cached_run(st.session_state.get(f"ot_scan_{nombre}_{fondo}"), huella)
@@ -3626,7 +3774,7 @@ def _modal_offtarget(seleccion, nombre: str, maduros, diana: str,
             st.error(destacados["autoconteo"]["texto"])
 
         bloque_ot = scan.export_block()
-        nombre_ot = f"{nombre}_carga_offtarget_{fondo}.txt"
+        nombre_ot = output_name(nombre, f"carga_offtarget_{fondo}.txt")
         st.download_button(
             "Descargar el bloque para el documento",
             data=bloque_ot,

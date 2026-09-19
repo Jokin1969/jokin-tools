@@ -68,9 +68,17 @@ class TestLaFicha(unittest.TestCase):
 
         esperados = {f.name for f in blocking_fronts(self.tiling, self.seleccion)}
         # `seed_colision` se PARTE en dos —guia y pasajera— porque son dos consultas y
-        # fundirlas escondería la mitad. Los demas van uno a uno.
+        # fundirlas escondería la mitad. Los demas van uno a uno. Y DESDE EL 2026-09-11
+        # se parte tambien por ORGANISMO, con la MISMA lista que `offtarget_seed` — que
+        # es lo que garantiza que los dos ejes no se separen (`species.model_organisms`).
+        from shmir_design.species import model_organism_slugs
+
         esperados.discard("seed_colision")
-        esperados |= {"seed_colision:guia", "seed_colision:pasajera"}
+        esperados |= {
+            f"seed_colision:{hebra}:{organismo}"
+            for hebra in ("guia", "pasajera")
+            for organismo in model_organism_slugs("raton")
+        }
         # `offtarget_seed` se PARTE por lo mismo, y ademas es el frente que llego a
         # estar invisible: una sola fila por candidato volveria a esconder la mitad. Y
         # DESDE EL 2026-09-09 se parte tambien por CATALOGO: los slugs se piden a la
@@ -108,6 +116,24 @@ class TestLaFicha(unittest.TestCase):
         for hebra in ("guia", "pasajera"):
             for catalogo in off_target_catalogue_slugs("raton"):
                 self.assertIn(f"offtarget_seed:{hebra}:{catalogo}", nombres)
+
+    def test_y_los_DOS_EJES_usan_la_MISMA_lista_de_organismos(self):
+        """Lo que impide que se separen. No es que hoy coincidan: es de donde salen.
+
+        Con una lista por frente, el dia que se declare un segundo fondo genetico uno de
+        los dos se quedaria con uno solo — y el sintoma seria medir la mitad con la
+        forma correcta.
+        """
+        from shmir_design.species import (
+            model_organism_slugs, off_target_catalogue_slugs,
+        )
+
+        nombres = [f.name for f in self.ficha.fronts]
+        organismos = model_organism_slugs("raton")
+        self.assertEqual(organismos, off_target_catalogue_slugs("raton"))
+        for hebra in ("guia", "pasajera"):
+            for organismo in organismos:
+                self.assertIn(f"seed_colision:{hebra}:{organismo}", nombres)
 
     def test_sin_corrida_de_BLAST_la_especificidad_es_NOT_RUN_VISIBLE(self):
         frente = next(f for f in self.ficha.fronts if f.name == "especificidad")

@@ -54,8 +54,35 @@ class Informe:
 
 
 def artefactos_reales() -> list[str]:
-    """Lo que existe de verdad. Deriva del directorio, no de una lista."""
-    return sorted(p.name for p in REFERENCIA.iterdir() if p.is_file())
+    """Lo que existe de verdad. Deriva del DIRECTORIO y del MANIFIESTO, no de una lista.
+
+    El directorio a solas contesta «que hay en ESTA maquina», y esa no es la pregunta: un
+    artefacto existe de verdad porque el proyecto lo registra, no porque quien corre la
+    suite ya se lo haya bajado. La mayoria de los ficheros de referencia no entran en git
+    —un RefSeq RNA completo, `mature.fa`— asi que en un clon limpio el directorio tiene
+    la mitad y el auditor DEJABA DE VER las fabricaciones de la otra mitad: cinco
+    justificaciones vivas pasaban a leerse como CADUCADAS, y la salida comoda es borrarlas
+    — con lo que el auditor se queda sin guardia justo donde lo tenia. Es el fallo hacia
+    el silencio que este modulo declara arriba, cometido por su propia derivacion.
+
+    El manifiesto es la parte VERSIONADA del deposito: registra nombre, md5 y procedencia
+    de cada fichero de referencia, este bajado o no. Por eso contesta lo mismo en
+    cualquier maquina, que es la propiedad que hacia falta.
+    """
+    en_disco = {p.name for p in REFERENCIA.iterdir() if p.is_file()}
+    return sorted(en_disco | _nombres_del_manifiesto())
+
+
+def _nombres_del_manifiesto() -> set[str]:
+    """Los ficheros que el manifiesto VERSIONADO registra. Sin manifiesto, vacio."""
+    manifiesto = REFERENCIA / "manifest.tsv"
+    if not manifiesto.is_file():
+        return set()
+    sys.path.insert(0, str(RAIZ))
+    from shmir_design.manifest import parse_manifest  # noqa: PLC0415
+
+    texto = manifiesto.read_text(encoding="utf-8")
+    return {e.name for e in parse_manifest(texto, source=str(manifiesto)).entries}
 
 
 def _alias_por_rol(texto: str) -> dict[str, set[str]]:

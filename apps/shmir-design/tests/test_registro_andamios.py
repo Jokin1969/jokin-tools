@@ -28,6 +28,15 @@ from shmir_design.scaffold_registry import (
     require_verified,
 )
 
+from tests.ficheros_del_deposito import falta, hay
+
+#: Los dos plásmidos que este fichero LEE, y que el repositorio no versiona. Sin ellos
+#: los tests que los abren NO fallan: se saltan diciendo cuál falta. Lo que sí sigue
+#: corriendo es todo lo que mide el REGISTRO —que es lo que este fichero existe para
+#: fijar— porque eso no depende de ningún fichero.
+HAY_SGEP, FALTA_SGEP = hay("addgene_111170.gb"), falta("addgene_111170.gb")
+HAY_78126, FALTA_78126 = hay("addgene_78126.gb"), falta("addgene_78126.gb")
+
 
 class TestLosCuatroEstanDECLARADOS(unittest.TestCase):
 
@@ -146,6 +155,7 @@ class TestElINVENTARIO(unittest.TestCase):
         self.assertEqual(fila["estado"], "PASS")
         self.assertEqual(fila["falta"], [])
 
+    @unittest.skipUnless(HAY_SGEP, FALTA_SGEP)
     def test_y_los_contextos_declarados_COINCIDEN_con_el_plasmido_real(self):
         """La comprobación que faltaba, y la que este registro existía para forzar.
 
@@ -212,6 +222,7 @@ class TestLoQueTRAENdeVerdadLosDosPLASMIDOS(unittest.TestCase):
         self.assertIsNone(andamio.loop_feature)
 
 
+@unittest.skipUnless(HAY_78126, FALTA_78126)
 class TestElHUECOsinAnotarSeDERIVAdelFichero(unittest.TestCase):
     """El número que hay en la ficha de obtención de miR-155 no está transcrito.
 

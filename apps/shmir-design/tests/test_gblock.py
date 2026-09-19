@@ -75,8 +75,14 @@ class TestComprobaciones(unittest.TestCase):
     def test_pero_el_modulo_NO_es_apto_sin_contrastar_los_contextos(self):
         # Antes esto era `assertTrue(gblock.ok)`. Cambia a propósito: un módulo cuyos
         # contextos nadie ha contrastado con el vector real no puede salir apto, y lo
-        # que se pide con un apto falso es ADN. Con el plásmido delante, sí lo es.
+        # que se pide con un apto falso es ADN.
         self.assertFalse(build_gblock(build_hairpin(GUIA_REF)).ok)
+
+    @unittest.skipUnless(sgep.HAY, sgep.FALTA)
+    def test_y_CON_el_plasmido_delante_si_lo_es(self):
+        # La otra mitad, y va aparte porque necesita el fichero: sin él se saltaba
+        # también la de arriba, que es la que fija la decisión y no depende de nada.
+        # Un control adversario que se salta con su caso no protege de nada.
         self.assertTrue(build_gblock(build_hairpin(GUIA_REF), plasmid=sgep.texto()).ok)
 
     def test_longitud(self):

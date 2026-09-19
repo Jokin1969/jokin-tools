@@ -122,3 +122,47 @@ PRIMERA VEZ (errata nº 123): ahi el transcriptoma NO esta, asi que no falta nin
 procedencia, la caja ni se pinta y la rama que revienta no se ejecuta — el test pasaba \
 recorriendo el camino feliz mientras el modal se caia en produccion. Lo que se fabrica \
 es la LINEA, con las columnas derivadas de `manifest.MANIFEST_COLUMNS`."""
+
+# ─────────────────────────────────────────────────────────────────────────────────────
+# LAS SEIS QUE EL AUDITOR NO VEIA (2026-09-11). No son fabricaciones nuevas: llevaban
+# tiempo ahi y `artefactos_reales()` derivaba del DIRECTORIO, asi que en una maquina sin
+# `refseq_rna.fa` ni `transcriptoma_3utr.fa` bajados —o sea en cualquier clon limpio: no
+# se versionan— el auditor no los reconocia como artefactos y no pedia justificacion de
+# nada. El fallo hacia el silencio que el propio modulo declara. Ahora la lista sale del
+# directorio Y del manifiesto versionado, que contesta lo mismo en cualquier maquina.
+
+[[fixture]]
+test = "test_el_deposito_se_lee_de_UN_SOLO_sitio.py"
+artefacto = "transcriptoma_3utr.fa"
+usa_el_real = false
+por_que_no_el_real = "Lo que se prueba es que el md5 del disco y el de la fila del manifiesto se comparen: hace falta poder CAMBIAR el fichero debajo de su linea, y con el real —cientos de MB que ademas no estan en el repositorio— no hay forma de montar ese caso. Se usa el FASTA minimo de `test_el_transcriptoma_ENTRA.py`, que ya tiene la forma que el cargador exige."
+
+[[fixture]]
+test = "test_el_transcriptoma_ENTRA.py"
+artefacto = "transcriptoma_3utr.fa"
+usa_el_real = false
+por_que_no_el_real = "El real son cientos de MB del Table Browser de UCSC y NO se versiona, asi que ningun test podria usarlo. Lo que se prueba aqui es la VALIDACION al subir —que sea FASTA, el alfabeto, la auditoria de isoformas— y para eso hace falta justo lo contrario del real: ficheros pequeños con identificadores repetidos y secuencias identicas a proposito, que en el real habria que ir a buscar."
+
+[[fixture]]
+test = "test_la_corrida_se_reevalua.py"
+artefacto = "refseq_rna.fa"
+usa_el_real = false
+por_que_no_el_real = "El caso es que el fichero APAREZCA, CAMBIE y DESAPAREZCA entre dos consultas, y que la corrida pase de NOT_RUN a PASS y a OBSOLETA sola. Eso exige escribirlo y borrarlo dentro del test; con el real —cientos de MB y fuera del repositorio— la mitad adversaria, la del md5 que ya no cuadra, no se podria montar."
+
+[[fixture]]
+test = "test_la_procedencia_SE_DECLARA_sin_resubir.py"
+artefacto = "transcriptoma_3utr.fa"
+usa_el_real = false
+por_que_no_el_real = "Se declara la procedencia sobre la fila que YA esta, sin volver a subir el fichero, y el guardia es que el md5 del disco siga siendo el de su linea. Para probar que aborta hay que cambiar el fichero debajo, o sea escribirlo. El contenido no interviene: lo que se compara son checksums."
+
+[[fixture]]
+test = "test_roles_manifiesto.py"
+artefacto = "refseq_rna.fa"
+usa_el_real = false
+por_que_no_el_real = "Se prueba `roles_available` sobre un manifiesto de CABECERA CORTA con md5 conocidos de antemano: hace falta un fichero cuyo md5 cuadre con la fila y otro cuyo md5 NO cuadre, y los dos se escriben con seis bytes. Con el real no se puede montar el segundo, que es el que demuestra que la comprobacion muerde."
+
+[[fixture]]
+test = "test_una_base_ENORME_no_entra_al_escaner.py"
+artefacto = "refseq_rna.fa"
+usa_el_real = false
+por_que_no_el_real = "Lo que decide el presupuesto del escaner es `st_size`, y el guardia aborta ANTES de parsear nada, asi que el fichero se crea vacio con `truncate` al tamaño que se quiere medir. No se inventa ninguna secuencia: se inventa un TAMAÑO, que es la magnitud bajo prueba. Fabricar 400 MB de FASTA real seria absurdo y no comprobaria nada mas."

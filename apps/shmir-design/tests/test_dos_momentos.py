@@ -45,7 +45,22 @@ CONEJO = "Oryctolagus cuniculus"
 
 
 def _directorio(*ficheros: str) -> Path:
-    """Un directorio de referencia con EXACTAMENTE esos ficheros (y el manifiesto)."""
+    """Un directorio de referencia con EXACTAMENTE esos ficheros (y el manifiesto).
+
+    Si alguno no está en `data/reference/`, el test que lo pidió se SALTA nombrándolo.
+    No se fabrica ninguno: lo que se mide aquí es cuántas ventanas quita cada fichero,
+    y un marcador de presencia no quita ninguna — daría un cero que se lee como «este
+    fichero no cambia nada» en vez de como «este fichero no está».
+
+    Y un `FileNotFoundError` tampoco vale: sale como una traza de `shutil` en mitad de
+    un `setUpClass`, o sea un rojo que no dice cuál falta ni por qué importa.
+    """
+    ausentes = [n for n in ficheros if not (DATOS / n).is_file()]
+    if ausentes:
+        raise unittest.SkipTest(
+            "NOT_RUN: falta "
+            + ", ".join(f"data/reference/{n}" for n in ausentes)
+        )
     tmp = Path(tempfile.mkdtemp())
     shutil.copy(DATOS / "manifest.tsv", tmp / "manifest.tsv")
     for nombre in ficheros:

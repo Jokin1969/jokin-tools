@@ -167,9 +167,18 @@ class TestMirbaseSeRecorreENTERA(unittest.TestCase):
         import tempfile
 
         from shmir_design.reference import REFERENCES, fixture_available
+        from tests.ficheros_del_deposito import falta, hay
         from tools.design import main
 
-        cls.hay = fixture_available(REFERENCES["NM_011170.3"])
+        # Hacen falta LOS DOS: el transcrito y el fichero que la bandera conecta. Sin
+        # `mature.fa` la corrida sale con código 2 y el informe vacío, o sea tres rojos
+        # que dicen «la bandera no se recorre» cuando lo que no hay es el fichero.
+        cls.hay = fixture_available(REFERENCES["NM_011170.3"]) and hay("mature.fa")
+        cls.falta = (
+            "NOT_RUN: falta data/reference/NM_011170.3.fa"
+            if not fixture_available(REFERENCES["NM_011170.3"])
+            else falta("mature.fa")
+        )
         if not cls.hay:
             return
         datos = RAIZ / "data" / "reference"
@@ -188,7 +197,7 @@ class TestMirbaseSeRecorreENTERA(unittest.TestCase):
 
     def setUp(self):
         if not self.hay:
-            self.skipTest("falta data/reference/NM_011170.3.fa")
+            self.skipTest(self.falta)
 
     def test_la_corrida_termina_bien(self):
         self.assertEqual(self.codigo, 0)

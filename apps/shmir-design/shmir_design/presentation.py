@@ -1323,6 +1323,32 @@ def assembly_report(
     )
 
 
+#: Lo que un enlace tiene que empezar por para que el navegador vaya a alguna parte. Va
+#: aquí y no en la página por la regla 6: decidir si un botón se puede pulsar es una
+#: decisión, y estaba escrita en la página —en UNO de los dos sitios que pintan enlaces—.
+ESQUEMAS_NAVEGABLES = ("http://", "https://", "/")
+
+
+def link_usable(url) -> bool:
+    """¿Ese enlace lleva a alguna parte? MEDIDO en un navegador, no supuesto.
+
+    Con Chromium por el proxy del hub, un `st.link_button(label, "")` pinta
+    `<a href="" target="_blank">`, y un `href` vacío **resuelve a la propia página**: se
+    abre una pestaña con la app otra vez. O sea un botón que se ve activo, se pulsa, y no
+    hace nada de lo que anuncia — que es indistinguible de uno roto.
+
+    Pasa con las herramientas externas cuya dirección **nadie ha aportado**
+    (`external_score.URL_NOT_PROVIDED`): hoy `siDirect` y `BLOCK-iT RNAi Designer`. La
+    regla 4 prohíbe inventarles una URL, así que lo que queda es **no ofrecer el enlace**
+    y decir por qué — no ofrecerlo roto.
+
+    Se acepta la ruta relativa además de `http(s)`, porque la segunda vía de las descargas
+    sirve `/shmir/app/static/…` y es un enlace legítimo.
+    """
+    texto = str(url or "").strip()
+    return texto.startswith(ESQUEMAS_NAVEGABLES)
+
+
 def vector_note(species: str) -> dict[str, object]:
     """¿Aplica el vector del proyecto a esta especie? La app lo DICE, no lo supone."""
     from .blocks import vector_applies_to
@@ -1926,6 +1952,23 @@ def seed_highlights(scan):
             ),
         },
         "tasa_base": {"activo": True, "texto": scan.base_rate.describe()},
+        # LA DEL EJE Y LA DE LA UNION SON DOS, y por eso son dos bloques. La primera es
+        # la del conjunto contra el que se emite ESTE veredicto; la segunda contesta la
+        # pregunta del CANDIDATO —«¿es notable estar limpio en los DOS?»— y con un solo
+        # organismo declarado no sale, porque ahi no hay union que contar.
+        "union": {
+            "activo": (
+                scan.union_rate is not None and scan.union_rate.is_union
+            ),
+            "texto": (
+                scan.union_rate.describe()
+                if scan.union_rate is not None and scan.union_rate.is_union else ""
+            ),
+        },
+        # CONTRA QUIEN se ha medido, arriba y no en el bloque descargable: con el eje
+        # dual, una tabla de resultados sin decir de que eje es se lee como si fuera de
+        # los dos.
+        "eje": {"activo": bool(scan.organism), "texto": scan.axis_line()},
     }
 
 
@@ -1962,6 +2005,24 @@ WHY_BOTH_REFERENCES = (
 )
 
 
+def _catalogos_con_corrida(almacen, organismos) -> tuple[str, ...]:
+    """De que catalogos hay ALGO guardado en el almacen, mire a quien mire.
+
+    Es la mitad que distingue «a este candidato no se le preguntó» de «este catálogo no
+    se ha corrido», y son dos salidas distintas: repetir la corrida con otro alcance, o
+    correrla entera. Sin eje derivable —`organismos` es `("",)`— cuenta cualquier
+    corrida, que es lo que había antes de que el eje existiera.
+    """
+    corridas = tuple(getattr(almacen, "runs", ()) or ())
+    if not corridas:
+        return ()
+    fondos = {getattr(getattr(r, "scan", None), "background", "") or "" for r in corridas}
+    return tuple(
+        organismo for organismo in organismos
+        if not organismo or organismo in fondos
+    )
+
+
 def seed_load_reference(*, stores, species: str, starts) -> dict[str, object]:
     """El percentil por clase y los controles que hacen legible `carga_seed`.
 
@@ -1987,39 +2048,72 @@ def seed_load_reference(*, stores, species: str, starts) -> dict[str, object]:
     from .offtarget import CONTROL_NAMES, SITE_CLASSES, missing_file_text
 
     almacen = (stores or {}).get("offtarget")
-    por_candidato: dict[int, dict[str, str]] = {}
-    ultima = None
+    # UN JUEGO DE CELDAS POR ORGANISMO DEL EJE. DECIDIDO (2026-09-11), y es la respuesta
+    # a «4 columnas o 8»: son CUATRO POR CATALOGO, derivadas. Hasta hoy se pedia
+    # `almacen.latest(consulta)` SIN catalogo —«la mas reciente, sea cual sea»—, asi que
+    # con las dos corridas guardadas estas cuatro celdas mostraban la segunda y la
+    # columna no decia cual. O sea: el mismo nombre de columna llevando un numero humano
+    # en una corrida y uno murino en otra, decidido por el orden en que alguien pulso
+    # (principio nº 27).
+    #
+    # No es «mas informacion»: es que el percentil se calcula contra una nula del MISMO
+    # catalogo (`species.WHY_TWO_CATALOGUES`), asi que una celda sin catalogo no se
+    # refiere a nada. Y la opcion de dejarlo en el texto de referencia estaba descartada
+    # por el principio nº 55: ese parrafo no viaja con el CSV, y el CSV es lo que se lee
+    # sin la pantalla delante.
+    organismos = catalogue_slugs(species) or ("",)
+    por_candidato: dict[int, dict[str, dict[str, str]]] = {}
+    ultima_por_organismo: dict[str, object] = {}
     # SIN ALMACEN NO SE PREGUNTA NADA, y por eso tampoco se resuelve la especie: la clave
     # de consulta la necesita quien busca en el registro, y aqui no hay registro. Sin este
     # corte, una tabla pedida sin especie —que es un camino legitimo, el del CLI— abortaba
     # al derivar una clave para la que no hay nada que buscar.
     for inicio in (starts if almacen is not None else ()):
         consulta = query_name(species, int(inicio), "guia")
-        corrida = almacen.latest(consulta) if almacen is not None else None
-        if corrida is None:
-            continue
-        resultado = corrida.result_for(consulta)
-        if resultado is None:
-            continue
-        # EL CONTEO Y SU PERCENTIL, EN LA MISMA CELDA. Separarlos en dos columnas es lo
-        # que hace que alguien copie el numero solo, que es el fallo que esto cierra.
-        por_candidato[int(inicio)] = {
-            clase: (
-                f"{resultado.counts.sites[clase]} "
-                f"(p{resultado.percentiles[clase]:.1f})"
+        for organismo in organismos:
+            # `background=None` es «cualquiera» y es lo que hay que pedir cuando NO hay
+            # eje derivable —especie sin declarar—: ahi no hay catalogo que nombrar y
+            # exigirlo dejaria la columna vacia sobre una corrida que si existe.
+            corrida = almacen.latest(
+                consulta, background=organismo if organismo else None,
             )
-            for clase in SITE_CLASSES
-        }
-        ultima = corrida
+            if corrida is None:
+                continue
+            resultado = corrida.result_for(consulta)
+            if resultado is None:
+                continue
+            # EL CONTEO Y SU PERCENTIL, EN LA MISMA CELDA. Separarlos en dos columnas es
+            # lo que hace que alguien copie el numero solo, que es el fallo que esto
+            # cierra.
+            por_candidato.setdefault(int(inicio), {})[organismo] = {
+                clase: (
+                    f"{resultado.counts.sites[clase]} "
+                    f"(p{resultado.percentiles[clase]:.1f})"
+                )
+                for clase in SITE_CLASSES
+            }
+            ultima_por_organismo[organismo] = corrida
 
+    # LOS CONTROLES TAMBIEN SON POR CATALOGO: sus conteos salen de barrer ESE
+    # transcriptoma, asi que «miR-124-3p: 19.020» sin decir de cual no es una magnitud de
+    # nada. La columna lo dice en vez de dejarlo en el parrafo de arriba.
     controles = [
         {
             "nombre": control.name,
+            "catalogo": organismo or "sin declarar",
             "heptamero": control.heptamer,
             **{clase: control.sites[clase] for clase in SITE_CLASSES},
         }
-        for control in (ultima.scan.controls if ultima is not None else ())
+        for organismo in organismos
+        for control in (
+            getattr(ultima_por_organismo.get(organismo), "scan", None).controls
+            if ultima_por_organismo.get(organismo) is not None else ()
+        )
     ]
+    ultima = next(
+        (ultima_por_organismo[o] for o in organismos if o in ultima_por_organismo),
+        None,
+    )
 
     if ultima is None:
         texto = (
@@ -2032,11 +2126,26 @@ def seed_load_reference(*, stores, species: str, starts) -> dict[str, object]:
             f"{WHY_BOTH_REFERENCES} {WHY_NO_PERCENTILE_FOR_THE_TOTAL}"
         )
     else:
+        # DE QUE CORRIDA SALE CADA COLUMNA, y no «de la ultima». Con el eje dual hay una
+        # por organismo y el texto tiene que nombrarlas: decir «la corrida X» al lado de
+        # ocho celdas de las que la mitad salen de otra es una procedencia falsa.
+        corridas = ", ".join(
+            f"{organismo}: {ultima_por_organismo[organismo].run_id} "
+            f"({ultima_por_organismo[organismo].date})"
+            for organismo in organismos
+            if organismo in ultima_por_organismo
+        )
+        faltan = [o for o in organismos if o and o not in ultima_por_organismo]
         texto = (
-            f"Percentiles y controles de la corrida {ultima.run_id} ({ultima.date}), "
-            f"sobre {ultima.source}. {WHY_BOTH_REFERENCES} "
+            f"Percentiles y controles por catálogo — {corridas}; sobre "
+            f"{ultima.source}. {WHY_BOTH_REFERENCES} "
             f"{WHY_NO_PERCENTILE_FOR_THE_TOTAL}"
         )
+        if faltan:
+            texto += (
+                f" SIN CORRER todavía: {', '.join(faltan)}. Esas celdas van vacías y no "
+                f"es por falta de fichero — es que falta esa corrida, que es otra cosa."
+            )
 
     return {
         "hay": ultima is not None,
@@ -2048,6 +2157,17 @@ def seed_load_reference(*, stores, species: str, starts) -> dict[str, object]:
         "por_candidato": por_candidato,
         "controles": controles,
         "clases": tuple(SITE_CLASSES),
+        # LOS ORGANISMOS DEL EJE, en el mismo orden en que salen las columnas. Se
+        # publican para que la tabla, el informe y el CSV los lean de aqui en vez de
+        # volver a derivarlos cada uno: dos derivaciones del mismo eje son dos formas de
+        # nombrar la misma celda (principio nº 27).
+        "organismos": tuple(organismos),
+        # Y CUALES TIENEN CORRIDA EN EL ALMACEN, que NO es `ultima_por_organismo`: eso
+        # dice si alguno de los candidatos PREGUNTADOS salio en una, y esto si hay algo
+        # guardado de ese catalogo. La diferencia es justo el caso de `3utr:359` —
+        # corrida guardada, y el no estaba en ella— un eje mas alla, y de ella depende
+        # que su celda diga `SIN_CONSULTAR` en vez de quedarse vacia (errata nº 55).
+        "con_corrida": _catalogos_con_corrida(almacen, organismos),
         "texto": texto,
     }
 
@@ -2262,12 +2382,20 @@ def seed_load_columns(*, stores, species: str, start: int, reference=None) -> di
     vista = reference if reference is not None else seed_load_reference(
         stores=stores, species=species, starts=(start,)
     )
-    celdas = vista["por_candidato"].get(int(start), {})
-    # El hueco se rellena con `SIN_CONSULTAR` sólo si el ALMACÉN tiene corridas. Con la
-    # vista de un solo candidato, `hay` diría que no hay referencia justo en el caso que
-    # se quiere distinguir, así que la pregunta es por el almacén y no por esta fila.
-    vacio = SIN_CONSULTAR if vista["hay_corridas"] else ""
-    return {f"carga_{clase}": celdas.get(clase, vacio) for clase in SITE_CLASSES}
+    por_organismo = vista["por_candidato"].get(int(start), {})
+    salida: dict[str, str] = {}
+    for organismo in vista["organismos"]:
+        celdas = por_organismo.get(organismo, {})
+        # El hueco se rellena con `SIN_CONSULTAR` sólo si HAY corrida DE ESE CATALOGO.
+        # Con el eje dual, preguntarlo por el almacén entero diría `SIN_CONSULTAR` en
+        # las celdas del catálogo que nadie ha corrido todavía — y eso manda a repetir
+        # una corrida con otro alcance cuando lo que falta es la corrida entera. Son las
+        # tres formas de la errata nº 55, ahora con un eje más.
+        vacio = SIN_CONSULTAR if organismo in vista["con_corrida"] else ""
+        sufijo = f":{organismo}" if organismo else ""
+        for clase in SITE_CLASSES:
+            salida[f"carga_{clase}{sufijo}"] = celdas.get(clase, vacio)
+    return salida
 
 
 def seed_load_placeholder(utr3_set, *, species: str = ""):
@@ -2323,13 +2451,26 @@ def seed_params_from_form(valores: dict):
     )
 
 
-def seed_run(selection, *, mature, params, species: str, starts, guides, passengers):
-    """Atajo con nombre estable para la pagina. La logica esta en `seed_scan`."""
+def seed_run(selection, *, mature, params, species: str, starts, guides, passengers,
+             organism: str):
+    """Atajo con nombre estable para la pagina. La logica esta en `seed_scan`.
+
+    **`organism` FALTABA AQUI y el modal no podia correr** (errata nº 159). Este atajo
+    TRANSCRIBE la firma de `run_scan`, asi que es una segunda definicion de la misma
+    lista de parametros: al entrar el eje de organismo se actualizo la de abajo y esta se
+    quedo atras, y la pagina —que llama por aqui— reventaba con un `TypeError` al pulsar.
+    Va **sin valor por defecto**, como en `run_scan`: el que saldria decidiria contra que
+    conjunto de maduros se compara (principio nº 58).
+
+    Lo que impide que vuelva a separarse no es este comentario: es
+    `tests/test_la_PAGINA_no_puede_llamar_a_lo_que_no_existe.py`, que cruza cada llamada
+    de la pagina contra la firma de verdad.
+    """
     from .seed_scan import run_scan
 
     return run_scan(
         selection, mature=mature, params=params, species=species, starts=starts,
-        guides=guides, passengers=passengers,
+        guides=guides, passengers=passengers, organism=organism,
     )
 
 
@@ -2574,6 +2715,11 @@ def offtarget_self_count_rows(scan):
             "sitios": propio.occurrences,
             "esperado": propio.expected,
             "anomalo": propio.anomalous,
+            # CUAL ES EL SUYO: TRES estados, y el tercero no es «no se sabe cual» a
+            # secas — es que la ventana cruza la frontera CDS/3'UTR y su inicio no tiene
+            # coordenada en el marco de la diana. La columna lo dice con una palabra y
+            # `lectura` lleva el motivo entero.
+            "sitio_propio": "sin identificar" if not propio.own_site_known else "",
             "lectura": propio.describe(),
         }
         for consulta, propio in scan.self_counts.items()
@@ -2947,7 +3093,19 @@ def front_columns(tiling, selection, *, species) -> list[str]:
 #: hacia. Un frente por hebra da DOS columnas, `<frente>:guia` y `<frente>:pasajera`.
 STORE_FOR_FRONT = {
     "especificidad": {"almacen": "blast", "por_hebra": False, "por_catalogo": False},
-    "seed_colision": {"almacen": "seed", "por_hebra": True, "por_catalogo": False},
+    # EL EJE DE ORGANISMO TAMBIEN AQUI (2026-09-11). El shmiR se expresa en neuronas de
+    # raton humanizado, cuya maquinaria endogena de miARN es MURINA, asi que una seed
+    # limpia contra `hsa-` puede secuestrar un programa regulador en el EXPERIMENTO. Son
+    # dos preguntas y dos columnas: ver `species.WHY_TWO_MIRNA_SETS`.
+    #
+    # **«CATALOGO» AQUI ES EL CONJUNTO DE MADUROS DE ESE ORGANISMO**, no un fichero: el
+    # eje de off-targets son DOS FICHEROS y este son DOS SUBCONJUNTOS DE UNO
+    # (`species.MIRNA_AXIS_IS_ONE_FILE`). Lo que comparten —y por lo que la bandera es
+    # la misma— es la LISTA de organismos, que sale de `species.model_organisms` para los
+    # dos: con una lista por frente, el dia que se declare un segundo fondo genetico uno
+    # de los dos se quedaria con uno solo y el sintoma seria medir la mitad con la forma
+    # correcta.
+    "seed_colision": {"almacen": "seed", "por_hebra": True, "por_catalogo": True},
     # EL EJE DE CATALOGO (2026-09-08). Los candidatos pasan off-targets contra el
     # transcriptoma de la especie DIANA y contra el del FONDO GENETICO del modelo, y las
     # dos celdas no se funden: ver `species.WHY_TWO_CATALOGUES`. Los otros dos frentes no
@@ -2956,6 +3114,16 @@ STORE_FOR_FRONT = {
     "offtarget_seed": {
         "almacen": "offtarget", "por_hebra": True, "por_catalogo": True,
     },
+}
+
+#: QUE MIDE CADA FRENTE CONTRA EL ORGANISMO DEL EJE, en sus palabras. Lo lee el `NOT_RUN`
+#: de una especie sin eje declarado, que tiene que decir de QUE corrida habla: «no se sabe
+#: contra qué organismos barrer los off-targets» sobre la celda de colisión de seed manda
+#: a mirar el frente de al lado. Se DERIVA que hace falta —todo frente `por_catalogo`
+#: tiene entrada, y hay test de que no falta ninguno—, no se recuerda.
+QUE_MIDE_EL_EJE = {
+    "offtarget_seed": "la carga de off-targets por seed",
+    "seed_colision": "la colisión de seed con miARN endógeno",
 }
 
 #: Frentes con almacen que NO caben aqui, con el motivo. `empalme_sitios` se consulta por
@@ -3188,6 +3356,27 @@ def _store_state(stores, front: str, species: str, start: int) -> str | None:
 
     `None` significa «los almacenes no dicen nada de esto», que no es lo mismo que
     `NOT_RUN`: quien decide entonces es el filtro de la ventana, como siempre.
+
+    Es una PROYECCION de `_store_verdict`, no una segunda resolucion: el estado y su
+    motivo salen de la misma llamada al almacen. Separarlos daria dos caminos que pueden
+    contestar cosas distintas sobre el mismo candidato, que es el principio nº 27.
+    """
+    resuelto = _store_verdict(stores, front, species, start)
+    return None if resuelto is None else resuelto[0]
+
+
+def _store_verdict(
+    stores, front: str, species: str, start: int,
+) -> tuple[str, str] | None:
+    """`(estado, motivo)` de ESE frente para ESE candidato, o `None`.
+
+    **EL MOTIVO SE CALCULABA Y SE TIRABA** (2026-09-11). `_store_state` devolvia
+    `.state.value` y descartaba `.reason`, asi que aguas arriba no habia forma de decir
+    POR QUE una corrida guardada no cierra su frente — y la tarjeta caia al texto del
+    filtro por ventana, «falta el recurso», que manda a conseguir un fichero cuando lo
+    que bloquea es otra cosa. Reportado sobre el panel humano: once `NO_CIERRA` en la
+    tabla y «NOT_RUN en 2414 de 2414 ventanas» en la tarjeta, las dos ciertas y sobre
+    preguntas distintas.
     """
     # Una columna por hebra llega como `<frente>:guia`. La hebra se saca del NOMBRE de la
     # columna, que es quien la lleva; el frente es lo de delante.
@@ -3214,9 +3403,10 @@ def _store_state(stores, front: str, species: str, start: int) -> str | None:
     # contestado en cuanto alguno de sus pares lo esta. La comparacion entre intrones
     # vive en el modal y en el export, que si tiene UNA COLUMNA POR INTRON.
     if nombre in PAIR_UNIT_FRONTS and not hebra:
-        return _estado_por_par(
+        estado = _estado_por_par(
             stores, PAIR_UNIT_FRONTS[nombre]["almacen"], starts=[start],
         ).get(int(start))
+        return None if estado is None else (estado, "")
     declarado = STORE_FOR_FRONT.get(nombre)
     if not declarado or not stores:
         return None
@@ -3239,7 +3429,7 @@ def _store_state(stores, front: str, species: str, start: int) -> str | None:
         # que no haber corrido nada: se arregla lanzando una corrida que lo incluya, no
         # consiguiendo un fichero. Sin corridas de ningun tipo se devuelve `None` y manda
         # el filtro de la ventana, como siempre.
-        return SIN_CONSULTAR if getattr(almacen, "runs", None) else None
+        return (SIN_CONSULTAR, "") if getattr(almacen, "runs", None) else None
     # LA ESPECIE VIAJA: decide que variantes de transcrito son la diana, y sin ella la
     # corrida no puede eximir su propio blanco (errata nº 56). Los otros tres almacenes
     # no tienen especie que pasar, asi que se MIRA LA FIRMA en vez de probar y cazar el
@@ -3255,15 +3445,24 @@ def _store_state(stores, front: str, species: str, start: int) -> str | None:
     # pregunta de la diana es el colapso que este eje existe para impedir.
     if "background" in firma:
         if not catalogo:
-            # SIN CATALOGO QUE NOMBRAR no se pregunta: `verdict_for` aborta a proposito
-            # y ese aborto tumbaria la tabla entera. La respuesta honesta es un NOT_RUN
-            # que dice que el hueco esta en la DECLARACION de la especie — la misma que
-            # da la ficha, para que las dos digan lo mismo (principio nº 23).
-            from .offtarget_store import verdict_without_catalogue  # noqa: PLC0415
+            # SIN EJE QUE NOMBRAR no se pregunta: `verdict_for` aborta a proposito y ese
+            # aborto tumbaria la tabla entera. La respuesta honesta es un NOT_RUN que
+            # dice que el hueco esta en la DECLARACION de la especie — la misma que da
+            # la ficha, para que las dos digan lo mismo (principio nº 23).
+            #
+            # Y EL TEXTO ES EL DEL FRENTE QUE PREGUNTA. Con el de off-targets escrito
+            # para los dos, la celda de `seed_colision` diria «no se sabe contra que
+            # TRANSCRIPTOMAS barrer» de un frente que no barre ninguno, y el
+            # `FilterResult` saldria ademas con el nombre del otro frente.
+            from .eje_organismo import sin_eje_declarado  # noqa: PLC0415
 
-            return verdict_without_catalogue(species).state.value
+            sin_eje = sin_eje_declarado(
+                species, frente=nombre, que_es=QUE_MIDE_EL_EJE[nombre],
+            )
+            return sin_eje.state.value, sin_eje.reason
         extra["background"] = catalogo
-    return almacen.verdict_for(consulta, **extra).state.value
+    resultado = almacen.verdict_for(consulta, **extra)
+    return resultado.state.value, resultado.reason
 
 
 #: Un frente se cierra CONSIGUIENDO LA RESPUESTA, no consiguiendo un `PASS`. Un `FAIL`
@@ -3346,7 +3545,7 @@ def fronts_closed_over_panel(
 
 
 def run_coverage(
-    estados_por_frente, *, starts, frame: coords.Frame, origins=None,
+    estados_por_frente, *, starts, frame: coords.Frame, origins=None, reasons=None,
 ) -> dict[str, dict]:
     """CUANTOS candidatos del panel contesta cada frente, y si eso lo cierra.
 
@@ -3367,11 +3566,20 @@ def run_coverage(
     ventanas — la otra forma de la errata nº 138, la que no fabrica una etiqueta sino que
     se salta `coords` entero. Un valor por defecto aqui seria el mismo fallo con otra
     cara (principio nº 58).
+
+    `reasons` es `{frente: {inicio: motivo}}` y sale de `panel_states_by_front`. De ahi
+    sale `bloqueo`, que es el TERCER campo y contesta a una pregunta que ni `motivo` ni
+    `avance` podian contestar: **hay corrida, se consulto a este candidato, y la corrida
+    NO da veredicto**. Ese caso caia en la rama `else` de aqui —`cubiertos` vacio, motivo
+    vacio— asi que salia indistinguible de un proyecto sin ninguna corrida, y la tarjeta
+    acababa pintando el texto del filtro por ventana. Sin `reasons` se comporta como
+    antes: `bloqueo` sale vacio y manda quien mandaba.
     """
     if not starts:
         return {}
     panel = sorted({int(s) for s in starts})
     origenes_por_frente = origins or {}
+    motivos_por_frente = reasons or {}
     salida: dict[str, dict] = {}
     for frente, por_candidato in (estados_por_frente or {}).items():
         cubiertos = [
@@ -3382,6 +3590,20 @@ def run_coverage(
             (origenes_por_frente.get(frente) or {}).get(inicio, ORIGEN_CORRIDA)
             for inicio in cubiertos
         }
+        # LOS QUE NO CONTESTAN SON DE DOS CLASES, y se arreglan con cosas distintas: al
+        # que NADIE MIRO le falta una corrida; al que tiene motivo se le pregunto y la
+        # corrida no pudo dar veredicto —`NO_CIERRA`—, y eso se arregla con lo que diga
+        # el motivo, nunca lanzando otra corrida igual.
+        motivos_del_frente = motivos_por_frente.get(frente) or {}
+        no_cierran = [
+            (inicio, motivos_del_frente[inicio])
+            for inicio in panel
+            if inicio not in cubiertos and motivos_del_frente.get(inicio)
+        ]
+        nadie_miro = [
+            inicio for inicio in panel
+            if inicio not in cubiertos and not motivos_del_frente.get(inicio)
+        ]
         cerrado = len(cubiertos) == len(panel)
         if cerrado:
             motivo = _motivo_cerrado(len(panel), de_donde)
@@ -3389,6 +3611,11 @@ def run_coverage(
             motivo = _motivo_a_medias(panel, cubiertos, de_donde, frame)
         else:
             motivo = ""
+        bloqueo = (
+            ""
+            if cerrado or not no_cierran
+            else _motivo_no_cierra(panel, no_cierran, nadie_miro, frame)
+        )
         # `motivo` y `avance` SON DOS PREGUNTAS y por eso son dos campos (errata nº 108).
         # `motivo` dice por que se cierra —y de ahi sale `frente.reason`, o sea el
         # resultado en VERDE—; `avance` dice CUANTO FALTA, que es para lo que se escribio
@@ -3396,12 +3623,17 @@ def run_coverage(
         # De un frente cerrado no falta nada, asi que ahi `avance` esta vacio: con el
         # mismo texto en los dos, la tarjeta decia lo mismo dos veces y en dos colores —
         # un ambar que dice «pendiente» debajo de un verde que dice «cerrado».
+        # Y `bloqueo` ES UNA TERCERA, no un sinonimo de las otras dos: `motivo` dice por
+        # que se cierra o cuanto falta por consultar, `avance` dice cuanto falta, y
+        # `bloqueo` dice que impide cerrar a los que YA se consultaron. Los tres nunca
+        # llevan el mismo texto — un campo que repite a otro es la errata nº 108.
         salida[frente] = {
             "cerrado": cerrado,
             "cubiertos": len(cubiertos),
             "panel": len(panel),
             "motivo": motivo,
             "avance": "" if cerrado else motivo,
+            "bloqueo": bloqueo,
         }
     return salida
 
@@ -3446,6 +3678,46 @@ def _motivo_a_medias(panel, cubiertos, de_donde: set[str], frame: coords.Frame) 
     )
 
 
+def _motivo_no_cierra(panel, no_cierran, nadie_miro, frame: coords.Frame) -> str:
+    """Se consulto, y la corrida NO da veredicto. El motivo es el de la CORRIDA.
+
+    No es «no se ha hecho nada» y no es «falta un recurso»: la corrida esta, se lee y se
+    le pregunto a estos candidatos. Lo que falta es lo que diga su motivo, y por eso el
+    motivo se emite ENTERO en vez de resumirse — repetir la misma corrida no cambia nada.
+    """
+    cuantos = len(no_cierran)
+    quienes = (
+        f"los {cuantos} candidatos del panel"
+        if cuantos == len(panel)
+        else (
+            f"{cuantos} de {len(panel)} candidatos "
+            f"({coords.labels([inicio for inicio, _ in no_cierran], frame)})"
+        )
+    )
+    # UN MOTIVO REPETIDO SE DICE UNA VEZ. Con once candidatos y la misma causa, once
+    # copias del mismo parrafo esconden el caso en que NO son la misma.
+    unicos = list(dict.fromkeys(motivo for _, motivo in no_cierran if motivo))
+    cabeza = (
+        f"HAY CORRIDA Y NO CIERRA: {quienes} tienen corrida guardada de este frente y "
+        f"esa corrida NO puede dar veredicto. **Repetirla igual no cambia nada** — lo "
+        f"que hay que hacer es lo que dice el motivo."
+    )
+    if len(unicos) == 1:
+        cuerpo = f" Motivo: {unicos[0]}"
+    else:
+        numerados = " ".join(
+            f"({n}) {texto}" for n, texto in enumerate(unicos, start=1)
+        )
+        cuerpo = f" Motivos, {len(unicos)} distintos: {numerados}"
+    if nadie_miro:
+        cuerpo += (
+            f" Y ADEMÁS quedan {len(nadie_miro)} a los que esa corrida no llegó a "
+            f"preguntar, que eso sí se arregla con una corrida que los incluya: "
+            f"{coords.labels(nadie_miro, frame)}."
+        )
+    return cabeza + cuerpo
+
+
 def store_states_by_front(stores, *, species: str, starts) -> dict[str, dict[int, str]]:
     """`{frente: {inicio: estado}}` segun los ALMACENES. Una de las dos mitades.
 
@@ -3463,23 +3735,49 @@ def store_states_by_front(stores, *, species: str, starts) -> dict[str, dict[int
 
     Un frente por hebra se contesta **con las dos**, o no se contesta.
     """
-    salida: dict[str, dict[int, str]] = {}
+    return {
+        frente: {inicio: estado for inicio, (estado, _) in por_candidato.items()}
+        for frente, por_candidato in store_verdicts_by_front(
+            stores, species=species, starts=starts
+        ).items()
+    }
+
+
+def store_verdicts_by_front(
+    stores, *, species: str, starts,
+) -> dict[str, dict[int, tuple[str, str]]]:
+    """`{frente: {inicio: (estado, motivo)}}` segun los almacenes. UNA sola pasada.
+
+    `store_states_by_front` es su proyeccion. Van juntos a proposito: el motivo de un
+    `NO_CIERRA` es lo unico que dice QUE hay que hacer —repetir la corrida, declarar una
+    diana— y calculado en un segundo recorrido podria describir un estado distinto del
+    que se pinta al lado.
+    """
+    salida: dict[str, dict[int, tuple[str, str]]] = {}
     for frente, declarado in STORE_FOR_FRONT.items():
         # LAS MISMAS COLUMNAS QUE EMITE LA TABLA, pedidas al mismo sitio. Estaban
         # construidas aqui otra vez, y al entrar el eje de catalogo esta copia se quedo
         # sin el: la tabla pedia cuatro celdas y esto contestaba dos.
         columnas = store_front_columns(frente, declarado, species=species)
-        por_candidato: dict[int, str] = {}
+        por_candidato: dict[int, tuple[str, str]] = {}
         for inicio in starts:
-            estados = [
-                _store_state(stores, columna, species, int(inicio))
+            resueltos = [
+                _store_verdict(stores, columna, species, int(inicio))
                 for columna in columnas
             ]
-            if any(estado is None for estado in estados):
+            if any(resuelto is None for resuelto in resueltos):
                 # Los almacenes no dicen nada de esta hebra: manda el filtro de la
                 # ventana, como siempre. `None` NO es `NOT_RUN`.
                 continue
-            por_candidato[int(inicio)] = _peor_de(estados)
+            estados = [estado for estado, _ in resueltos]
+            manda = _peor_de(estados)
+            # EL MOTIVO ES EL DE LA COLUMNA QUE MANDA, no el de la primera: con dos
+            # hebras y una sola en `NO_CIERRA`, el motivo de la otra describiria un
+            # estado que no es el que se pinta.
+            motivo = next(
+                (m for e, m in resueltos if e == manda and m), "",
+            )
+            por_candidato[int(inicio)] = (manda, motivo)
         if por_candidato:
             salida[frente] = por_candidato
 
@@ -3487,11 +3785,9 @@ def store_states_by_front(stores, *, species: str, starts) -> dict[str, dict[int
     # frente y un inicio, sino con el PAR — y por eso se quedaron fuera del bucle de
     # arriba durante toda su vida. Ver `PAIR_UNIT_FRONTS`.
     for frente, declarado in PAIR_UNIT_FRONTS.items():
-        por_candidato = _estado_por_par(
-            stores, declarado["almacen"], starts=starts
-        )
-        if por_candidato:
-            salida[frente] = por_candidato
+        por_par = _estado_por_par(stores, declarado["almacen"], starts=starts)
+        if por_par:
+            salida[frente] = {i: (e, "") for i, e in por_par.items()}
     return salida
 
 
@@ -3778,8 +4074,19 @@ def panel_states_by_front(
     La unidad de la pregunta es **el panel**, para las dos. Y no se arregla la tarjeta:
     se junta el origen de las dos aqui, para que no puedan volver a separarse.
 
-    Devuelve `{"estados": {frente: {inicio: estado}}, "origenes": {frente: {inicio: ...}}}`
-    — una sola pasada y dos proyecciones, no dos calculos del mismo numero.
+    Devuelve `{"estados": …, "origenes": …, "motivos": …}`, los tres indexados por
+    `{frente: {inicio: …}}` — una sola pasada y TRES proyecciones, no tres calculos del
+    mismo numero.
+
+    **`motivos` ES LA TERCERA, y entro el 2026-09-11** (accion 2 del panel humano). El
+    motivo lo emite el almacen —`FilterResult.reason`— y se tiraba en `_store_state`,
+    asi que aguas arriba no habia forma de decir POR QUE una corrida guardada no cierra
+    su frente. Con once `NO_CIERRA` la tarjeta caia al texto del filtro por ventana
+    —«NOT_RUN en 2414 de 2414 ventanas: falta el recurso»—, que manda a conseguir un
+    fichero cuando lo que bloquea es otra cosa (aqui, la diana sin declarar). Las dos
+    frases eran ciertas y contestaban a preguntas distintas; la que se pintaba era la que
+    no se habia preguntado. Solo lo llenan los almacenes: el filtro de la ventana no
+    emite motivo por candidato.
     """
     # LOS FRENTES GLOBALES, una vez por corrida: su respuesta es del
     # TRANSCRITO y no de cada candidato (errata nº 141).
@@ -3788,6 +4095,7 @@ def panel_states_by_front(
     ventanas = {int(w.window.start): w for w in tiling.windows}
     estados: dict[str, dict[int, str]] = {}
     origenes: dict[str, dict[int, str]] = {}
+    motivos: dict[str, dict[int, str]] = {}
 
     # 1. LO QUE DICE LA CELDA DE LA TABLA, letra por letra: `_filter_columns` —el unico
     #    sitio del que sale el estado por filtro de una fila— pasado por `_with_stores`,
@@ -3811,14 +4119,16 @@ def panel_states_by_front(
     #    contestar los frentes POR HEBRA, que `_with_stores` deja pasar a proposito
     #    (fundir las dos hebras en una columna daria por buena la de la pasajera con el
     #    estado de la guia). Para los demas, el paso 1 ya trae este mismo estado.
-    for frente, por_candidato in store_states_by_front(
+    for frente, por_candidato in store_verdicts_by_front(
         stores, species=species, starts=starts
     ).items():
-        for inicio, estado in por_candidato.items():
+        for inicio, (estado, motivo) in por_candidato.items():
             estados.setdefault(frente, {})[inicio] = estado
             origenes.setdefault(frente, {})[inicio] = ORIGEN_CORRIDA
+            if motivo:
+                motivos.setdefault(frente, {})[inicio] = motivo
 
-    return {"estados": estados, "origenes": origenes}
+    return {"estados": estados, "origenes": origenes, "motivos": motivos}
 
 
 #: QUE HAY EN LA TABLA, dicho arriba. Sin esto, sus 270 filas se leen como si todas
@@ -3911,8 +4221,10 @@ def pending_after_duplicate(
     nombres = ", ".join(_start_label(selection, inicio) for inicio in faltan)
     return {
         "activo": True,
+        "de_otro_panel": _otro_panel(stores, front, species),
         "texto": (
-            f"Y ESO NO ES TODO EL PANEL: lo que ya está registrado contesta a "
+            _otro_panel(stores, front, species)
+            + f"Y ESO NO ES TODO EL PANEL: lo que ya está registrado contesta a "
             f"{panel - len(faltan)} de {panel} candidatos para este frente, y "
             f"{len(faltan)} siguen sin contestar — {nombres}. Si venías a cubrirlos, "
             f"el fichero que hace falta es el de una corrida que los INCLUYA: se "
@@ -3920,6 +4232,28 @@ def pending_after_duplicate(
             f"sube ESE resultado."
         ),
     }
+
+
+def _otro_panel(stores, front: str, species: str) -> str:
+    """La cabecera que dice que lo registrado es de OTRO panel. Vacia si no lo es.
+
+    **Va DELANTE y no al final**, porque cambia lo que hay que hacer: si la corrida
+    registrada es de otro panel, no falta «una corrida que incluya a estos dos» — falta
+    entera, y el `0 de N` de abajo deja de ser una laguna para pasar a ser la
+    consecuencia. Reportado el 2026-09-11: el mensaje decia «cubre 0 de 11» y no decia de
+    QUE panel era, asi que hubo que deducirlo.
+    """
+    from .species import resolve  # noqa: PLC0415
+
+    activo = resolve(species).slug
+    ajenos = [s for s in registered_panels(stores, front) if s and s != activo]
+    if not ajenos:
+        return ""
+    return (
+        f"OJO: la corrida que ya está registrada para este frente es del panel "
+        f"{', '.join(sorted(ajenos))} y NO del de hoy ({activo}). Por eso no contesta "
+        f"a ninguno de estos candidatos: sus consultas son de otras ventanas. "
+    )
 
 
 def panel_first(filas):
@@ -3997,9 +4331,14 @@ def site_table_rows(tiling, selection, *, species,
                     None if ventana.evaluation.asymmetry is None
                     else round(ventana.evaluation.asymmetry, 2)
                 ),
+                # UNA CELDA NUMERICA VACIA ES `None`, NO `""`. Ver `EMPTY_NUMBER_IS_NULL`:
+                # `""` es una CADENA, asi que mezclaba texto con enteros en la misma
+                # columna y la tabla acababa siendo de TEXTO — con el puesto 11 ordenando
+                # entre el 1 y el 2. El significado no cambia: los ~270 sitios que no
+                # estan en el panel NO TIENEN puesto, y eso sigue saliendo vacio.
                 "rango": (
                     selection.selection.rank_of(ventana.window.start)
-                    if elegido is not None else ""
+                    if elegido is not None else None
                 ),
                 # El almacen MANDA donde tiene algo que decir; donde no, decide el
                 # filtro de la ventana. Y sólo sobre SU columna: `STORE_FOR_FRONT`.
@@ -4490,7 +4829,9 @@ def deposit_for_run(kind: str, *, species: str, directory) -> list[dict[str, obj
 #: POR QUE SON DOS CATALOGOS Y NO UN NUMERO FUNDIDO. Se reexporta desde `species` —que
 #: es donde vive la declaracion del fondo genetico— para que la pagina no tenga que
 #: importar el nucleo: una segunda redaccion del mismo motivo envejeceria por su cuenta.
-from .species import WHY_TWO_CATALOGUES  # noqa: E402
+from .species import (  # noqa: E402
+    MIRNA_AXIS_IS_ONE_FILE, WHY_TWO_CATALOGUES, WHY_TWO_MIRNA_SETS,
+)
 
 #: LOS CATALOGOS QUE SE PUEDEN BARRER, para el selector del modal. Uno por catalogo
 #: declarado, con su rol y su fichero — el de la DIANA primero, que es el orden de
@@ -4529,6 +4870,128 @@ def offtarget_catalog_options(*, species: str, directory) -> list[dict[str, obje
             }
         )
     return opciones
+
+
+def seed_axis_options(*, species: str) -> list[dict[str, object]]:
+    """Contra los maduros de QUE organismos se puede correr la colision de seed.
+
+    Es el mismo eje que `offtarget_catalog_options` —sale de `species.model_organisms`
+    para los dos— y la diferencia va escrita en cada opcion: aqui **no hay fichero que
+    depositar**. `mature.fa` trae los 69.020 maduros de todas las especies, asi que cada
+    eje es un FILTRO POR PREFIJO sobre ese mismo fichero
+    (`species.MIRNA_AXIS_IS_ONE_FILE`). Sin esa frase, el selector se lee como si la
+    segunda corrida esperara una descarga y se aplaza por una razon que no existe.
+
+    Sin eje derivable —especie sin declarar— devuelve la lista VACIA, que es lo que hay:
+    sin prefijo de miRBase no se puede filtrar nada y decir «uno» seria inventarlo.
+    """
+    from .species import mirna_axis, resolve  # noqa: PLC0415
+
+    especie = resolve(species)
+    return [
+        {
+            "organismo": slug,
+            "prefijo": prefijo,
+            "es_la_diana": slug == especie.slug,
+            "etiqueta": (
+                f"{resolve(slug).scientific} ({prefijo}) — "
+                + ("la especie DIANA (el paciente)" if slug == especie.slug
+                   else "el FONDO GENÉTICO del modelo (el experimento)")
+            ),
+        }
+        for slug, prefijo in mirna_axis(especie)
+    ]
+
+
+def seed_axis_missing_text(species: str) -> str:
+    """Por que no se puede correr la colision de seed de esta especie. UN solo sitio.
+
+    No es que falte un fichero: `mature.fa` esta y trae los maduros de todas las
+    especies. Lo que falta es la DECLARACION —el prefijo de miRBase, o el fondo genetico
+    del modelo—, y decirlo mal manda a descargar algo que ya esta.
+    """
+    from .eje_organismo import sin_eje_declarado  # noqa: PLC0415
+    from .species import MIRNA_AXIS_IS_ONE_FILE  # noqa: PLC0415
+
+    base = sin_eje_declarado(
+        species, frente="seed_colision", que_es=QUE_MIDE_EL_EJE["seed_colision"],
+    )
+    return f"{base.reason} {MIRNA_AXIS_IS_ONE_FILE}"
+
+
+#: LO QUE CUESTA ABRIR EL CATALOGO, MEDIDO (2026-09-11) y no estimado. Son tasas, no
+#: tiempos: el tiempo sale de multiplicarlas por el tamaño del fichero que se cargue.
+#:
+#: Medido en este entorno sobre FASTA sintetico —se mide COSTE, no biologia— con los
+#: mismos `validate_upload` y `build_index` que corre la app:
+#:   · leer + md5 + parsear + auditar isoformas … ~29 Mnt/s
+#:   · construir el indice de 8-meros ……………………… ~4 Mnt/s, y ~3,2 bytes de RSS por nt
+#:
+#: Con un catalogo humano de ~170 Mnt eso es ~6 s de apertura y ~42 s de indice, con un
+#: pico de ~550 MB POR ENCIMA de lo que ya ocupa Streamlit. No es una curiosidad: es lo
+#: que decide si el contenedor aguanta, y hasta hoy `COSTE_POR_ALCANCE` declaraba este
+#: modal como NO MEDIDO — o sea que el boton se ofrecia sin saber lo que costaba.
+COSTE_DEL_CATALOGO = {
+    "abrir_mnt_por_s": 29.0,
+    "indice_mnt_por_s": 4.0,
+    "indice_bytes_por_nt": 3.2,
+}
+
+
+def offtarget_catalog_summary(*, species: str, directory, role: str = "") -> dict:
+    """Lo que se sabe del catalogo SIN ABRIRLO. Es lo que se pinta antes de correr.
+
+    **POR QUE EXISTE (2026-09-11).** `offtarget_catalog_from_deposit` LEE EL FICHERO
+    ENTERO, le calcula el md5, lo parsea y le audita las isoformas — y el modal lo
+    llamaba **fuera del boton**, o sea en CADA repintado. En Streamlit cada tecla es un
+    repintado, asi que con un catalogo humano eso son ~6 s y ~340 MB por pulsacion de
+    tecla. Es la errata nº 59 en el camino vivo y con un fichero veinte veces mayor.
+
+    Lo que hace falta ANTES de correr no es el catalogo: es saber **cual es** y que esta.
+    Y eso lo dice la linea del manifiesto —ensamblaje, tabla, fecha, md5, tamaño—, que
+    ya esta leida. El fichero se abre cuando se pulsa, que es cuando hace falta.
+
+    Lo unico que se pierde es el RECUENTO de registros, que solo se sabe parseando. Se
+    dice **cuando se corre**, y hasta entonces sale el tamaño — que identifica el
+    fichero igual de bien y no cuesta nada.
+    """
+    from .deposito import read_deposit  # noqa: PLC0415
+    from .species import ROL_CATALOGO_DIANA, resolve  # noqa: PLC0415
+
+    fichero = read_deposit(
+        role or ROL_CATALOGO_DIANA, species=resolve(species), directory=directory
+    )
+    if not fichero.present:
+        return {"presente": False, "nombre": fichero.filename, "texto": "", "coste": ""}
+    entrada = fichero.entry
+    procedencia = (
+        f"{entrada.assembly}, {entrada.table_date}" if entrada is not None
+        and str(getattr(entrada, "assembly", "")).strip() else "procedencia incompleta"
+    )
+    mnt = fichero.size / 1e6
+    return {
+        "presente": True,
+        "nombre": fichero.filename,
+        "md5": fichero.md5,
+        "mnt": mnt,
+        "texto": (
+            f"CARGA DE OFF-TARGETS POR SEED — catálogo en el depósito: "
+            f"`{fichero.filename}` ({procedencia}, {mnt:.0f} MB, md5 "
+            f"{fichero.md5[:8]}…). El recuento de registros sale al correr: leerlo "
+            f"entero para pintarlo costaría el fichero completo en cada repintado."
+        ),
+        # LO QUE VA A COSTAR, ANTES de pulsar y no despues. Sale de tasas MEDIDAS por el
+        # tamaño de ESTE fichero, no de un numero escrito.
+        "coste": (
+            f"Al pulsar: abrir y auditar el catálogo ~"
+            f"{mnt / COSTE_DEL_CATALOGO['abrir_mnt_por_s']:.0f} s, construir el índice "
+            f"de 8-meros ~{mnt / COSTE_DEL_CATALOGO['indice_mnt_por_s']:.0f} s, con un "
+            f"pico de ~{mnt * COSTE_DEL_CATALOGO['indice_bytes_por_nt']:.0f} MB de "
+            f"memoria POR ENCIMA de lo que ya ocupa la interfaz. Si el contenedor no "
+            f"tiene ese margen, el proceso muere y la página se queda en «Connecting»: "
+            f"eso NO es que la corrida siga — es que se ha caído."
+        ),
+    }
 
 
 def offtarget_catalog_from_deposit(*, species: str, directory, gene_map=None,
@@ -4744,12 +5207,15 @@ COSTE_POR_ALCANCE: dict[str, CosteDelAlcance] = {
     ),
     "corrida_offtarget": CosteDelAlcance(
         unidad="consulta de off-target", unidad_plural="consultas de off-target",
-        medido=False,
+        medido=True,
         texto=(
-            "El coste NO está medido con el catálogo delante: el índice se construye una "
-            "vez, pero la distribución nula son 10.000 sorteos POR CONSULTA. Con el "
-            "alcance grande eso se multiplica, y aquí nadie ha cronometrado cuánto. Se "
-            "dice en vez de dar un número inventado."
+            "MEDIDO (2026-09-11), y lo caro NO es el alcance: es el CATÁLOGO. El índice "
+            "de 8-meros se construye UNA vez y cuesta ~4 Mnt/s con un pico de ~3,2 bytes "
+            "por nt —con un catálogo humano, decenas de segundos y cientos de MB—; la "
+            "nula son 10.000 sorteos por consulta pero sólo hay ~5.000 permutaciones "
+            "distintas de un heptámero y se cachean, así que doblar el alcance casi no "
+            "mueve el total. Lo que decide si esto cabe es la memoria del contenedor, y "
+            "sale escrito antes de pulsar."
         ),
     ),
     "corrida_empalme": CosteDelAlcance(
@@ -7795,9 +8261,128 @@ def table_tsv(rows) -> str:
     return "\n".join(lineas)
 
 
+def integer_columns(rows) -> tuple[str, ...]:
+    """Las columnas de UNA tabla que son ENTERAS CON HUECOS. Decide aqui, no la pagina.
+
+    Sale de la errata nº 164 y de la autorizacion escrita del 2026-09-11 para usar
+    `pandas.Int64Dtype()` en el pintor. Una columna numerica con huecos se infiere
+    `float64`, asi que el puesto 1 del panel se pinta `1.0`. El dtype nullable `Int64` es
+    la unica forma de tener a la vez **entero** y **hueco**.
+
+    **EL NOMBRE DE LA COLUMNA NO SE ESCRIBE** (principio nº 13). La autorizacion nombra
+    `rango` porque es la que se vio; lo que decide es la PROPIEDAD que la hace aplicable
+    —todos los valores presentes son enteros, y falta alguno—, asi que una columna entera
+    de la tabla 27 queda cubierta sin que nadie se acuerde. Con `"rango"` escrito volveria
+    a pintarse `1.0` y nadie se enteraria.
+
+    **Sin ningun hueco NO se declara**: ahi pandas ya infiere `int64` y forzar el dtype
+    seria trabajo para no cambiar nada. **Un `bool` no cuenta** —hereda de `int`— y un
+    `float` con parte decimal tampoco: `2.96` de asimetria no es un entero y convertirlo
+    lo truncaria en silencio, que es peor que pintar un `.0` de mas.
+    """
+    filas = [f for f in (list(rows or [])) if isinstance(f, dict)]
+    if not filas:
+        return ()
+    salida = []
+    for col in {clave for fila in filas for clave in fila}:
+        valores = [fila.get(col) for fila in filas]
+        presentes = [v for v in valores if v is not None]
+        if len(presentes) == len(valores) or not presentes:
+            continue  # sin huecos, o sin ningun valor: no hay nada que declarar
+        if all(
+            isinstance(v, int) and not isinstance(v, bool)
+            or isinstance(v, float) and v.is_integer()
+            for v in presentes
+        ):
+            salida.append(str(col))
+    return tuple(sorted(salida))
+
+
+def cell_text(valor) -> str:
+    """El texto de UNA celda. `None` sale VACIO, nunca como la palabra «None».
+
+    Es la regla de siempre —una celda sin valor va vacia, nunca a cero y nunca a un texto
+    que parece un dato— y vive en un solo sitio porque tiene **dos** consumidores: el TSV
+    que se lleva una tabla y la tabla del informe descargable.
+
+    Lo cazo el diff del golden: al escribirse los vacios numericos como `None` (errata
+    nº 164), `informe_doc` hacia `str(f[c])` y empezo a imprimir `None` en la columna del
+    puesto de 273 filas. Escrita dos veces, una de las dos se habria quedado atras.
+    """
+    return "" if valor is None else str(valor)
+
+
 def _celda_tsv(valor) -> str:
     """El valor de una celda sin nada que descuadre la fila."""
-    return " ".join(str(valor).split("\t")).replace("\r\n", " ").replace("\n", " ")
+    texto = cell_text(valor)
+    return " ".join(texto.split("\t")).replace("\r\n", " ").replace("\n", " ")
+
+
+#: POR QUE UNA CELDA NUMERICA VACIA ES `None` Y NO `""` (errata nº 164).
+#:
+#: La regla de este proyecto es que un numero que no se calculo va **vacio, nunca a
+#: cero**: no haber contado y contar cero son cosas distintas. Lo que no dice esa regla
+#: es COMO se escribe ese vacio, y se venia escribiendo `""` — que es una CADENA.
+#:
+#: Con eso, `rango` llevaba 11 enteros y 273 cadenas vacias en la misma columna. Medido
+#: sobre la tabla real: pyarrow no puede tipar una columna mixta, **Streamlit lo registra
+#: con un traceback entero** («Applying automatic fixes…», que es un `_LOGGER.info`, no un
+#: error) y **se recupera convirtiendo la columna ENTERA a texto**.
+#:
+#: Y ahi esta el fallo que no se ve: una columna de puestos en TEXTO ordena
+#: lexicograficamente, asi que con once candidatos el 10 y el 11 se cuelan **entre el 1 y
+#: el 2**. La tabla se pinta perfecta y se ordena mal. Con `None` la columna sale numerica
+#: con huecos —Arrow la tipa a la primera— y el vacio se sigue viendo vacio.
+#:
+#: NO es un `0` disfrazado: `None` es exactamente «aqui no hay valor», que es lo que
+#: significa un sitio que no esta en el panel — no tiene puesto.
+EMPTY_NUMBER_IS_NULL = (
+    "Una celda numérica sin valor va a `None`, no a `\"\"`: la cadena vacía convierte la "
+    "columna entera en texto y entonces el puesto 11 ordena entre el 1 y el 2. Vacío se "
+    "sigue viendo vacío, y sigue sin ser cero."
+)
+
+
+def table_cells(rows):
+    """Las filas de UNA tabla con los vacios numericos como `None`. Decide aqui, no la
+    pagina (regla 6).
+
+    El criterio es POR COLUMNA y se DERIVA del contenido: una columna que lleva algun
+    numero y alguna cadena vacia es una columna numerica con huecos, y esos huecos son
+    nulos. Una columna de texto con celdas vacias **no se toca** — ahi `""` es el valor.
+
+    Se hace en el PINTOR UNICO y no en cada emisor: son 26 tablas, y arreglar la que
+    reventó dejaría a las otras 25 esperando su turno (principio nº 31). El emisor que ya
+    se conocia emite `None` por su cuenta; esto cubre a los que vengan.
+
+    Un `bool` NO cuenta como numero aunque Python lo herede de `int`: una columna de
+    `True`/`False`/`""` no es numerica, y tratarla como tal cambiaria lo que significa.
+    """
+    # Se materializa UNA vez: con un generador, recorrerlo dos veces lo dejaria vacio en
+    # la segunda y la tabla saldria sin filas, sin dar ningun error.
+    todas = list(rows or [])
+    filas = [f for f in todas if isinstance(f, dict)]
+    if len(filas) != len(todas):
+        # Algo que no es una fila: se devuelve tal cual en vez de adivinar su forma.
+        return todas
+    columnas = {clave for fila in filas for clave in fila}
+    numericas = {
+        col for col in columnas
+        if any(
+            isinstance(f.get(col), (int, float)) and not isinstance(f.get(col), bool)
+            for f in filas
+        )
+    }
+    if not numericas:
+        return filas
+    return [
+        {
+            clave: (None if clave in numericas and valor == "" and isinstance(valor, str)
+                    else valor)
+            for clave, valor in fila.items()
+        }
+        for fila in filas
+    ]
 
 
 def check_project_slug(slug: str) -> str:
@@ -8769,6 +9354,50 @@ def run_fingerprint(*partes) -> str:
     return hashlib.md5(crudo.encode("utf-8")).hexdigest()
 
 
+def deposit_fingerprint(directory, *, species: str) -> str:
+    """La HUELLA del deposito: cambia si cambia cualquier fichero, y NO cuesta nada.
+
+    Sale de `stat` —nombre, tamaño y mtime de cada fichero— mas la especie, que decide
+    QUE roles se conectan. **No se usa el md5**, y es a proposito: recalcularlo obligaria
+    a leer los ficheros enteros, que es exactamente lo que esta huella existe para
+    evitar. Un fichero reemplazado cambia tamaño o mtime; uno editado a mano conservando
+    los dos es el caso que esto no ve, y ahi manda el cargador, que si compara md5.
+
+    **De donde sale (2026-09-11, errata nº 161).** `load_from_manifest` CONECTA todos los
+    ficheros del deposito, y la pagina lo llamaba en cada repintado — o sea en cada
+    tecla. Con `transcriptoma_3utr_human.fa` dentro eso son, MEDIDOS sobre FASTA
+    sintetico con el mismo `load_utr3_set`: **~36 MB/s y ~4,4 MB de RSS por MB de
+    fichero**. Con un catalogo humano de ~170 MB, **~5 s y ~750 MB en cada repintado** —
+    y durante el repintado conviven la copia vieja y la nueva, asi que el pico dobla.
+    Es la errata nº 59 un piso mas arriba: alli era el barrido por ventana, aqui es la
+    CONEXION entera.
+    """
+    from pathlib import Path  # noqa: PLC0415
+
+    raiz = Path(directory)
+    piezas = [f"especie={species}"]
+    if raiz.is_dir():
+        for fichero in sorted(raiz.iterdir()):
+            if not fichero.is_file():
+                continue
+            info = fichero.stat()
+            piezas.append(f"{fichero.name}:{info.st_size}:{int(info.st_mtime)}")
+    from .identidad import result_fingerprint  # noqa: PLC0415
+
+    return result_fingerprint("\n".join(piezas))
+
+
+#: POR QUE LA CONEXION SE CACHEA, dicho donde se decide. No es una optimizacion suelta:
+#: sin esto la pagina no se puede usar con un catalogo de transcriptoma dentro.
+WHY_THE_DEPOSIT_IS_CACHED = (
+    "Conectar el depósito lee y parsea TODOS sus ficheros, y en Streamlit cada tecla es "
+    "un repintado. Con un catálogo de transcriptoma dentro eso son segundos y cientos de "
+    "MB por pulsación, así que la conexión se reutiliza mientras el depósito no cambie — "
+    "y la huella se calcula con `stat`, que no cuesta nada. Lo que NO se cachea es el "
+    "veredicto: el cargador sigue comprobando el md5 de cada fichero cuando conecta."
+)
+
+
 def cached_run(guardado, huella: str) -> dict:
     """¿Sirve todavía la corrida cacheada? El GUARDIA, y vive aquí, no en la página.
 
@@ -9397,6 +10026,61 @@ def query_name(species: str, start: int, strand: str) -> str:
     return f"{resolve(species).slug}_pos{int(start)}_{strand}"
 
 
+def query_panel(nombre: str) -> str:
+    """El slug de la especie de UNA consulta, leido de vuelta. `""` si no tiene la forma.
+
+    **Es la inversa de `query_name`, y vive pegada a ella** por la razon de siempre: son
+    la misma regla en dos direcciones, y escritas en dos sitios una se queda atras. Hay
+    test que las cruza.
+
+    **NO ADIVINA.** Un nombre que no tenga la forma `<slug>_pos<N>_<hebra>` devuelve la
+    cadena vacia y quien pregunta dice «sin declarar» — nunca un slug deducido. Los hay:
+    antes de la errata nº 42 la clave llevaba el nombre que se pinta, asi que en un log
+    viejo puede haber `raton_pos200_guia`, y `raton` **es un alias**, no el slug. Se
+    NORMALIZA por `species.resolve` para que un log de entonces se pueda comparar con uno
+    de hoy; si el nombre no es ni siquiera una especie conocida, se devuelve vacio.
+    """
+    from .species import Species, resolve  # noqa: PLC0415
+
+    texto = str(nombre or "")
+    corte = texto.find("_pos")
+    if corte <= 0:
+        return ""
+    crudo = texto[:corte]
+    especie = resolve(crudo)
+    # `resolve` FABRICA una `Species` con cualquier cadena —para poder trabajar sin
+    # declarar nada— asi que preguntar si reviento no vale: se pregunta si es CONOCIDA.
+    return especie.slug if isinstance(especie, Species) and especie.known else ""
+
+
+def registered_panels(stores, front: str) -> tuple[str, ...]:
+    """Los paneles (slug de especie) de las corridas YA registradas de un frente.
+
+    Sale del reporte del 2026-09-11: la app bloqueo un guardado por `result_md5` repetido
+    y dijo que lo registrado cubre **0 de 11** candidatos del panel activo — y **no dijo
+    de que panel era esa corrida**, asi que hubo que deducirlo. Deducir de que panel es un
+    registro es exactamente lo que este proyecto no deja hacer con nada mas.
+
+    Se DERIVA de los nombres de consulta, que ya los lleva cada corrida: no hace falta un
+    campo nuevo ni cambia el formato del log, asi que un proyecto de ayer contesta igual.
+    Un `""` en la salida significa «hay corridas cuya consulta no tiene la forma de hoy»,
+    que es informacion y no un hueco a rellenar.
+    """
+    info = STORE_FOR_FRONT.get(front)
+    if not info or not stores:
+        return ()
+    almacen = stores.get(info["almacen"]) if hasattr(stores, "get") else None
+    if almacen is None:
+        return ()
+    slugs = []
+    for corrida in getattr(almacen, "runs", ()):
+        for consulta in getattr(corrida, "query_names", ()) or ():
+            slug = query_panel(consulta)
+            if slug not in slugs:
+                slugs.append(slug)
+    return tuple(slugs)
+
+
 #: Las dos hebras que produce `query_name`, y NO son intercambiables en una comparacion
 #: contra la diana: la guia es antisentido a su blanco POR DEFINICION —el mRNA lleva su
 #: complemento inverso— y la pasajera lleva la MISMA secuencia que el blanco, asi que
@@ -9681,12 +10365,14 @@ def front_card_rows(run, *, species: str, stores=None) -> list[dict[str, object]
     )
     cobertura = run_coverage(
         vista["estados"], starts=panel, frame=coords.tiled_frame(run.selection.anatomy),
-        origins=vista["origenes"],
+        origins=vista["origenes"], reasons=vista["motivos"],
     )
     cerrados = {f: d["motivo"] for f, d in cobertura.items() if d["cerrado"]}
+    bloqueados = {f: d["bloqueo"] for f, d in cobertura.items() if d["bloqueo"]}
     tarjetas = []
     for frente in blocking_fronts(
-        run.tiling, run.selection, closed_by_panel=cerrados
+        run.tiling, run.selection,
+        closed_by_panel=cerrados, blocked_by_panel=bloqueados,
     ):
         ficha = resolve_ficha(frente.name, species=especie)
         estado = "HECHO" if not frente.blocking else "SIN_HACER"
@@ -9712,7 +10398,9 @@ def front_card_rows(run, *, species: str, stores=None) -> list[dict[str, object]
                 # ya estaba: un frente abierto y uno cerrado enseñaban lo mismo.
                 "resultado": frente.reason if cerrado else "",
                 # Y NO SE REPITE EN `motivo`: cerrado, el motivo ES el resultado y ya
-                # esta pintado arriba. `motivo` es lo que se dice de un frente ABIERTO.
+                # esta pintado arriba. `motivo` es lo que se dice de un frente ABIERTO —
+                # y con una corrida guardada que no cierra, `frente.reason` ya trae el
+                # motivo del `NO_CIERRA` porque entra por `blocking_fronts`, no aqui.
                 "motivo": "" if cerrado else frente.reason,
                 "ficha_titulo": FICHA_TITLES[ficha.heading_kind(closed=cerrado)],
                 "ficha_texto": ficha.render(closed=cerrado),
@@ -9920,8 +10608,8 @@ def run_provenance_rows(stores) -> list[dict[str, str]]:
 
 
 
-def verdicts_changed(tiling, selection, *, species: str, before, after
-                     ) -> dict[str, object]:
+def verdicts_changed(tiling, selection, *, species: str, before, after,
+                     front: str | None = None) -> dict[str, object]:
     """Que cambia una corrida al guardarla. Y DISTINGUE ganar un veredicto de no ganarlo.
 
     «Guardada en el log del proyecto» se leia como «hecho», y durante dias fue un guardado
@@ -9984,10 +10672,34 @@ def verdicts_changed(tiling, selection, *, species: str, before, after
             f"las de este panel."
         )
     else:
-        texto = (
-            "Guardada, y **0 veredictos actualizados**. Si esperabas que cerrara un "
-            "frente, algo no encaja: puede que sus consultas no sean las de este panel."
+        # CERO CAMBIOS TIENE DOS CAUSAS OPUESTAS, y una alarma para la otra confunde
+        # (reporte 2026-09-16, tras desbloquear el guardado de la corrida `mmu-` del
+        # panel humano): o el frente YA estaba cerrado por una corrida equivalente
+        # —volver a correrlo no añade nada y NO es un fallo— o la corrida se guardó pero
+        # sus consultas no son las de este panel y no tocó a ningún candidato. Se
+        # distinguen mirando si el frente GUARDADO ya tiene algún veredicto decisivo en
+        # la tabla: si lo tiene, estaba cerrado; si no, la corrida no llegó a este panel
+        # —porque si sus consultas fueran las de aquí, habrían pasado a PASS/FAIL y esto
+        # no sería cero—. Se DERIVA de la tabla ya calculada, sin volver al almacén. Sin
+        # `front` (otros llamadores) se mantiene el texto de siempre.
+        del_frente = {
+            c for c in columnas if front and (c == front or c.startswith(f"{front}:"))
+        }
+        cerrado = any(
+            v in decisivos for (_, c), v in despues.items() if c in del_frente
         )
+        if cerrado:
+            texto = (
+                "Guardada. Este frente **ya estaba cerrado** por una corrida "
+                "equivalente, así que no quedaba ningún veredicto por actualizar — no "
+                "es un fallo. La corrida queda registrada en el historial."
+            )
+        else:
+            texto = (
+                "Guardada, y **0 veredictos actualizados**. Si esperabas que cerrara un "
+                "frente, algo no encaja: puede que sus consultas no sean las de este "
+                "panel."
+            )
     return {
         "cambiados": len(cambiados),
         "con_veredicto": con_veredicto,

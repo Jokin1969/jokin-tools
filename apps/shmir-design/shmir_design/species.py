@@ -151,15 +151,48 @@ HOW_TO_DECLARE_BACKGROUND = (
 )
 
 
-def off_target_catalogues(species: Species) -> tuple[Species, ...]:
-    """Contra QUE transcriptomas se barren los off-targets de esta especie.
+#: POR QUE LA COLISION DE SEED TAMBIEN VA POR ORGANISMO. Es el mismo argumento que
+#: `WHY_TWO_CATALOGUES` sobre otro recurso, y por eso va al lado y no dentro: el que lea
+#: uno tiene que ver que son dos frentes con el mismo eje, no dos decisiones sueltas.
+WHY_TWO_MIRNA_SETS = (
+    "El shmiR se expresa en NEURONAS DE RATÓN humanizado, cuya maquinaria endógena de "
+    "miARN es MURINA — el transgén aporta el mensajero diana, no el miRNoma. Así que "
+    "una seed que choque con un `mmu-` abundante secuestra un programa regulador EN EL "
+    "EXPERIMENTO aunque esté limpia contra `hsa-`, y al revés: la colisión `hsa-` es la "
+    "que describe al PACIENTE. Un veredicto fundido no describe a ninguno de los dos. Y "
+    "la TASA BASE de cada conjunto es distinta, así que un `AVISO` no se lee igual en "
+    "los dos ejes: fundirlos obligaría a elegir una de las dos tasas para los dos, que "
+    "es exactamente la errata nº 118."
+)
 
-    La DIANA primero —es la pregunta del paciente— y detras los fondos geneticos del
-    modelo, que son los del experimento. El orden no es cosmetico: invierte que se lee
-    primero. Ver `WHY_TWO_CATALOGUES` para por que son dos celdas y no una suma.
+#: LA DIFERENCIA CON EL EJE DE TRANSCRIPTOMA, dicha donde se declara el eje: alli son
+#: DOS FICHEROS y aqui son DOS SUBCONJUNTOS DE UNO. `mature.fa` trae los 69.020 maduros
+#: de todas las especies, asi que el eje de seed NO necesita ninguna descarga nueva —
+#: lo que hacia falta era preguntar dos veces. Decirlo importa: si no, este eje se lee
+#: como otro fichero pendiente y se aplaza por una razon que no existe.
+MIRNA_AXIS_IS_ONE_FILE = (
+    "El eje de colisión de seed NO necesita ningún fichero nuevo: `mature.fa` trae los "
+    "maduros de todas las especies y cada eje es un FILTRO POR PREFIJO sobre ese mismo "
+    "fichero. Es la diferencia con el eje de transcriptoma, donde cada catálogo es un "
+    "fichero aparte que hay que descargar. Aquí lo único que hacía falta era preguntar "
+    "dos veces y no fundir las respuestas."
+)
+
+
+def model_organisms(species: Species) -> tuple[Species, ...]:
+    """La DIANA y los fondos geneticos de su modelo, en ese orden. UNA sola derivacion.
+
+    **ES EL EJE, y lo comparten DOS frentes**: `offtarget_seed` barre el transcriptoma
+    de cada uno de estos organismos y `seed_colision` compara contra los maduros de
+    miRBase de cada uno. Los dos salen de aqui a proposito: con una lista por frente, el
+    dia que se declare un segundo fondo genetico uno de los dos se quedaria con uno solo
+    — y el sintoma seria medir la mitad con la forma correcta.
+
+    El orden no es cosmetico: la DIANA primero, porque es la pregunta del paciente, y
+    detras los del experimento.
 
     ABORTA si la especie no declara `model_backgrounds`: no haberlo declarado y no tener
-    ninguno son cosas distintas, y el defecto decidiria contra que se barre.
+    ninguno son cosas distintas, y el defecto decidiria contra que se mide.
     """
     fondos = species.model_backgrounds
     if fondos is None:
@@ -185,6 +218,50 @@ def off_target_catalogues(species: Species) -> tuple[Species, ...]:
         if fondo not in catalogos:
             catalogos.append(fondo)
     return tuple(catalogos)
+
+
+def off_target_catalogues(species: Species) -> tuple[Species, ...]:
+    """Contra QUE transcriptomas se barren los off-targets de esta especie.
+
+    Es `model_organisms` visto desde el frente de off-targets: el eje es el mismo y la
+    derivacion es UNA. Conserva su nombre porque es el que leen la ficha, el gestor y la
+    tabla de insumos, y porque ahi «catalogo» significa el FICHERO de transcriptoma de
+    ese organismo — que es lo que hay que descargar. Ver `WHY_TWO_CATALOGUES`.
+    """
+    return model_organisms(species)
+
+
+def model_organism_slugs(species) -> tuple[str, ...]:
+    """Los organismos del eje, por SLUG. DIANA primero. Ver `off_target_catalogue_slugs`."""
+    return off_target_catalogue_slugs(species)
+
+
+def mirna_axis(species) -> tuple[tuple[str, str], ...]:
+    """`(slug, prefijo de miRBase)` por organismo del eje. DIANA primero.
+
+    El prefijo se DERIVA del organismo (`species.mirbase_prefix`), nunca se teclea: un
+    `mmu-` escrito sobre un eje que resultara ser otro da CERO colisiones, y cero
+    colisiones parece una buena noticia.
+
+    Un organismo del eje SIN prefijo declarado **aborta**, y aborta donde se pregunta:
+    decir que se ha comparado contra los maduros de una especie cuyo prefijo no se sabe
+    es decir que se hace algo que no se puede hacer. Ver `MIRNA_AXIS_IS_ONE_FILE` para
+    por que este eje no necesita ningun fichero nuevo.
+
+    **TRES estados y el tercero NO es «uno»**, igual que `off_target_catalogue_slugs`:
+    una especie SIN DECLARAR devuelve `()` —no hay eje que derivar, y decir «uno» seria
+    inventarlo—, una declarada que no diga su fondo genetico ABORTA, y una declarada con
+    su fondo devuelve los suyos.
+    """
+    if not str(species).strip():
+        return ()
+    especie = resolve(species)
+    if not especie.known:
+        return ()
+    return tuple(
+        (organismo.slug, mirbase_prefix(organismo))
+        for organismo in model_organisms(especie)
+    )
 
 
 def off_target_catalogue_slugs(species) -> tuple[str, ...]:

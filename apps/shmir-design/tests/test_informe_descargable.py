@@ -103,7 +103,11 @@ class TestLasTablasSALENdeLasMISMASfunciones(unittest.TestCase):
     def test_y_la_de_candidatos_la_de_candidate_rows(self):
         from shmir_design.presentation import candidate_rows
 
-        filas = candidate_rows(self.seleccion)
+        # LA ESPECIE SE PASA, y es la MISMA con la que se monto el documento: de ella
+        # cuelga el eje de organismo de las columnas de carga (2026-09-11). Pedirlas sin
+        # especie aqui compararia dos cabeceras distintas de la misma tabla — y la que
+        # se veria mal seria la del documento, que es la que viaja.
+        filas = candidate_rows(self.seleccion, species="raton")
         self.assertEqual(list(self._tabla("candidatos").headers), list(filas[0]))
 
 

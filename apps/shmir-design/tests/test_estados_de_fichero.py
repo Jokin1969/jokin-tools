@@ -24,6 +24,7 @@ import sys
 import tempfile
 import unittest
 from contextlib import contextmanager
+from fnmatch import fnmatch
 from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
@@ -49,29 +50,68 @@ REFERENCIA = RAIZ / "data" / "reference"
 #: Los roles, DERIVADOS de la especie. Uno nuevo entra solo en los dos estados.
 ROLES = tuple(required_files(resolve("raton")))
 
-#: Lo que el depósito COMPLETO tiene que poner y el repositorio NO tiene, CON EL MOTIVO
-#: DE CADA UNO. Aquí no hay un real que usar, así que la excepción del principio nº 18 no
-#: aplica: esa regla obliga a justificar el fixture cuando el artefacto real EXISTE.
+#: Lo que el depósito COMPLETO tiene que poner y el REPOSITORIO NO VERSIONA, CON EL
+#: MOTIVO DE CADA UNO. Aquí no hay un real que usar, así que la excepción del principio
+#: nº 18 no aplica: esa regla obliga a justificar el fixture cuando el artefacto real
+#: EXISTE — y cuando existe en la máquina de quien corre la suite, `_deposito` lo COPIA.
 #:
-#: Y los motivos NO son el mismo, que es justo lo que se descubrió al escribir esto: los
-#: cuatro primeros son descargas de cientos de MB que no caben en un repositorio; el
-#: quinto, `apa_medido.tsv`, no cabe porque TODAVÍA NO EXISTE — es el 3'-end seq de
-#: cerebro que aún no ha llegado. Un motivo común habría tapado esa diferencia.
+#: Y los motivos NO son el mismo, que es justo lo que se descubrió al escribir esto: unos
+#: son descargas de cientos de MB que no caben en un repositorio; `apa_medido.tsv` no cabe
+#: porque TODAVÍA NO EXISTE; y `addgene_111170.gb` no es por tamaño ninguno. Un motivo
+#: común habría tapado esas diferencias.
 #:
 #: Lo que se pinta con un marcador es el ESTADO del panel —presente contra ausente—, no
-#: su contenido. La lista no se transcribe: el test de abajo la cruza con `data/reference/`
-#: y falla si alguien versiona uno y no lo quita de aquí.
+#: su contenido. La lista no se transcribe: el test de abajo la cruza con lo que
+#: `data/reference/.gitignore` DECLARA versionado, y falla si alguien versiona uno y no lo
+#: quita de aquí —o al revés—. **Antes se cruzaba con el DISCO**, y eso hacía que la
+#: respuesta dependiera de la máquina: en un clon limpio faltan siete y en la máquina de
+#: quien ya se bajó `mature.fa` faltan cinco, así que la misma tabla estaba bien y mal a
+#: la vez. Lo que el repositorio versiona lo dice el repositorio, no el disco de nadie.
 MOTIVO_SIN_VERSIONAR = {
     "refseq_rna.fa": "Descarga de cientos de MB: el RefSeq de la especie entero.",
     "transcriptoma_3utr.fa": "Descarga de cientos de MB: los 3'UTR de todo el transcriptoma.",
     "expresion_cerebro.tsv": "Tabla de expresión por tejido; se descarga, no se versiona.",
     "mirgenedb_cerebro.txt": "La capa ampliada de MirGeneDB; se descarga, no se versiona.",
+    "mature.fa": (
+        "Los maduros de miRBase, 5,6 MB. Es el ejemplo que la cabecera de "
+        "`data/reference/.gitignore` nombra por su nombre al explicar por qué los datos "
+        "de referencia no entran en git. Se descarga CON SU RELEASE, que es obligatorio: "
+        "miRBase renumera entre versiones."
+    ),
+    "addgene_111170.gb": (
+        "NO es por tamaño, y por eso el motivo no puede ser el del vecino: son ~20 kB de "
+        "un depósito PÚBLICO, el mismo orden que `addgene_198131.gb`, que SÍ está "
+        "versionado con su excepción escrita. Lo que pasa es que a éste nadie le escribió "
+        "la suya, así que en un clon limpio el frente de los contextos sale NOT_RUN para "
+        "todo el mundo menos para quien lo subió — que es exactamente lo que la excepción "
+        "de #198131 se escribió para evitar. Queda ANOTADO como pendiente de decidir, no "
+        "cerrado: versionarlo es una línea en `data/reference/.gitignore` más el fichero, "
+        "y el fichero aquí no está. No se reconstruye (regla 1)."
+    ),
     "apa_medido.tsv": (
         "No es que no quepa: es que TODAVÍA NO EXISTE. Es el fichero del 3'-end seq de "
         "cerebro, y cuando llegue lo primero es cruzar su techo con el 0,86 de PolyA_DB "
         "—ver `apa.APA_ARE_TWO_FILES`—, no enchufarlo."
     ),
 }
+
+
+def versiona_el_repositorio(nombre: str) -> bool:
+    """¿Versiona git este fichero de referencia? Se DERIVA de su `.gitignore`.
+
+    Ese fichero ignora `*` y va declarando excepciones con `!`, así que la lista de lo
+    versionado **está escrita ahí** y con su justificación al lado. Transcribirla aquí
+    sería la errata nº 28: dos copias del mismo dato, envejeciendo cada una por su lado.
+
+    No se llama a `git`: no es stdlib (regla 6) y además contestaría por el índice de la
+    copia de trabajo, que no es la pregunta.
+    """
+    patrones = [
+        linea[1:].strip()
+        for linea in (REFERENCIA / ".gitignore").read_text(encoding="utf-8").splitlines()
+        if linea.startswith("!")
+    ]
+    return any(fnmatch(nombre, patron) for patron in patrones)
 
 
 @contextmanager
@@ -97,7 +137,7 @@ def _deposito(poblar: bool):
                     origen = REFERENCIA / nombre
                     if origen.is_file():
                         shutil.copy(origen, destino / nombre)
-                    else:
+                    elif nombre in MOTIVO_SIN_VERSIONAR:
                         # Ver MOTIVO_SIN_VERSIONAR: no hay real que copiar. Y NO vale
                         # vacío: el panel no usa `is_file()` —un fichero de 0 bytes
                         # existe y no tiene nada dentro, errata nº 15— así que uno vacío
@@ -105,6 +145,19 @@ def _deposito(poblar: bool):
                         (destino / nombre).write_text(
                             f"# marcador de presencia — {MOTIVO_SIN_VERSIONAR[nombre]}\n",
                             encoding="utf-8",
+                        )
+                    else:
+                        # Ni está ni tiene motivo declarado, así que este depósito NO es
+                        # completo y lo que se midiera sobre él diría otra cosa. Se SALTA
+                        # nombrando el fichero: un `KeyError` aquí —que es lo que había—
+                        # sale como una traza de diccionario sobre un test de la página, o
+                        # sea un rojo que no dice ni qué falta ni dónde se declara. Quien
+                        # va rojo, y es lo correcto, es el cruce de abajo: ése es el que
+                        # dice que la tabla y el repositorio ya no coinciden.
+                        raise unittest.SkipTest(
+                            f"NOT_RUN: no se puede montar un depósito COMPLETO — falta "
+                            f"data/reference/{nombre} y no tiene motivo en "
+                            f"MOTIVO_SIN_VERSIONAR ({__name__})."
                         )
         os.environ[ENV_VAR] = str(destino)
         try:
@@ -355,34 +408,58 @@ class TestLaFilaDICEsiEstaOnO(unittest.TestCase):
 
 
 class TestLoQueElREPOSITORIOnoVERSIONA(unittest.TestCase):
-    """La lista de marcadores de presencia no se transcribe: se cruza con el disco.
+    """La lista de marcadores de presencia no se transcribe: se DERIVA del `.gitignore`.
 
-    Si alguien versiona uno de los cuatro, el depósito completo pasa a copiar el real y
-    aquí no hay nada que tocar. Lo que no puede pasar es que crezca en silencio.
+    Si alguien versiona uno, el depósito completo pasa a copiar el real y aquí hay que
+    quitarlo. Lo que no puede pasar es que la tabla crezca —ni encoja— en silencio.
+
+    **Se cruzaba con el DISCO y eso era una pregunta distinta.** «Qué versiona el
+    repositorio» no depende de qué haya bajado quien corre la suite: en un clon limpio
+    faltan siete ficheros y en la máquina de quien ya tiene `mature.fa` faltan cinco, así
+    que la misma tabla salía correcta en un sitio y rota en el otro — y el rojo no decía
+    «la tabla está mal», decía «tú no tienes esto». Un rojo que depende de la máquina es
+    un rojo que se acaba leyendo como ruido.
     """
 
-    def test_la_lista_declarada_es_EXACTAMENTE_la_que_falta_en_el_disco(self):
-        faltan = sorted(
+    def test_la_lista_declarada_es_EXACTAMENTE_lo_que_el_repositorio_NO_versiona(self):
+        sin_versionar = sorted(
             n for fila in ROLES for n in fila.filenames
-            if not (REFERENCIA / n).is_file()
+            if not versiona_el_repositorio(n)
         )
         self.assertEqual(
-            faltan,
+            sin_versionar,
             sorted(MOTIVO_SIN_VERSIONAR),
-            f"Cambió lo que el repositorio versiona: {faltan}. Si es deliberado, "
+            f"Cambió lo que el repositorio versiona: {sin_versionar}. Si es deliberado, "
             f"`MOTIVO_SIN_VERSIONAR` se actualiza a la vez — con SU motivo, no con el "
             f"del vecino.",
         )
+
+    def test_y_la_DERIVACION_distingue_de_verdad(self):
+        """Prueba de vida (principio nº 51). Sin esto, un lector de `.gitignore` que
+        devolviera `False` siempre haría que la tabla tuviera que listarlo TODO y el
+        cruce de arriba seguiría en verde diciendo que ha comprobado algo."""
+        self.assertTrue(versiona_el_repositorio("NM_011170.3.fa"))
+        self.assertTrue(versiona_el_repositorio("rmsk_mouse.tbl"))
+        self.assertTrue(versiona_el_repositorio("polya_db_mouse.tsv"), "el patrón `*`")
+        self.assertFalse(versiona_el_repositorio("refseq_rna.fa"))
 
     def test_cada_uno_dice_el_SUYO(self):
         for nombre, motivo in MOTIVO_SIN_VERSIONAR.items():
             with self.subTest(nombre):
                 self.assertGreater(len(motivo), 40, nombre)
 
-    def test_y_el_de_apa_medido_NO_es_el_de_los_otros_cuatro(self):
+    def test_y_el_de_apa_medido_NO_es_el_de_los_demas(self):
         """Lo que un motivo común habría tapado: éste no falta por tamaño."""
         self.assertNotIn("cientos de MB", MOTIVO_SIN_VERSIONAR["apa_medido.tsv"])
         self.assertIn("NO EXISTE", MOTIVO_SIN_VERSIONAR["apa_medido.tsv"])
+
+    def test_y_el_del_PLASMIDO_tampoco(self):
+        """El segundo que un motivo común habría tapado, y el que más importa: tiene el
+        tamaño de los que SÍ se versionan, así que su ausencia no es una consecuencia del
+        criterio de este repositorio — es que nadie escribió su excepción."""
+        motivo = MOTIVO_SIN_VERSIONAR["addgene_111170.gb"]
+        self.assertIn("NO es por tamaño", motivo)
+        self.assertIn("addgene_198131.gb", motivo)
 
 
 # EL DIRECTORIO DE PROYECTOS SE DECLARA, no se hereda de la máquina. Desde que la primera

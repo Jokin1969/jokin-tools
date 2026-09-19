@@ -314,6 +314,44 @@ de todos los informes a la vez. Ademas es la razon de que `off_target_catalogues
 devuelva una tupla y no una especie, asi que vive pegada a lo que gobierna."""
 
 [[constante]]
+simbolo = "species.WHY_TWO_MIRNA_SETS"
+categoria = "declaracion"
+motivo = """\
+POR QUE la colision de seed tampoco se funde en un veredicto. Es el mismo criterio que \
+`WHY_TWO_CATALOGUES` sobre otro recurso, y no es dato de ninguna especie: nombra al \
+raton y al humano porque describe el MODELO —un raton humanizado, donde el mensajero \
+diana lo aporta el transgen y el miRNoma es murino—, no un fichero que cambie al pasar \
+de especie. Vive en codigo por lo mismo que el otro: en un fichero se podria relajar sin \
+que se viera en el diff, y lo que cambiaria es la lectura de todos los informes a la \
+vez. Va pegada a `model_organisms`, que es lo que gobierna."""
+
+[[constante]]
+simbolo = "mirna.UNION_RATE_MEASURED"
+categoria = "dato"
+fichero = "mature.fa (ya existe; esto es el REGISTRO de una medida sobre el, no su sustituto)"
+motivo = """\
+La tasa base de la union `mmu-`+`hsa-` MEDIDA sobre `mature.fa` release 23, con su md5, \
+su ventana y su nivel. Es dato de dos especies y de un fichero, asi que va clasificado \
+como tal — y aun asi SE QUEDA en codigo, con una condicion que lo distingue de una \
+transcripcion: **no es la cifra que usa la app**. La que viaja con un resultado la DERIVA \
+`seed_scan.union_base_rate` del fichero cargado (principio nº 13). Esto existe para poder \
+CRUZARLA: `tests/test_la_COLISION_de_seed_es_DUAL.py` recalcula la union sobre el fichero \
+de verdad y exige que coincida, asi que el dia que miRBase publique otra release la suite \
+lo dice en vez de dejar la cifra envejeciendo en la prosa (principio nº 11). Se borra el \
+dia que alguien prefiera no tener ancla — y entonces se pierde el cruce."""
+
+[[constante]]
+simbolo = "mirna.WHY_THE_UNION_RATE"
+categoria = "prosa"
+motivo = """\
+QUE PREGUNTA contesta la tasa de la union y cual NO. Va pegada a la cifra porque sin ella \
+dos tasas distintas en la misma pantalla se leen como una discrepancia y alguien las \
+promedia: la de la union es la referencia de un «limpio en los DOS ejes» —la pregunta del \
+candidato— y la de cada eje es la del veredicto que se emite contra ese conjunto. \
+Pegarle a un veredicto la de la union describiria un conjunto contra el que ese veredicto \
+no se ha medido, y hacia el lado comodo: es la errata nº 118 con un eje mas."""
+
+[[constante]]
 simbolo = "species.HOW_TO_DECLARE_BACKGROUND"
 categoria = "declaracion"
 motivo = """\

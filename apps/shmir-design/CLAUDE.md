@@ -7588,3 +7588,815 @@ orden voraz. La cuota es un **requisito** —los inmunes son la única reserva s
 sale `PANEL_TX`. Estaba transcrito en una docena de ficheros de test, así que un cambio
 de panel obligaba a tocarlos uno a uno y cada copia envejecía por su cuenta — que es
 exactamente la errata nº 28 dentro de la suite. Principio nº 13.
+
+---
+
+## EL ESPACIO DEL NOMBRE ROMPÍA LA ORDEN DE BLAST — Y NO ERA LA CAUSA DE LOS BOTONES (2026-09-11)
+
+Reportado con la captura de los dos botones del FASTA de consulta: *«ninguno de estos
+botones funciona. He tenido que copiar a mano para preparar el archivo
+`candidatos_human.fa`»*. Lo que se ve en la captura es `Homo sapiens_consulta.fasta`,
+**con el espacio dentro**.
+
+### Lo que se midió, y lo que QUEDA DESCARTADO
+
+El espacio es un defecto real y **NO explica los botones muertos**. Medido, no razonado:
+
+| qué | cómo | resultado |
+|---|---|---|
+| el servidor con el nombre `%20` | proxy real del hub | **200 `text/plain`** |
+| cómo resuelve el navegador el `href` crudo | Chromium, DOM real | lo codifica a `%20` |
+| el ancla que pinta `st.link_button` | Chromium por CDP, Streamlit con los flags de producción | `href` correcto, `target=_blank` |
+| `baseUrlPath` dentro del proceso hijo | sonda lanzada como la lanza `process.js` | `/shmir`, prefijo bien |
+
+O sea: **la errata nº 130 sigue SIN CAUSA ASIGNADA** y esta tanda no la cierra
+(principio nº 3). Lo que hace es quitar del medio una hipótesis que era verosímil y
+falsa, y dar la observación que falta.
+
+### El defecto que SÍ estaba, y es el que se pagó
+
+`-query Homo`. Medido con `shlex` sobre la orden que la propia página da para copiar:
+
+    -query recibe -> 'Homo'
+    y el shell mete además un argumento suelto: 'sapiens_consulta.fasta'
+
+Tres emisores de la página montaban el nombre con una f-string sobre el nombre
+**científico** (`f"{nombre}_consulta.fasta"`, el bloque de seed y el de carga de
+off-targets). `outputs.output_stem` existe desde la errata nº 60 y **la barrida de
+entonces no los cubría**, porque su guardia exige que ninguna entrada del **zip** lleve
+un espacio y estos tres no entran en el zip. **Un guardia que mira un artefacto no cubre
+a quien no entra en ese artefacto** (principio nº 31).
+
+- **`outputs.output_name(species, sufijo)`** emite el nombre ENTERO, no un trozo:
+  `output_stem` devuelve un fragmento que hay que pegar, así que seguía habiendo una
+  f-string por emisor y el que no se acordara quedaba igual. Ahora el llamador no pega
+  nada.
+- **El guardia está CALIBRADO** (principio nº 34): «f-string con extensión» da 6 y es
+  inservible; «además con interpolación» da 6 con **2 falsos positivos** (el slug del
+  proyecto, que ya está validado); «además interpolando `nombre`/`especie`» da **4 de 4
+  reales**. Con control adversario sobre la forma REAL del código de antes.
+- **Y lo que se comprueba de verdad es la ORDEN, con `shlex`**, para todas las especies
+  declaradas: el nombre feo se ve, una orden partida en dos argumentos no — `blastn`
+  contesta que no encuentra el fichero «Homo», que manda a mirar el sitio equivocado.
+
+### EL HALLAZGO DE LA MEDIDA: dos botones que sí están muertos, y son otros
+
+Al volcar el DOM de la página real con Chromium salieron estos:
+
+    {"texto": "↗ siDirect",               "atributo": "", "resuelto": ".../shmir/"}
+    {"texto": "↗ BLOCK-iT RNAi Designer", "atributo": "", "resuelto": ".../shmir/"}
+
+`st.link_button(label, "")` pinta `<a href="" target="_blank">`, y un `href` vacío
+**resuelve a la propia página**: el botón se ve activo, se pulsa, y abre una pestaña con
+la app otra vez. Son las dos herramientas cuya dirección **nadie ha aportado**
+(`URL_NOT_PROVIDED`) — la regla 4 prohíbe inventarles una URL, así que la salida es **no
+ofrecer el enlace y decir por qué**, no ofrecerlo roto.
+
+- **La decisión estaba escrita en UNO de los dos sitios**: la tarjeta de un frente ya
+  hacía `disabled=not tarjeta["url"].startswith("http")` **en la página** (regla 6) y el
+  panel de herramientas no hacía nada. Ahora decide `presentation.link_usable` y lo leen
+  los tres.
+- **El guardia cazó un TERCER `link_button`** que no se había mirado —el de la propia
+  segunda vía—, y en vez de declararle una excepción se le aplica la comprobación: una
+  excepción declarada es una HIPÓTESIS (errata nº 133).
+- **Y el detector se equivocó una vez, sobre código correcto**: miraba sólo hacia
+  delante y el panel de herramientas calcula la decisión en la línea de ARRIBA. Ensanchar
+  la ventana llevó su propio control adversario pegado, porque ensanchar es exactamente
+  cómo se llega a un guardia que aprueba cualquier cosa.
+
+### La tercera vía: la URL a la vista, que además es la OBSERVACIÓN que falta
+
+Debajo del enlace va ahora la dirección en un bloque copiable. **No comparte nada** con
+el botón —ni la maquinaria de descarga del navegador ni la pulsación sobre un ancla—, que
+es el corolario de la errata nº 124, y lo que se vea al pegarla es lo único que separa
+los dos casos que quedan abiertos: **si aparece el fichero, lo que falla es el enlace; si
+sale un error, es la ruta — y entonces el error la nombra**.
+
+---
+
+## LA DIANA HUMANA, DECLARADA — Y POR EL CAMINO PREVISTO (2026-09-11)
+
+`especificidad` salía `NO_CIERRA` en los once del panel humano con la corrida
+`blast-2026-09-09` registrada, leída y dando veredicto. **`NO_CIERRA` es la prueba de que
+la corrida se encuentra y se lee**: si la vinculación estuviera rota saldría `NOT_RUN` o
+`SIN_CONSULTAR`. Lo que faltaba era la entrada del humano en `data/diana/variantes.toml`,
+**ausente a propósito** hasta que hubiera una corrida de la que sacar las variantes — y
+eso es exactamente lo que pasó, así que el comentario que lo anunciaba se **sustituye**,
+no se borra: el hueco no era un descuido y su cierre tampoco es una excepción.
+
+- **No hizo falta repetir ningún BLAST**: los seis accessions estaban dentro del
+  `-outfmt 6` de la corrida del panel, que es donde el motivo del `NO_CIERRA` decía que
+  había que mirarlos. Mismo ciclo que cerró el ratón.
+- **`NM_000311.5` se CRUZA sin salir del repositorio**: es la referencia versionada del
+  panel humano (`reference.REFERENCES`, organismo «Homo sapiens»). La procedencia lo
+  afirma y `tests/test_la_DIANA_HUMANA_esta_declarada.py` lo contrasta **derivándolo** de
+  `REFERENCES`, no escribiendo el accession (principio nº 13). El mismo cruce corre para
+  **todas** las especies de la tabla, así que una tercera entra cubierta sola.
+- **El alcance va escrito en `verificado`**: RefSeq Curated **no trae los predichos**
+  (`XM_`/`XR_`), así que si una corrida futura acierta contra una isoforma predicha de
+  PRNP, ésa no está en la lista y saldrá como off-target — el motivo del FAIL la nombrará
+  y se añade aquí. Es el ciclo previsto, no un fallo.
+- **Medido**: con la entrada puesta, la misma corrida guardada pasa de `NO_CIERRA` a
+  **`PASS`** en los once.
+
+### Y DECLARARLA PUSO ROJO EL CONTROL DE «NUNCA UN PASS POR UNA LISTA VACÍA»
+
+`test_la_diana_no_es_un_offtarget` usaba `species="human"` como su especie **sin
+declarar**. El test no estaba mal escrito para lo que probaba: estaba **atado a que nadie
+declarara esa especie**, que es justo lo que el propio fichero de datos anuncia que va a
+pasar.
+
+**Y el rojo es el caso AFORTUNADO.** Si el orden hubiera sido el contrario —declarar una
+especie que un test usa como control y que ese control siguiera pasando por otra razón—
+el guardia de la errata nº 56 se habría quedado sin ejercitar **en silencio**, que es el
+`verify()` de la errata nº 29.
+
+Así que la especie de control **se DERIVA de la tabla** (`tests/especie_sin_diana.py`):
+un slug que la tabla NO declara, comprobado por los dos caminos —la tabla y el cargador—
+y que **ABORTA** si algún día todas las candidatas están declaradas. Devolver una
+cualquiera dejaría a esos tests comprobando el camino CONTRARIO al que creen y pasando
+igual.
+
+## HAY CORRIDA Y NO CIERRA: LA TARJETA DECÍA «FALTA EL RECURSO» (2026-09-11)
+
+Con los once en `NO_CIERRA`, la tarjeta de `especificidad` pintaba **«NOT_RUN en 2414 de
+2414 ventanas: falta el recurso»**. Las dos frases eran ciertas y contestaban a preguntas
+distintas: la de la tarjeta es del **escáner de ventana**, que no ha corrido porque falta
+`refseq_rna_human.fa`; la de la celda es la de la **corrida guardada**, que sí está y lo
+que dice es que no puede dar veredicto. **Se pintaba la de la pregunta que nadie había
+hecho**, y manda a descargar una base de decenas de GB que no habría desbloqueado nada —
+y que, con `MAX_SCANNABLE_NT`, tampoco cerraría el frente por esa vía.
+
+Eran **dos huecos y ninguno sustituye al otro**:
+
+- **el motivo se calculaba y se tiraba.** `_store_state` devolvía `.state.value` y
+  descartaba `.reason`, así que aguas arriba no había forma de decir POR QUÉ una corrida
+  guardada no cierra su frente. Ahora `_store_verdict` devuelve el par y `_store_state` es
+  su **proyección**: separarlos daría dos caminos que pueden contestar cosas distintas
+  sobre el mismo candidato (principio nº 27). Lo mismo con
+  `store_verdicts_by_front` / `store_states_by_front`, cuya forma **no cambia** porque de
+  ella dependen muchos llamadores;
+- **`run_coverage` no tenía estado para «se consultó y no cierra».** `NO_CIERRA` es una
+  laguna —con razón: no da veredicto—, así que `cubiertos` salía **0** y el frente caía en
+  la rama «nadie ha tocado esto»: **indistinguible de un proyecto sin ninguna corrida**.
+
+`panel_states_by_front` emite ahora **tres** proyecciones de una sola pasada —`estados`,
+`origenes` y **`motivos`**— y `run_coverage` un tercer campo, **`bloqueo`**, que es lo que
+impide cerrar a los que YA se consultaron. **Los tres campos nunca llevan el mismo
+texto**: `motivo` dice por qué se cierra o cuánto falta por consultar, `avance` dice
+cuánto falta, y `bloqueo` dice qué bloquea — un campo que repite a otro es la errata
+nº 108.
+
+- **ENTRA POR `blocking_fronts`, no por la tarjeta** (`blocked_by_panel`). Ese motivo lo
+  leen la tarjeta, **el informe descargable** y la ficha, y metido por cada consumidor se
+  arregla uno y los demás siguen igual — que es exactamente lo que costó la errata nº 54.
+  Se aplica al final, sobre la lista entera, y no dentro de cada sitio que construye un
+  `BlockingFront`: esa función tiene cuatro `return` y siete puntos donde añade uno, así
+  que metido dentro quedaría fuera de los que se añadan después (principio nº 31).
+- **Sólo pisa a los que siguen ABIERTOS**: un frente cerrado ya tiene su motivo y
+  `closed_by_panel` manda.
+- **Los que NADIE MIRÓ se dicen APARTE**, en el mismo texto: a uno le falta una corrida y
+  al otro lo que diga su motivo. Repetir la misma corrida no cambia nada, y eso va escrito
+  con esas palabras.
+- **Y un motivo repetido se dice UNA vez**: con once candidatos y la misma causa, once
+  copias del mismo párrafo esconden el caso en que **no** son la misma.
+- **COMPROBADO que el guardia muerde**: con el `blocked_by_panel` desconectado, el test
+  reproduce el texto reportado letra por letra. Sin ese control, «la tarjeta dice el
+  motivo de la corrida» y «la tarjeta dice cualquier cosa» darían el mismo verde.
+
+---
+
+## LA COLISIÓN DE SEED VA POR ORGANISMO, CON LA MISMA LISTA QUE LOS OFF-TARGETS (2026-09-11)
+
+Con las palabras del responsable del proyecto, citadas tal cual y anotadas con su nombre
+a petición suya:
+
+> **«El panel humano se valida en el ratón humanizado Tg650. El shmiR se expresa en
+> neuronas de ratón, cuya maquinaria endógena de miARN es murina. Por la misma lógica que
+> el eje de transcriptoma dual, `seed_colision` debe correr contra `hsa-` Y `mmu-` por
+> separado — el murino mide el experimento y el humano mide el paciente. Los veredictos
+> de cada prefijo van SEPARADOS, SIN fundirse.»**
+> — Joaquín Castilla, 2026-09-11.
+
+Una seed que choque con un `mmu-` abundante secuestra un programa regulador **en el
+experimento** aunque esté limpia contra `hsa-`; la colisión `hsa-` es la que describe al
+**paciente**. El transgén aporta el mensajero diana, no el miRNoma.
+
+### LA LISTA DE ORGANISMOS ES UNA, y eso es lo que impide que los dos ejes se separen
+
+`species.model_organisms` —la diana primero y detrás los fondos genéticos del modelo— la
+leen **los dos** frentes: `off_target_catalogues` pasa a ser esa misma función vista desde
+los off-targets, y `mirna_axis` le pega a cada organismo su prefijo de miRBase. Con una
+lista por frente, el día que se declare un segundo fondo genético uno de los dos se
+quedaría con uno solo **y el síntoma sería medir la mitad con la forma correcta**.
+
+- **El PREFIJO se deriva del organismo del EJE, no de la especie del diseño.** Con la del
+  diseño, las dos corridas del panel humano filtrarían las dos por `hsa-`: dos columnas,
+  el mismo número, y ninguna forma de verlo (principio nº 13).
+- **Y ESO CAMBIA LO QUE DICE EL NÚCLEO DE ABUNDANTES.** `CORE_ABUNDANT` está autorizado
+  para cerebro **murino**, así que hasta hoy un diseño humano salía entero marcado «lista
+  de OTRA ESPECIE». En el eje `mouse` de un panel humano **no lo es**: es exactamente la
+  de su especie, porque ese eje mide el experimento en el Tg650. El eje `human` sigue
+  marcado, que es lo cierto. La nota se pregunta ahora por el ORGANISMO DEL EJE.
+- **ESTE EJE NO NECESITA NINGÚN FICHERO** (`species.MIRNA_AXIS_IS_ONE_FILE`), y es la
+  diferencia con el de transcriptoma: allí cada catálogo es **otro fichero** que hay que
+  descargar y aquí son **dos subconjuntos de uno** —`mature.fa` trae los 69.020 maduros de
+  todas las especies—. Se dice en el propio selector: sin esa frase, la segunda corrida se
+  lee como si esperara una descarga y se aplaza por una razón que no existe.
+
+### LAS REGLAS DEL EJE VIVEN EN UN SITIO PARA LOS DOS FRENTES
+
+`eje_organismo.py`. Son las mismas cuatro y ninguna es obvia —el organismo sin valor por
+defecto; una corrida que no lo declara no contesta por ninguno; sin eje derivable la
+respuesta es un `NOT_RUN` que dice que falta la DECLARACIÓN y no un fichero; y el frente
+sólo cierra con todas sus columnas—. Copiadas al segundo almacén serían dos sitios donde
+arreglarlas la próxima vez: **un comentario protege su clase, un mecanismo protege la
+siguiente** (principio nº 31).
+
+Lo que NO vive ahí es el RECURSO, que es lo único que de verdad difiere. Cada almacén dice
+el suyo.
+
+### LA TASA BASE DE LA UNIÓN **NO** SUSTITUYE A LA DE CADA EJE
+
+Se pidió «la tasa base se calcula sobre la unión», y **la unión sola sería la errata
+nº 118 con un eje más**: la regla escrita de este proyecto es que la tasa describe **el
+conjunto que se consulta**, y con los veredictos separados cada uno se compara contra los
+maduros de SU prefijo. Una tasa de la unión pegada al veredicto `hsa-` describiría un
+conjunto contra el que ese veredicto no se ha medido — y erraría **hacia el lado cómodo**,
+que es lo que la hace grave.
+
+Así que salen **las dos, y contestan preguntas distintas**:
+
+| cifra | qué contesta | dónde va |
+|---|---|---|
+| la de CADA eje (~10 %) | ¿es notable este `LIMPIO` contra `hsa-`? | pegada a ESE veredicto |
+| la de la UNIÓN (~19 %) | ¿es notable estar limpio en los DOS? | al lado, y dice que no es la de ningún veredicto |
+
+`union_base_rate` la deriva del fichero cargado; `mirna.UNION_RATE_MEASURED` conserva la
+medida publicada **con su procedencia** (release 23, md5 `320a5a53…`, 4777 maduros, 3127
+seeds sobre 16.384) y un test la **cruza** contra el fichero de verdad: sin el cruce sería
+prosa que se queda atrás con la siguiente release (principio nº 11). Con un solo prefijo
+declarado, la unión da exactamente lo mismo que la de ese uno — no hay dos números donde
+hay uno.
+
+### EL ORGANISMO VA DENTRO DEL CRUDO, y sin eso el eje no habría funcionado nunca
+
+El `run_id` es `seed-<fecha>-<md5 del crudo>` (errata nº 48). Dos corridas del mismo panel
+que salieran **LIMPIAS en los dos ejes** tendrían el mismo crudo, el mismo md5 y el mismo
+id: la segunda se rechazaría como «el mismo fichero subido dos veces» —con un mensaje que
+además manda a mirar otra cosa— y el eje que se venía a cubrir se quedaría sin corrida. La
+primera línea del crudo es ahora `# organismo\t<slug>\t<prefijo>`, que además lo hace
+legible al releerlo del log (principio nº 35).
+
+### LAS COLUMNAS DE CARGA PASAN A SER CUATRO **POR CATÁLOGO**. DECIDIDO (2026-09-11)
+
+Se preguntó si 8 columnas, 4 con el catálogo en el texto, o una tercera vía. **Cuatro por
+organismo, derivadas**, y lo decide el propio modelo: `seed_load_reference` pedía
+`latest(consulta)` **sin catálogo** —«la más reciente, sea cual sea»—, así que con las dos
+corridas guardadas esas cuatro celdas mostraban la segunda y la columna no decía cuál. Es
+el principio nº 27 sobre una celda: **el mismo nombre de columna llevando un número humano
+en una fila y uno murino en otra, decidido por el orden en que alguien pulsó.**
+
+No es «más información»: el percentil se calcula contra una nula del **mismo** catálogo
+(`WHY_TWO_CATALOGUES`), así que una celda sin catálogo **no se refiere a nada**. Y la
+opción de dejarlo en el texto de referencia estaba descartada por el principio nº 55: ese
+párrafo no viaja con el CSV, y el CSV es lo que se lee sin la pantalla delante.
+
+- **Los CONTROLES biológicos también son por catálogo**: sus conteos salen de barrer ESE
+  transcriptoma, así que «miR-124-3p: 19.020» sin decir de cuál no es una magnitud de
+  nada. La tabla gana una columna `catalogo` en vez de dejarlo en el párrafo.
+- **El texto nombra la corrida DE CADA columna**, no «la última»: decir «la corrida X» al
+  lado de ocho celdas de las que la mitad salen de otra es una procedencia falsa.
+- **`SIN_CONSULTAR` se decide POR CATÁLOGO**: preguntarlo por el almacén entero diría
+  `SIN_CONSULTAR` en las celdas del catálogo que nadie ha corrido todavía, y eso manda a
+  repetir una corrida con otro alcance cuando lo que falta es la corrida entera. Son las
+  tres formas de la errata nº 55 con un eje más.
+- En el **bloque legible** del informe sigue cabiendo una sola clase, y es la del catálogo
+  de la **DIANA** con su nombre completo al lado: `carga_8mer:human`. El eje entero está en
+  el TSV, que es donde se compara.
+
+## EL MODAL DE COLISIÓN DE SEED LLEVABA DOS DÍAS MUERTO (2026-09-11)
+
+Errata nº 158, y salió buscando dónde enchufar el eje. `_modal_seed` tenía:
+
+```python
+huella = run_fingerprint(tuple(starts), params, fondo)
+```
+
+`fondo` es la variable del modal de **off-targets** —el catálogo elegido en su selector— y
+en `_modal_seed` **no existe**. Se copió con el eje de transcriptoma el 2026-09-09, así que
+desde entonces **marcar la casilla «Colisión de seed» lanzaba un `NameError`**; y como esa
+excepción sube al `try` de `main()`, que pinta el motivo y hace `return`, se llevaba por
+delante **todo lo que va por debajo**: los otros modales, Descargas y el paso 5. El síntoma
+no es «el modal de seed falla» — es **«la página se corta por la mitad»**.
+
+- **No lo vio nada de lo que hay, y no por descuido.** `AppTest` no puede rellenar un
+  `file_uploader`, así que la suite no llega al estado DISEÑADO y los once estados que
+  cuelgan de él están declarados BLOQUEADOS en `data/estados.toml` —los ocho de los cuatro
+  modales entre ellos—. La alcanzabilidad mira símbolos sin llamador y aquí había llamador;
+  el golden lee lo que se emite y esto no llegaba a emitirse.
+- **Así que el mecanismo no puede depender de ejecutar la página: mira el FUENTE.**
+  `tests/test_la_PAGINA_no_usa_nombres_que_no_existen.py` recorre cada función y exige que
+  todo nombre leído esté definido ahí dentro —argumento, asignación, importación, o
+  global—. **GUARDIA, no trinquete**: el número correcto es cero.
+- **CALIBRADO contra el código que había** (principio nº 34): sobre `origin/main` da
+  **exactamente un hallazgo, y es el fallo**; sobre el árbol arreglado, cero. Es
+  deliberadamente generoso —cualquier `Store`, sin mirar ramas ni orden— porque lo que se
+  busca es un nombre que **no se escribe en ninguna parte**; un guardia más fino diría
+  cosas ciertas sobre código correcto y se acabaría apagando.
+- Con **las dos mitades del control** (principio nº 51): que muerde sobre la línea real
+  que había, y que NO muerde sobre las tres formas correctas que más aparecen en esa
+  página —una variable atada dentro de un `if`, el objetivo de un `for`, un nombre que
+  entra por un `import` local—. Más la prueba de vida: que el barrido encuentre la página.
+
+## Y AL DÍA SIGUIENTE, SOBRE EL ARREGLO DEL ANTERIOR: UN ATAJO QUE TRANSCRIBE UNA FIRMA (2026-09-11)
+
+Errata nº 159, reportada al pulsar el botón:
+
+```
+TypeError: seed_run() got an unexpected keyword argument 'organism'
+```
+
+`presentation.seed_run` es un **atajo con nombre estable para la página** que transcribe
+la firma de `seed_scan.run_scan`. Al entrar el eje de organismo se actualizó la de abajo
+y **la del atajo se quedó atrás**, así que la suite pasó entera —5415 en verde— y el modal
+reventaba al pulsar. Es el principio nº 13 sobre una **FIRMA**: una lista de parámetros
+transcrita es una segunda definición, y envejece por su cuenta.
+
+**Y entró en el mismo commit que arreglaba el `NameError` del día anterior**, lo cual es
+el argumento entero y no una anécdota: *quien acaba de mirar ese código es quien más cree
+que no le hace falta un guardia* (principio nº 26, otra vez y sobre sí mismo). El guardia
+de nombres no podía verlo — `seed_run` **sí** existe; lo que no existe es su parámetro.
+
+- **El mecanismo se derivó de la causa, no del síntoma.** La causa común de las dos
+  erratas es que la página **no se puede ejecutar en la suite**, así que las dos clases de
+  fallo que eso deja vivas —un nombre que no existe y una llamada que no encaja— se miran
+  en el FUENTE. El fichero pasa a llamarse
+  `test_la_PAGINA_no_puede_llamar_a_lo_que_no_existe.py` y cubre las dos.
+- **CALIBRADO contra el código que había** (principio nº 34): con `seed_run` sin
+  `organism`, el detector da **un hallazgo y es el fallo, en la línea 3022** — la misma
+  del traceback; con el arreglo, cero. Y sobre el paquete ENTERO, cero: no hay ninguna
+  otra llamada imposible.
+- **Se salta lo que no puede saber y lo dice**: llamadas con `*args`/`**kwargs`
+  desempaquetados, y callables sin firma introspectable. Un hallazgo sobre eso sería
+  adivinar. Sólo mira lo importado de `shmir_design.*`: de Streamlit y de la estándar no
+  movemos nosotros las firmas, y meterlas daría rojos ciertos sobre código correcto el día
+  que una versión cambie un opcional.
+- **Y NO BASTA CON EL GUARDIA ESTÁTICO**, así que entra además la cadena entera por los
+  MISMOS atajos que usa la página (`presentation.seed_run` → `seed_highlights` →
+  `seed_result_rows` → `export_block` → `seed_run_from_scan` → `verdict_for`). La corrida
+  se probaba llamando a `run_scan` **directamente**, y la página no llama ahí: **un cliente
+  que no se parece al real no prueba nada**, que es la lección del test de humo del hub
+  aplicada un piso más abajo.
+
+**Un detalle que salió al recorrer la cadena**: `union_base_rate` marcaba como UNIÓN la
+tasa de un solo prefijo, así que con el ratón la app habría pintado **dos veces el mismo
+número**, uno de ellos diciendo «no es la de ningún veredicto» — que es justo al revés. De
+ese campo depende qué pregunta dice contestar la cifra, así que `union_of` sólo se rellena
+con más de uno.
+
+## «CONNECTING» EN OFF-TARGETS: EL CATÁLOGO SE ABRÍA EN CADA REPINTADO (2026-09-11)
+
+Errata nº 160. Se pulsa «Contar off-targets — Homo sapiens contra human» y la página se
+queda en **«Connecting»**.
+
+**Lo primero, porque decide qué se mira**: «Connecting» es el cartel de RECONEXIÓN de
+Streamlit — el WebSocket con el servidor se ha caído. **No es que la corrida siga**: es que
+del otro lado ya no hay nadie. Leerlo como «está trabajando» es lo que hace esperar media
+hora a algo que ya ha muerto.
+
+**LA CAUSA NO SE HA PODIDO REPRODUCIR DESDE AQUÍ Y NO SE LE ASIGNA** (principio nº 3): no
+hay catálogo humano en este repositorio ni acceso al contenedor. Lo que sí se ha medido es
+lo que cuesta, y lo que había es indefendible por su cuenta.
+
+### MEDIDO, no estimado
+
+Sobre FASTA sintético —se mide COSTE, no biología— con las mismas funciones que corre la
+app (`validate_upload`, `build_index`):
+
+| | tasa medida | con un catálogo humano (~170 Mnt) |
+|---|---|---|
+| abrir: leer + md5 + parsear + auditar isoformas | **~29 Mnt/s** | **~6 s** |
+| construir el índice de 8-meros | **~4 Mnt/s** | **~42 s** |
+| memoria del índice | **~3,2 B por nt** | **~550 MB** de pico |
+
+Los ~550 MB van **POR ENCIMA** de lo que ya ocupa Streamlit con pandas, pyarrow y numpy
+dentro. Si el contenedor no tiene ese margen, el proceso muere y lo que se ve es
+exactamente «Connecting».
+
+### Y `_modal_offtarget` llamaba a `offtarget_catalog_from_deposit` FUERA DEL BOTÓN
+
+O sea: leer el fichero entero, calcularle el md5, parsearlo y auditarle las isoformas **en
+cada repintado** — y en Streamlit **cada tecla es un repintado**. Con el catálogo humano,
+~6 s y ~340 MB por pulsación de tecla, antes siquiera de pulsar el botón. Es la **errata
+nº 59 en el camino vivo** y con un fichero veinte veces mayor.
+
+Lo que hace falta ANTES de correr no es el catálogo: es saber **cuál es y que está**, y eso
+lo dice la línea del manifiesto, que ya está leída. `offtarget_catalog_summary` la emite —
+ensamblaje, tabla, fecha, md5, tamaño— **sin abrir nada**, y el fichero se abre dentro del
+botón.
+
+- **Lo único que se pierde es el RECUENTO de registros**, que sólo se sabe parseando. Sale
+  al correr, y hasta entonces se da el **tamaño**, que identifica el fichero igual de bien
+  y no cuesta nada. Decirlo importa: un campo que desaparece sin explicación se lee como
+  que se ha perdido el dato.
+- **EL COSTE SALE ESCRITO ANTES DE PULSAR**, derivado de las tasas medidas × los MB de ESE
+  fichero — no un texto fijo. Y dice la consecuencia con esas palabras: *si el contenedor
+  no tiene ese margen, el proceso muere y la página se queda en «Connecting»; eso NO es que
+  la corrida siga*.
+- **`COSTE_POR_ALCANCE` declaraba este modal `medido=False`** —«aquí nadie ha cronometrado
+  cuánto»— y el botón se ofrecía igual. Ya no: y lo que la medida enseña es que **lo caro
+  no es el alcance, es el CATÁLOGO**. El índice se construye una vez, y la nula son 10.000
+  sorteos por consulta pero sólo hay ~5.000 permutaciones distintas de un heptámero **y se
+  cachean**, así que doblar el alcance casi no mueve el total. Lo que decide si esto cabe
+  es la memoria.
+- **El guardia resuelve sobre el AST, no por sangrado**: una llamada dentro de un `with`
+  dentro del `if` sigue colgando del botón, y contarla sería un falso positivo.
+  CALIBRADO: sobre `origin/main` da **un hallazgo y es el fallo**; sobre el árbol
+  arreglado, cero.
+
+## Y LO MISMO UN PISO MÁS ARRIBA: EL DEPÓSITO SE CONECTABA EN CADA REPINTADO (2026-09-11)
+
+Errata nº 161. Reportado el mismo día que la anterior y con otro botón: **«Generar los
+bloques listos para pedir de Homo sapiens» también se queda en «Connecting»**.
+
+**Dos botones que no comparten código cayendo igual apuntan a una causa COMÚN y arriba, no
+a dos arreglos abajo** — que es exactamente la lección de la errata nº 55, y es lo que
+hizo mirar en el sitio correcto a la primera.
+
+**MEDIDO: la rama de los bloques es INSTANTÁNEA con el humano.** El vector es el plásmido
+murino, así que `block_rows` devuelve la lista vacía (`vector_applies_to`) y el fragmento
+no se emite sin casete: `check_can_emit_dna`, `vector_note`, `block_rows`,
+`cassette_sequence` y `fragment_rows` suman **0,01 s**. Lo caro está antes, y corre pase lo
+que pase:
+
+```python
+recursos = load_from_manifest(reference_dir(), species=…)
+```
+
+`load_from_manifest` **conecta TODOS los ficheros del depósito por su rol**, y eso incluye
+el catálogo de transcriptoma. Medido sobre FASTA sintético —se mide COSTE, no biología—
+con el mismo `seed_load.load_utr3_set` que corre la app: **~36 MB/s y ~4,4 MB de RSS por MB
+de fichero**.
+
+| depósito | por repintado | RSS |
+|---|---|---|
+| `transcriptoma_3utr_human.fa` (~170 MB) | ~5 s | **~750 MB** |
+| + `transcriptoma_3utr.fa` (el fondo murino) | ~7 s | **~1,1 GB** |
+
+**En cada repintado, y en Streamlit cada tecla es un repintado** — y durante el repintado
+conviven la copia vieja y la nueva, así que el pico dobla. Es la errata nº 59 un piso más
+arriba: allí era el barrido por ventana, aquí es la CONEXIÓN entera.
+
+- **La causa del «Connecting» sigue sin declararse** (principio nº 3): no hay catálogo
+  humano en este repositorio ni acceso al contenedor. Lo que sí se declara es que esto no
+  se puede sostener aunque no fuera la causa.
+- **La conexión se REUTILIZA mientras el depósito no cambie.** La huella sale de `stat`
+  —nombre, tamaño y mtime de cada fichero, más la especie, que decide qué roles se
+  conectan— y cuesta **0,5 ms**. El md5 se descarta **a propósito**: recalcularlo obligaría
+  a leer los ficheros enteros, que es justo lo que esta huella existe para evitar.
+- **Y lo que la huella NO ve va escrito**: un fichero editado a mano conservando tamaño y
+  mtime no la mueve. Ahí manda el cargador, que sí compara md5 en cada conexión. Sin esa
+  frase, una huella de `stat` se lee como una garantía de integridad y no lo es.
+- **La decisión de si lo cacheado sirve NO vive en la página**: la toma `cached_run`, el
+  mismo guardia que ya usan los modales. Escrita a mano en `main()` sería la tercera copia
+  de esa regla.
+- **El guardia es de SIGNIFICADO, no de forma**: una conexión es segura si la función que
+  la contiene consulta antes `cached_run` con la huella. Exigir un `if` concreto daría
+  rojos sobre código correcto escrito de otra manera. CALIBRADO: sobre `origin/main` da
+  **un hallazgo y es el fallo, en la línea 2266**; sobre el árbol arreglado, cero.
+
+**LO QUE ESTO NO ARREGLA, y hay que decidirlo aparte**: cacheada o no, la conexión del
+panel humano deja **~1,1 GB residentes** mientras la pestaña esté abierta. Si el contenedor
+no tiene ese margen, sigue muriendo. Y lo que ese gigabyte compra en el diseño son **tres
+columnas comparativas** (`tilado_8mer`, `tilado_7mer-m8`, `tilado_7mer-A1`) cuya versión
+autorizada —con percentil y con el `6mer`— sale de la corrida guardada del modal, no de
+aquí. El transcriptoma es un fichero del **MOMENTO 2** («los candidatos ya están; estos
+ficheros no cambian cuáles son, cambian cuáles sobreviven») y el diseño no lo necesita
+para tilar. Conectarlo para tilar no lo decidió nadie: pasó porque `load_from_manifest`
+conecta todo lo que tiene rol.
+
+## UNA VENTANA A MEDIAS NO ES UNA VENTANA — Y `tx:825` LO DEJA ESCRITO (2026-09-11)
+
+Errata nº 162. El modal de off-targets del panel humano moría en la **primera** consulta:
+
+```
+TypeError: '<=' not supported between instances of 'NoneType' and 'int'
+offtarget.py:970  propio = bool(window) and window[0] <= posicion <= window[1]
+```
+
+**`window` NO llegaba `None`. Llegaba `(None, 17)`** — y esa es la distinción entera: una
+**tupla no vacía es verdadera aunque lleve un `None` dentro**, así que `bool(window)`
+pasaba y reventaba en el índice. Es la errata nº 19 con la firma de siempre: *la pregunta
+era por el CONTENIDO y la comprobación miró el CONTINENTE*.
+
+### El caso es UNO, es real, y no tiene nada que ver con el eje dual
+
+`NM_000311.5` tiene el CDS en 68..829, así que el 3'UTR empieza en `tx:830` y la ventana
+`tx:825-846` cae **a caballo**: 5 nt de CDS y 17 de 3'UTR. Su `region` sale `3'UTR`
+porque se decide por el **PUNTO MEDIO** (835) y su `inicio_3utr` sale `None` porque se
+decide por el **INICIO** (825). **Dos definiciones que este proyecto ya tenía registradas
+por separado, chocando justo en esa frontera.** Y como `825` es el menor del panel, la
+corrida entera moría en la primera de sus 22 consultas — así que no es «un candidato
+falla», es «no hay corrida».
+
+**No lo destapó el eje de transcriptoma**: `self_sites` no mira ningún catálogo. Lo
+destapó que sea el **primer panel humano** que corre este modal; el murino no tiene
+ninguna ventana a caballo porque su panel se tiló sobre el 3'UTR y ninguna elegida cruza.
+
+### El proyecto se lo había topado CUATRO veces, y lo resolvió cada vez EN SU SITIO
+
+`tiling` ancla el `inicio_3utr` a 1 para el APA, `outputs` se niega expresamente a hacer
+`inicio_3utr or window.start`, `selection` filtra los `None` y `presentation` los cuenta.
+Éste era el quinto. **Principio nº 31**: un comentario protege su línea, un mecanismo
+protege al siguiente — así que lo que entra no es un `if` más, es `offtarget.complete_window`,
+que devuelve `None` salvo que los **DOS** extremos sean enteros.
+
+### LAS DOS DECISIONES (2026-09-11), del responsable del proyecto
+
+> **1.** *«Si `inicio_3utr` es `None`, no se marca ningún sitio como suyo y se dice. Sin
+> inventar coordenadas con solo `fin_3utr`. El autoconteo de `tx:825` sale con su sitio
+> propio SIN IDENTIFICAR, no con uno inventado.»*
+>
+> **2.** *«`tx:825` lo conservamos — empieza 5 nt dentro del CDS pero su punto medio cae
+> en el 3'UTR y así entró al panel, y sacarlo ahora cambiaría el panel cuando ya está casi
+> cerrado. Lo que sí quiero es que el informe deje escrito explícitamente que su ventana
+> cruza la frontera CDS/3'UTR. No como advertencia de fallo — como DATO DE DISEÑO.»*
+
+- **`SelfSite.own_window` tiene TRES estados y el tercero no es `False`.** `None` es NO
+  COMPROBABLE y sale como **«sin identificar»**; `False` sigue diciendo **«SEGUNDO
+  SITIO»**. Colapsarlos marcaría como segundo sitio al que probablemente **ES** el suyo, y
+  un «segundo sitio» no se lee como un error de formato — se lee como **cooperatividad**,
+  que es exactamente lo que costó la errata nº 122.
+- **Y no pasar ventana sigue siendo `False`, no `None`**: «nadie la pasó» y «la pasó a
+  medias» son dos causas, y fundirlas haría que un alcance sin ventanas se leyera como un
+  panel entero a caballo del CDS.
+- **El motivo VIAJA con el autoconteo** (`SelfCount.own_window_reason`, pegado a
+  `describe()`): «sin identificar» a secas se lee como que el candidato **no tiene** sitio
+  propio, que es la noticia contraria y además anómala («esa hebra no sale de esa diana»).
+
+### La nota de frontera es una SECCIÓN del informe, no una advertencia
+
+`tiling.boundary_note(window)` → **«── Anatomía de la ventana ──»** en la ficha, con las
+**cifras de cada lado**: para `tx:825`, «de los 22 nt de la ventana, **5 caen FUERA** del
+3'UTR y 17 dentro». Va con números y no con un «cruza la frontera» a secas porque cuánto
+CDS lleva dentro es lo que decide si importa: uno con 1 nt y otro con 15 no se leen igual.
+
+Y dice las **dos consecuencias que la etiqueta no deja ver**: las heurísticas del 3'UTR
+(polyA, APA, tercios) se aplican a una ventana que no está entera ahí, y el autoconteo no
+puede decir cuál de los sitios de la propia diana es el suyo. Sin eso, el «sin identificar»
+de arriba queda sin explicación en el mismo documento.
+
+- **`cruza_frontera` LLEVABA CALCULÁNDOSE Y SIN CONSUMIDOR.** Duodécima vez del patrón de
+  `page_run`, y aquí con la vuelta de tuerca de que el dato que hacía falta para escribir
+  la decisión **ya estaba en el objeto**: no hubo que calcular nada, hubo que dejar de
+  tirarlo.
+- **La longitud se le PIDE a `Window.length`**, no se resta: `fin - inicio + 1` es la
+  cuenta que `data/magnitudes.toml` tiene contada como duplicada, y restarla aquí habría
+  subido el trinquete con una segunda definición de un número que sale en el informe.
+
+### Lo que lo fija
+
+`tests/test_una_VENTANA_a_medias_no_es_una_ventana.py`, y **el control adversario es la
+mitad que explica el fallo**: `assertTrue(bool((None, 17)))`. Sin ese caso, «`complete_window`
+devuelve `None`» y «el guardia de antes ya valía» se leerían igual. Más la prueba de vida
+sobre el panel humano real —que siga trayendo **una y sólo una** ventana a caballo, y que
+sea `825`— porque si dejara de traerla todo lo demás pasaría sin comprobar nada
+(principio nº 51), y la ficha **renderizada** de `tx:825` con la sección dentro y la de
+otro candidato sin ella: una nota que saliera siempre dejaría de leerse.
+
+### Y EL BARRIDO ENCONTRÓ UNA SEGUNDA, VIVA: el informe inventaba la coordenada
+
+Errata nº 163, **sexta de la familia de la nº 18**, y no la reportó ningún traceback —
+la encontró el barrido que la nº 95 dejó como obligación: *«había un segundo, vivo»*.
+
+`text_report` hacía, en el bloque del techo de APA:
+
+```python
+inicio = ventana.inicio_3utr if ventana.inicio_3utr else ventana.window.start
+```
+
+y la línea siguiente lo etiquetaba `Frame.UTR3`. Con `tx:825` —`inicio_3utr` a `None`
+porque empieza dentro del CDS— **el informe humano imprimía**:
+
+```
+INMUNES al TRUNCAMIENTO por ser proximales a esa señal: 3utr:110, 3utr:190 …, 3utr:825
+```
+
+**`3utr:825` EXISTE**: es una ventana distal del 3'UTR humano, con otro veredicto y otro
+techo. Así que la línea mezclaba dos marcos, los otros dos eran correctos, y **el
+invariante de rango no puede cazarlo** — caza lo imposible, no lo equivocado. No daba
+ningún error: daba una conversación equivocada, que es la errata nº 133 otra vez.
+
+**Y SETENTA LÍNEAS MÁS ABAJO, EN LA MISMA FUNCIÓN, `_en_3utr` SE NIEGA A HACER ESO** y lo
+dice con estas palabras: *«NADA de `inicio_3utr or window.start`… es la quinta vez de
+esta familia»*. El `if` estaba escrito, con su motivo, en el mismo fichero y a la vista.
+**Un `if` protege su línea; hacía falta que protegiera las dos** (principio nº 31).
+
+- **Ni se descarta en silencio ni se aborta.** Descartarlo perdería un inmune del
+  recuento —y eso no se ve—; abortar dejaría sin informe a un candidato que está en el
+  panel **por decisión escrita**. Se nombra **APARTE**, en el marco de lo tilado, que es
+  el único en el que su inicio existe, y con su clase (inmune / con techo) y el motivo.
+- **La cifra NO se vuelve a etiquetar, ni para decir que estaría mal.** La primera
+  redacción decía «`3utr:825` es otra ventana» y **el guardia del marco la mordió**: un
+  literal así se copia igual de bien afirmado que citado. Se dice «esa misma cifra leída
+  sobre el 3'UTR es OTRA ventana» — mismo aviso, sin fabricar la etiqueta. El guardia de
+  la errata nº 121 haciendo su trabajo sobre el arreglo de otra errata.
+- **Los goldens del ratón no cambian ni un byte**, y eso es la comprobación: su panel no
+  trae ninguna ventana a caballo, así que la rama nueva no se toca. Un golden que no
+  cambia confirma tanto como uno que cambia.
+
+Lo fija `TestElINFORMEnoINVENTAlaCoordenada`, con las dos mitades: que `825` **no** salga
+etiquetado `3utr:`, y que **siga saliendo** en el recuento con su motivo — sin la segunda,
+«no inventa» y «no imprime nada» darían el mismo verde.
+
+## UNA CELDA NUMÉRICA VACÍA SE ESCRIBE `None`, NO `""` (2026-09-11)
+
+Errata nº 164. En la salida del proceso de producción:
+
+```
+pyarrow.lib.ArrowInvalid: ("Could not convert '' with type str: tried to convert to
+int64", 'Conversion failed for column rango with type object')
+```
+
+La regla de este proyecto es que un número que no se calculó va **vacío, nunca a cero**.
+Lo que esa regla **no** dice es CÓMO se escribe ese vacío, y se venía escribiendo `""` —
+que es una **cadena**. `site_table_rows` emitía 11 enteros y **273 cadenas vacías** en la
+misma columna: los ~270 sitios que no están en el panel no tienen puesto.
+
+### LO PRIMERO, porque decide qué se mira: NO ES LO QUE TUMBÓ EL PROCESO
+
+**Medido sobre el Streamlit que corre la app** (1.63.0), leyendo su fuente y
+reproduciéndolo: `convert_pandas_df_to_arrow_table` **captura** `pa.ArrowInvalid`, lo
+registra con un **`_LOGGER.info`** —de ahí el traceback entero en el log, debajo de
+«Applying automatic fixes for column types»— y **se recupera**. Sólo lanza si el segundo
+intento también falla.
+
+O sea: **es un INFO, no un error**, y que aparezca **demuestra que el proceso llegó a
+renderizar el panel de candidatos**. Confundirlo con la causa de un 503 es el principio
+nº 3, y el propio hub tiene escrito por qué enseña las últimas líneas **sin interpretar**:
+*un diagnóstico equivocado cuesta más que ninguno*.
+
+### EL FALLO REAL ES EL QUE NO SE VE: LA COLUMNA PASA A TEXTO
+
+Lo que hace `fix_arrow_incompatible_column_types` es convertir la columna **entera** a
+texto. Medido:
+
+| | tipo en Arrow | valores |
+|---|---|---|
+| con `""` (antes) | **`large_string`** | `['1', '', '11']` |
+| con `None` (ahora) | `double`, **a la primera** | `[1.0, None, 11.0]` |
+
+**Una columna de puestos en TEXTO ordena lexicográficamente**, así que con once
+candidatos el **10 y el 11 se cuelan entre el 1 y el 2**. La tabla se pinta perfecta y se
+ordena mal — la familia de siempre. `None` no es un cero disfrazado: es exactamente «aquí
+no hay valor», que es lo que significa un sitio sin puesto, y se sigue viendo vacío.
+
+### EL ARREGLO VA EN EL PINTOR ÚNICO, NO EN EL EMISOR QUE SALIÓ EN EL LOG
+
+Son **26 tablas** y `_tabla` es el único sitio que llama a `st.dataframe`. Arreglar
+`rango` y parar dejaría a las otras 25 esperando su turno (principio nº 31).
+
+- **`presentation.table_cells`** decide (regla 6): una columna que lleva **algún número y
+  alguna cadena vacía** es numérica con huecos, y esos huecos son nulos. Una columna de
+  **texto** con celdas vacías **no se toca** — ahí `""` es el valor. Y un `bool` **no
+  cuenta como número** aunque Python lo herede de `int`.
+- Se aplica a las **dos** salidas —la pintada y la que se lleva— porque tienen que decir
+  lo mismo.
+- El emisor conocido (`site_table_rows`) emite `None` por su cuenta: es lo que significa.
+
+### Y AL CAMBIARLO, EL GOLDEN CAZÓ LA OTRA MITAD
+
+`informe_doc` construía sus celdas con `str(f[c])`, así que el informe descargable empezó
+a imprimir **la palabra «None»** en la columna del puesto de **273 filas** — un texto que
+parece un dato. **19 líneas de diff, y ninguna la habría visto un test de presencia.**
+
+Y eran **CUATRO** sitios construyendo celdas a mano. La regla se puso en **`table()`**, el
+constructor de celdas del documento, no en los cuatro: ahí la tabla número cinco no puede
+volver a imprimirlo. `presentation.cell_text` es la única definición de «qué se imprime en
+una celda» y la leen el TSV y el documento — escrita dos veces, una se habría quedado
+atrás.
+
+**Con la regla puesta, el golden vuelve a ser idéntico byte a byte.** Eso es la
+comprobación de que el cambio es invisible donde tenía que serlo: el vacío se sigue
+viendo vacío.
+
+### ~~Lo que queda dicho y NO se arregla de paso~~ — CERRADO el mismo día
+
+Aquí decía que la columna sale **`double`** y el puesto se pinta `1.0`, y que dejarlo
+entero con huecos pedía un dtype nullable de pandas, o sea una **dependencia nueva en la
+capa de interfaz** que en este proyecto necesita autorización escrita (regla 6) y que no
+se toma de paso. **La autorización llegó** ese mismo día:
+
+> *«Autorizo `pandas.Int64Dtype()` para la columna rango. Cambia el tipo a Int64 nullable
+> para que el puesto se muestre como entero (1, 2, 3) y no como float (1.0, 2.0).»*
+> — responsable del proyecto, 2026-09-11.
+
+No se borra el párrafo: la escalera importa: se pidió, se dijo qué costaba, se decidió.
+
+- **Anotada en `docs/dependencias-autorizadas.md`**, que es donde la regla 6 la exige, con
+  **qué cubre y qué no**: declarar el dtype de una columna en el pintor único. Ni cálculo,
+  ni filtrado, ni ordenación, ni pandas en `shmir_design/` — hay test de que el núcleo
+  sigue sin importarlo y de que la página lo importa **en un solo sitio**.
+- **`Int64` con mayúscula es el NULLABLE de pandas**; `int64` en minúscula es el de numpy
+  y **no admite huecos** — con un `None` dentro aborta. Un carácter, y hay test de los dos.
+- **QUÉ columnas lo decide `presentation.integer_columns`** (regla 6) y **el nombre
+  `rango` NO está escrito** (principio nº 13): se declara la PROPIEDAD que lo hace
+  aplicable —los valores presentes son todos enteros y falta alguno—, así que una columna
+  entera de la tabla 27 queda cubierta sin que nadie se acuerde. La autorización nombra
+  esa columna porque es la que se vio; **el ensanchamiento es deliberado y va dicho por
+  escrito** en el registro de dependencias para que se pueda discutir.
+- **Un `float` con decimales NO se declara**: `2.96` de asimetría no es un entero y
+  convertirlo lo truncaría **en silencio**, que es peor que pintar un `.0` de más. La
+  misma tabla lleva las dos columnas, y es lo que obliga a mirar los valores y no el
+  nombre.
+- **Medido** sobre la tabla real: `rango` → `Int64`, valores `1, 2, 3, 4` con `<NA>` en
+  los huecos, Arrow `int64` **a la primera** y sin traceback; `asimetria` sigue `float64`.
+
+**Y DOS GUARDIAS MORDIERON EL ARREGLO, los dos con razón.** El del pintor único, porque
+la primera versión pintaba con un `if/else` y eso son **dos** `st.dataframe` — dos
+llamadas es justo por donde una se queda sin el tratamiento que la otra sí recibe; quedó
+en una sola. Y el de navegación, que vio `pd.DataFrame(filas).astype`: se resolvió
+declarando `pd` en su lista `AJENAS` —donde ya están `st` y los módulos estándar, por la
+misma razón: el contrato lo mantiene otra gente— **y no exentándolo en el test**, que
+habría dejado dos listas envejeciendo por separado.
+
+## LA COLISIÓN DE md5 ENTRE PANELES NO PUEDE DARSE — Y EL BLOQUEO NO DECÍA DE QUÉ PANEL ERA (2026-09-11)
+
+Reportado: con el panel humano activo, la app bloqueó el guardado de una corrida de
+`seed_colision` por `result_md5` repetido, y además dijo que lo registrado cubre **0 de
+11** candidatos del panel. De ahí se dedujo una **colisión de md5 entre paneles
+distintos**, y se pidió meter el contexto del panel en el `run_id`.
+
+### LA PREMISA NO SE SOSTIENE, Y SE MIDIÓ ANTES DE TOCAR NADA
+
+Cada línea del crudo de una corrida de seed es
+`f"{consulta}\t{hepta}\t{nivel}\t{nombres}"`, y `consulta` la pone
+`query_name(species, inicio, hebra)` → **`human_pos825_guia`** frente a
+**`mouse_pos60_guia`**. Construido el **peor caso posible** —mismo eje declarado, mismo
+heptámero, mismo nivel y los mismos nombres de miARN, o sea suponiendo que todo lo
+biológico coincide—:
+
+```
+md5 humano: 2bfae62aaf20783c5c412e45971acd45
+md5 raton : 6beb16db3c38ce43118a6e745a6f1fc3
+¿COLISIONAN? False
+```
+
+**El contexto del panel YA está en el identificador**, y no como un campo aparte: el
+`run_id` se DERIVA de un crudo en el que **cada línea identifica su consulta**. Ni
+siquiera colisionan dos paneles que compartieran posición a posición.
+
+**Y el eje tampoco es el hueco**: `crudas.insert(0, "# organismo\t…")` entró en `aae3223`,
+que **sí está** en el build que se estaba sirviendo — comprobado con `merge-base`.
+
+### POR QUÉ EL ARREGLO PEDIDO SERÍA UNA REGRESIÓN
+
+Meter «el conjunto de candidatos activo» en el `run_id` **desarma el guardia** que existe
+a propósito: `_rechaza_si_es_el_mismo_fichero` está para que **el mismo fichero subido dos
+veces no entre dos veces**, y con el panel dentro del id el mismo resultado resubido
+después de que el panel cambie dejaría de reconocerse como repetido — que es exactamente
+el caso que ese guardia vino a cerrar. La propiedad que se quiere conservar es «dos
+resultados distintos no chocan, dos idénticos sí».
+
+### LO QUE SÍ FALTABA: el bloqueo no decía DE QUÉ PANEL era lo registrado
+
+Decía cuántos cubre —el «0 de 11»— y **no de qué panel venía la corrida que bloquea**, así
+que hubo que deducirlo. **Deducir de qué panel es un registro es lo que este proyecto no
+deja hacer con nada más.** Principio nº 47: la salida va donde está el bloqueo.
+
+- **`query_panel` es la INVERSA de `query_name`** y vive pegada a ella, con test que las
+  cruza en las dos direcciones para todas las especies declaradas: son la misma regla y
+  escritas en dos sitios una se queda atrás.
+- **No adivina.** Un nombre sin la forma `<slug>_pos<N>_<hebra>` devuelve vacío y quien
+  pregunta dice «no se ha podido leer» — nunca un slug deducido. Y **normaliza el alias
+  viejo**: antes de la errata nº 42 la clave llevaba el nombre que se pinta, así que un
+  log de entonces trae `raton_pos200_guia`; sin normalizar, una corrida murina de entonces
+  se leería como «de otro panel» sobre un diseño murino y el aviso sería un falso
+  positivo — un guardia con falsos positivos se apaga.
+- **`registered_panels` se DERIVA de los nombres de consulta**, que cada corrida ya lleva:
+  no hace falta un campo nuevo ni cambia el formato del log, así que un proyecto de ayer
+  contesta igual.
+- **La cabecera va DELANTE**, porque cambia lo que hay que hacer: si lo registrado es de
+  otro panel, no falta «una corrida que incluya a estos dos» — falta entera, y el «0 de N»
+  deja de ser una laguna para pasar a ser la consecuencia.
+
+Sobre el panel humano de verdad, con una corrida murina registrada:
+
+> **OJO: la corrida que ya está registrada para este frente es del panel mouse y NO del
+> de hoy (human). Por eso no contesta a ninguno de estos candidatos: sus consultas son de
+> otras ventanas.** Y ESO NO ES TODO EL PANEL: lo que ya está registrado contesta a 0 de
+> 11 candidatos…
+
+### Y el «0 de 11» tiene OTRA causa posible, que también se nombra sola
+
+Una corrida registrada **antes del eje de organismo** no declara ninguno, y
+`verdict_for` no contesta por ninguno de los dos —está escrito así a propósito: una
+corrida sin organismo **no es «la de la diana»**—. Esa corrida cubre **0 de 11** con el
+panel correcto y la especie correcta. Con la cabecera puesta, los dos casos se distinguen
+de un vistazo: si dice «es del panel mouse», es otro panel; si no dice nada de panel, es
+una corrida heredada.
+
+**LO QUE NO SE HACE ES ASIGNARLE CAUSA A LO REPORTADO** (principio nº 3): desde aquí no se
+reproduce ni se ve el proyecto. Lo que se cierra es que la próxima vez no haya que
+deducirlo.

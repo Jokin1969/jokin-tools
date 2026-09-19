@@ -97,10 +97,20 @@ def bullets(items) -> Block:
 
 
 def table(headers, rows) -> Block:
+    """UNA tabla del documento. El texto de cada celda lo decide `cell_text`.
+
+    **VA AQUI Y NO EN CADA LLAMADOR** (principio nº 31). El vacio numerico se escribe
+    `None` desde la errata nº 164, y con `str(c)` el documento imprimia la palabra «None»
+    en la columna del puesto de 273 filas — un texto que parece un dato. Habia CUATRO
+    sitios construyendo celdas a mano: arreglarlos uno a uno es una costumbre, y la
+    tabla numero cinco volveria a imprimirlo. Aqui no puede.
+    """
+    from .presentation import cell_text  # noqa: PLC0415
+
     return Block(
         kind="table",
         headers=tuple(headers),
-        rows=tuple(tuple(str(c) for c in fila) for fila in rows),
+        rows=tuple(tuple(cell_text(c) for c in fila) for fila in rows),
     )
 
 
@@ -542,7 +552,7 @@ def _section_4(selection, *, species: str = "", stores=None) -> Section:
             "omiten los que no corrieron: un filtro ausente de la tabla es "
             "indistinguible de uno superado."
         ),
-        table(cabeceras, [tuple(str(f[c]) for c in cabeceras) for f in filas]),
+        table(cabeceras, [tuple(f[c] for c in cabeceras) for f in filas]),
     ]
     from .coords import Frame, label as etiqueta, tiled_frame
 
@@ -755,7 +765,7 @@ def _seccion_anatomia(anatomy) -> Section:
                 "tanto como el número: una frontera declarada y una anotada no "
                 "sostienen lo mismo."
             ),
-            table(tuple(filas[0]), tuple(tuple(str(f[c]) for c in filas[0]) for f in filas)),
+            table(tuple(filas[0]), tuple(tuple(f[c] for c in filas[0]) for f in filas)),
         ),
     )
 
@@ -838,7 +848,7 @@ def _seccion_elegibles(tiling, selection, *, species: str) -> Section:
                 "tabla es el conjunto sobre el que se hizo. Una columna por frente, "
                 "derivada de los frentes que el informe conoce."
             ),
-            table(tuple(filas[0]), tuple(tuple(str(f[c]) for c in filas[0]) for f in filas)),
+            table(tuple(filas[0]), tuple(tuple(f[c] for c in filas[0]) for f in filas)),
         ),
     )
 
@@ -1022,9 +1032,9 @@ def build_document(
     """
     from .presentation import (
         chosen_starts,
-        fronts_closed_over_panel,
         log_fingerprint,
         panel_states_by_front,
+        run_coverage,
         run_provenance_rows,
     )
     from .selection import blocking_fronts
@@ -1049,13 +1059,25 @@ def build_document(
     vista_del_panel = panel_states_by_front(
         tiling, selection, species=species, stores=stores
     )
-    cerrados = fronts_closed_over_panel(
+    cobertura_del_panel = run_coverage(
         vista_del_panel["estados"],
         starts=panel_para_frentes,
         frame=_marco_del_panel(selection),
         origins=vista_del_panel["origenes"],
+        reasons=vista_del_panel["motivos"],
     )
-    frentes = blocking_fronts(tiling, selection, closed_by_panel=cerrados)
+    cerrados = {
+        f: d["motivo"] for f, d in cobertura_del_panel.items() if d["cerrado"]
+    }
+    # Y EL MOTIVO DE UN FRENTE QUE NO CIERRA ENTRA TAMBIEN AQUI (principio nº 23). El
+    # texto que decide si alguien sale a conseguir un fichero o a repetir una corrida no
+    # puede vivir solo en la pantalla: este documento es lo que se lee sin la app
+    # delante, y con «falta el recurso» mandaria al sitio equivocado.
+    bloqueados = {f: d["bloqueo"] for f, d in cobertura_del_panel.items() if d["bloqueo"]}
+    frentes = blocking_fronts(
+        tiling, selection,
+        closed_by_panel=cerrados, blocked_by_panel=bloqueados,
+    )
     abiertos = tuple(f.name for f in frentes if f.blocking)
     if dossier_starts is None:
         dossier_starts = tuple(c.start for c in selection.selection.chosen)

@@ -43,6 +43,32 @@ from .selection import ReportSelection
 #: guardada, no el tilado — por eso su prefijo es distinto del de `LOAD_COLUMNS`.
 OFFTARGET_COLUMNS = tuple(f"carga_{clase}" for clase in SITE_CLASSES)
 
+
+def offtarget_columns(species: str = "") -> tuple[str, ...]:
+    """Las de carga, UNA TANDA POR ORGANISMO del eje. DECIDIDO (2026-09-11).
+
+    Con el eje de catalogo, `carga_8mer` a secas es un nombre de columna que lleva un
+    numero humano en una corrida y uno murino en otra segun el orden en que alguien
+    pulso — el principio nº 27 sobre una celda. Y no se arregla explicandolo en el
+    parrafo de referencia: ese parrafo no viaja con el CSV, y el CSV es lo que se lee sin
+    la pantalla delante (principio nº 55).
+
+    El orden es el mismo que emite `presentation.seed_load_columns` —organismo fuera,
+    clase dentro— porque las dos listas nombran las MISMAS celdas: dos ordenes serian dos
+    cabeceras distintas para la misma fila.
+
+    Sin eje derivable —especie sin declarar— salen las cuatro SIN SUFIJO, que es la
+    verdad: ahi no hay catalogo que nombrar.
+    """
+    from .presentation import catalogue_slugs  # noqa: PLC0415
+
+    organismos = catalogue_slugs(species) or ("",)
+    return tuple(
+        f"carga_{clase}{(':' + organismo) if organismo else ''}"
+        for organismo in organismos
+        for clase in SITE_CLASSES
+    )
+
 #: Columnas fijas, en el orden en que se leen. Las de `filtro:<nombre>` se añaden
 #: detras, una por filtro, y las tres columnas que esperan un dato de fuera
 #: —`score_externo`, `fuente_score` y `knockdown_medido`— van SIEMPRE las ultimas.
@@ -212,8 +238,14 @@ def comparative_rows(
     if elegidos:
         filtros = [r.name for r in selection.window_of(elegidos[0]).filters]
 
+    # LAS DE CARGA SE EXPANDEN POR ORGANISMO, en el sitio que ya ocupaban. No se añaden
+    # al final: el orden de esta cabecera es el que se lee, y un bloque de este eje
+    # partido en dos sitios se lee como dos ejes.
+    fijas = list(COMPARATIVE_COLUMNS[: -len(PENDIENTES)])
+    donde = fijas.index(OFFTARGET_COLUMNS[0])
+    fijas[donde: donde + len(OFFTARGET_COLUMNS)] = list(offtarget_columns(species))
     columnas = [
-        *COMPARATIVE_COLUMNS[: -len(PENDIENTES)],
+        *fijas,
         *(f"filtro:{n}" for n in filtros),
         *PENDIENTES,
     ]
@@ -376,6 +408,24 @@ RESUMEN_COLUMNS = (
 )
 
 
+def resumen_columns(species: str = "") -> tuple[str, ...]:
+    """Las del bloque legible, con la de carga resuelta al catalogo de la DIANA.
+
+    Del eje sale una columna por organismo y en un bloque alineado solo cabe una: se
+    coge la de la DIANA —la pregunta del paciente, que es la primera del eje— y el
+    nombre completo la delata, asi que nadie puede leerla como «la carga» a secas. El
+    resto del eje esta entero en el TSV, que es donde se compara.
+    """
+    del_eje = offtarget_columns(species)
+    de_la_diana = next(
+        (c for c in del_eje if c.startswith("carga_8mer")), "carga_8mer",
+    )
+    return tuple(
+        de_la_diana if columna == "carga_8mer" else columna
+        for columna in RESUMEN_COLUMNS
+    )
+
+
 def comparative_text(
     selection: ReportSelection,
     scaffold: ScaffoldSpec,
@@ -390,14 +440,15 @@ def comparative_text(
     )
     if len(filas) < 2:
         return "  (no hay candidatos seleccionados)"
-    indices = [filas[0].index(c) for c in RESUMEN_COLUMNS]
+    resumen = resumen_columns(species)
+    indices = [filas[0].index(c) for c in resumen]
     anchos = [
-        max(len(RESUMEN_COLUMNS[i]), *(len(f[indice]) for f in filas[1:]))
+        max(len(resumen[i]), *(len(f[indice]) for f in filas[1:]))
         for i, indice in enumerate(indices)
     ]
     lineas = [
         "  " + "  ".join(
-            c.ljust(a) for c, a in zip(RESUMEN_COLUMNS, anchos, strict=True)
+            c.ljust(a) for c, a in zip(resumen, anchos, strict=True)
         )
     ]
     for fila in filas[1:]:

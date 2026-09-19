@@ -32,6 +32,8 @@ import unittest
 from shmir_design.filters import FilterState
 from shmir_design.specificity import filter_specificity, target_accessions
 
+from tests import especie_sin_diana
+
 
 class TestLaDianaSaleDeLaTabla(unittest.TestCase):
     def test_el_raton_la_tiene_declarada(self):
@@ -62,13 +64,13 @@ class TestUnaEspecieSINdianaDeclaradaNOcierra(unittest.TestCase):
 
     def test_da_NO_CIERRA_y_no_PASS(self):
         resultado = filter_specificity(
-            "ACGT" * 6, None, self._BaseFalsa(), species="conejo",
+            "ACGT" * 6, None, self._BaseFalsa(), species=especie_sin_diana.una(),
         )
         self.assertIs(resultado.state, FilterState.NO_CIERRA)
 
     def test_y_el_motivo_dice_QUE_falta_y_DONDE_se_declara(self):
         resultado = filter_specificity(
-            "ACGT" * 6, None, self._BaseFalsa(), species="conejo",
+            "ACGT" * 6, None, self._BaseFalsa(), species=especie_sin_diana.una(),
         )
         self.assertIn("variantes.toml", resultado.reason)
         # Lo que NO puede decir es que falte el fichero: el fichero está.

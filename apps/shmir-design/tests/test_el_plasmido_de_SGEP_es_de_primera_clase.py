@@ -26,16 +26,23 @@ from shmir_design import blocks, gblock, scaffold_registry, species
 from shmir_design.errors import ShmirDesignError
 from shmir_design.scaffold import SGEP_SCAFFOLD
 
+from tests import plasmido_sgep as sgep
+
 DATOS = Path(__file__).resolve().parent.parent / "data" / "reference"
-SGEP = DATOS / "addgene_111170.gb"
-HAY = SGEP.is_file()
+
+#: La ruta y la presencia se le PIDEN a `tests/plasmido_sgep.py`, que es donde este
+#: proyecto declara el plásmido de SGEP para los tests. Aquí había un segundo
+#: `SGEP.is_file()`: dos definiciones de lo mismo, y la de aquí con el agujero de los 0
+#: bytes abierto (errata nº 15) mientras la de allí lo cerraba.
+SGEP = sgep.RUTA
+HAY, FALTA = sgep.HAY, sgep.FALTA
 
 #: Lo que el fichero dice de sí mismo, para poder contrastar. NO se usa como entrada de
 #: la derivación: si lo fuera, esto volvería a ser una coordenada escrita.
 LOOP_ANOTADO = (1801, 1815)
 
 
-@unittest.skipUnless(HAY, "falta addgene_111170.gb")
+@unittest.skipUnless(HAY, FALTA)
 class TestElAnclaSaleDeLaANOTACION(unittest.TestCase):
 
     @classmethod
@@ -76,7 +83,7 @@ class TestElAnclaSaleDeLaANOTACION(unittest.TestCase):
                 self.assertNotIn(numero, fuente)
 
 
-@unittest.skipUnless(HAY, "falta addgene_111170.gb")
+@unittest.skipUnless(HAY, FALTA)
 class TestLaCOMPROBACION_del_modulo(unittest.TestCase):
     """`verify_contexts_against_plasmid` deja de leer coordenadas."""
 
@@ -160,6 +167,7 @@ class TestElROL_del_plasmido(unittest.TestCase):
 
         self.assertIn("plasmido_andamio", {r.role for r in ROLES})
 
+    @unittest.skipUnless(HAY, FALTA)
     def test_y_su_md5_esta_en_el_manifiesto_versionado(self):
         from shmir_design.manifest import load_manifest
 
@@ -214,7 +222,10 @@ class TestQUE_MAS_estaba_igual(unittest.TestCase):
     es de otra clase: **diez dicen de dónde vienen y nadie lo estaba comprobando**.
     """
 
+    @unittest.skipUnless(HAY, FALTA)
     def test_las_piezas_del_receptor_ESTAN_en_el_casete_y_son_unicas(self):
+        # Los dos contextos salen del plásmido del ANDAMIO, así que sin él la auditoría
+        # no los confirma. No es que falten: es que no hay contra qué contrastarlos.
         informe = blocks.audit_pieces_against_plasmids()
         confirmadas = {f["pieza"] for f in informe if f["estado"] == "CONFIRMADA"}
         # Las cuatro del receptor —nadie las estaba contrastando— y los dos contextos,
@@ -270,7 +281,7 @@ class TestQUE_MAS_estaba_igual(unittest.TestCase):
         # coordenadas por nuestra cuenta, lo que `mir30_original` se niega a hacer— sino
         # que se CONTRASTA con él, que es lo que aquí se puede comprobar.
         if not HAY:
-            self.skipTest("falta addgene_111170.gb")
+            self.skipTest(FALTA)
         ancla = scaffold_registry.anchor_scaffold(
             scaffold_registry.SCAFFOLDS["mir_e"],
             SGEP.read_text(encoding="utf-8"),

@@ -59,6 +59,7 @@ class TestElQuintoCheck(unittest.TestCase):
         self.assertIs(modulo.verdict, Verdict.INCOMPLETE)
         self.assertFalse(modulo.ok)
 
+    @unittest.skipUnless(sgep.HAY, sgep.FALTA)
     def test_con_el_plasmido_bueno_PASA_y_el_modulo_es_apto(self):
         modulo = build_gblock(build_hairpin(GUIA), plasmid=plasmido())
         check = next(c for c in modulo.checks if c.name == "contextos_vs_plasmido")
@@ -66,6 +67,7 @@ class TestElQuintoCheck(unittest.TestCase):
         self.assertIs(modulo.verdict, Verdict.PASS)
         self.assertTrue(modulo.ok)
 
+    @unittest.skipUnless(sgep.HAY, sgep.FALTA)
     def test_con_un_plasmido_que_NO_coincide_ABORTA(self):
         # No es un FAIL de este candidato: si los contextos no son los del vector, TODOS
         # los módulos están mal, no éste. Un veredicto por candidato lo haría pasar por
@@ -81,6 +83,7 @@ class TestElQuintoCheck(unittest.TestCase):
         with self.assertRaises(ShmirDesignError):
             build_gblock(build_hairpin(GUIA), plasmid="ACGT" * 100)
 
+    @unittest.skipUnless(sgep.HAY, sgep.FALTA)
     def test_y_con_la_ANOTACION_movida_tambien(self):
         # La otra mitad del ancla: la anotación tiene que caer DENTRO del andamio
         # localizado por secuencia. Sin esto, anclarse en ella sería decorativo.
@@ -133,6 +136,7 @@ class TestElOTROGeneradorDeModulos(unittest.TestCase):
             "contextos_vs_plasmido", [c.name for c in bloque.not_run]
         )
 
+    @unittest.skipUnless(sgep.HAY, sgep.FALTA)
     def test_con_el_plasmido_bueno_pasa(self):
         from shmir_design.blocks import build_block
 

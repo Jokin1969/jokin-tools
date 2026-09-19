@@ -33,7 +33,33 @@ aparece con acierto perfecto para las veinte consultas; es además el transcrito
 PolyA_DB usa como representante de Prnp, y ya había salido en el anclaje del APA."""
 verificado = "no comprobado contra RefSeq desde este proyecto: aquí no hay red saliente (regla 4). Las dos accessions vienen de material que sí se ha visto — la referencia versionada y la corrida real."
 
-# El humano NO tiene entrada, y eso NO es un descuido: es lo que hace que la condición
-# signifique algo. Un diseño sobre PRNP humano sale hoy `NO_CIERRA` con el motivo, en vez
-# de dar `PASS` porque nadie declaró nada. Se añade cuando haya una corrida humana de la
-# que sacar las variantes con su procedencia — igual que se hizo con el ratón.
+# ~~El humano NO tiene entrada~~ — DECLARADO EL 2026-09-11, y por el camino previsto.
+#
+# Lo que ponía aquí —«se añade cuando haya una corrida humana de la que sacar las
+# variantes con su procedencia, igual que se hizo con el ratón»— es exactamente lo que ha
+# pasado, así que se sustituye en vez de borrarse: el hueco no era un descuido y su cierre
+# tampoco es una excepción. **No hizo falta repetir ningún BLAST**: los accessions estaban
+# dentro del `-outfmt 6` de la corrida del panel, que es donde el motivo del `NO_CIERRA`
+# decía que había que mirarlos.
+
+[human]
+gen = "PRNP"
+organismo = "Homo sapiens"
+accessions = [
+    "NM_000311.5",
+    "NM_001080121.3",
+    "NM_001080122.3",
+    "NM_001080123.3",
+    "NM_001271561.3",
+    "NM_183079.4",
+]
+procedencia = """\
+`NM_000311.5` es el transcrito del diseño y se puede CRUZAR sin salir del repositorio: es \
+la referencia versionada del panel humano (`reference.REFERENCES`, organismo \
+«Homo sapiens»), igual que `NM_011170.3` lo es del murino. Las otras cinco las aportó el \
+responsable del proyecto el 2026-09-11 a partir de la corrida de BLAST del propio panel \
+—`blast-2026-09-09`, `result_md5 7125126832b21818e748b946188ad1f7`—, donde aparecen como \
+isoformas de PRNP; su origen declarado es UCSC hg38, RefSeq Curated. Es el mismo ciclo \
+que cerró el ratón: la corrida nombra los accessions en el motivo del veredicto y de ahí \
+salen, sin inventar ninguno."""
+verificado = "las seis vienen de material que sí se ha visto — una es la referencia versionada del panel y las otras cinco están en el resultado de la corrida registrada—, pero NO se han comprobado contra RefSeq desde este proyecto: aquí no hay red saliente (regla 4). OJO con el alcance: RefSeq Curated NO trae los predichos (`XM_`/`XR_`), así que si una corrida futura acierta contra una isoforma predicha de PRNP, esa no está en esta lista y saldrá como off-target — el motivo del FAIL la nombrará y se añade aquí con su procedencia, que es el ciclo previsto y no un fallo."
