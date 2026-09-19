@@ -2285,7 +2285,7 @@ function openEditMed(med) {
 //    rellenarlos primero para que se apliquen al clic.
 function openMedPicker() {
   // Ensure the person has an empty plan entry even if no medications are added.
-  api(`/person/${S.person.id}/plan-empty`, { method: 'POST' }).catch(() => {});
+  api(`/person/${S.person.id}/plan-empty`, jbody({})).catch(() => {});
   openTool(`<div class="qt-modal-h"><h3>Añadir medicamento al plan</h3><button class="qt-x" id="mp-close">×</button></div>
     <div class="az-tabs"><button type="button" class="az-tab" data-tab="aemps">🔎 A través de la AEMPS</button><button type="button" class="az-tab" data-tab="dm">📦 A través del stock de Data Matrix</button></div>
     <div id="mp-pane-aemps" class="az-tabpane" hidden>
