@@ -55,6 +55,30 @@ const FOTO_REV = '2';
 function fotoUrl(cn, tipo) { return `${API}/cima/foto/${encodeURIComponent(cn || '')}/${tipo}?r=${FOTO_REV}`; }
 function fmtDate(s) { if (!s) return ''; const d = new Date(String(s).replace(' ', 'T') + 'Z'); return isNaN(d) ? s : d.toLocaleDateString('es-ES', { day: '2-digit', month: 'short', year: 'numeric' }); }
 function fmtYm(ym) { if (!ym) return ''; const [y, m] = ym.split('-'); const names = ['ene', 'feb', 'mar', 'abr', 'may', 'jun', 'jul', 'ago', 'sep', 'oct', 'nov', 'dic']; return `${names[Number(m) - 1] || m} ${y}`; }
+// Parse flexible date formats (e.g., "15/2/27", "15/02/2027", "2027-02-15") to ISO format (YYYY-MM-DD).
+function parseFlexibleDate(text) {
+  if (!text) return null;
+  const s = String(text).trim();
+  // Already ISO format
+  if (/^\d{4}-\d{2}-\d{2}$/.test(s)) return s;
+  // DD/MM/YY or DD/MM/YYYY format (/ or - or . separator)
+  const match = s.match(/^(\d{1,2})[\/\-\.](\d{1,2})[\/\-\.](\d{2,4})$/);
+  if (!match) return null;
+  let day = parseInt(match[1], 10), month = parseInt(match[2], 10), year = parseInt(match[3], 10);
+  if (day < 1 || day > 31 || month < 1 || month > 12) return null;
+  if (year < 100) year += year < 30 ? 2000 : 1900;
+  return `${year}-${String(month).padStart(2, '0')}-${String(day).padStart(2, '0')}`;
+}
+// Get today's date in ISO format.
+function todayIsoClient() { const d = new Date(); return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`; }
+// Add days to an ISO date string.
+function addDaysToDate(iso, days) {
+  if (!iso || !Number.isFinite(days)) return null;
+  const d = new Date(iso + 'T00:00:00');
+  if (isNaN(d)) return null;
+  d.setDate(d.getDate() + days);
+  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+}
 
 let toastTimer = null;
 function toast(msg, kind) { const t = $('toast'); t.textContent = msg; t.className = 'qt-toast' + (kind ? ' ' + kind : ''); t.hidden = false; if (toastTimer) clearTimeout(toastTimer); toastTimer = setTimeout(() => { t.hidden = true; }, 2800); }
@@ -744,6 +768,22 @@ function renderHome() {
   renderOverviewSection();
   loadStickers(S.stkYm || undefined);
 }
+// Validate and auto-pad TIS or pharmacy codes. TIS: 6-7 digits → 8; pharmacy: 4 digits → 5.
+function validateAndPadCode(code, by) {
+  const clean = String(code).replace(/\D/g, '');
+  if (by === 'tis') {
+    if (clean.length <= 5) return { valid: false, error: 'TIS debe tener al menos 6 dígitos.' };
+    if (clean.length === 6 || clean.length === 7) return { valid: true, code: clean.padStart(8, '0'), warning: `TIS auto-completado: ${clean} → ${clean.padStart(8, '0')}` };
+    if (clean.length === 8) return { valid: true, code: clean };
+    return { valid: false, error: 'TIS debe tener 6–8 dígitos.' };
+  } else if (by === 'pharmacy') {
+    if (clean.length <= 3) return { valid: false, error: 'Nº de farmacia debe tener al menos 4 dígitos.' };
+    if (clean.length === 4) return { valid: true, code: '0' + clean, warning: `Nº de farmacia auto-completado: ${clean} → 0${clean}` };
+    if (clean.length === 5) return { valid: true, code: clean };
+    return { valid: false, error: 'Nº de farmacia debe tener 4–5 dígitos.' };
+  }
+  return { valid: false, error: 'Identificador no válido.' };
+}
 // Bulk-import medications by Código Nacional: paste one line per person
 // ("<TIS o Nº de farmacia>  cn, cn, cn"). CIMA fills each medication's name/barcode.
 function parseMedImport(text) {
@@ -777,10 +817,23 @@ function openMedImport() {
   $('mi-go').onclick = async () => {
     const rows = parseMedImport($('mi-text').value);
     if (!rows.length) { toast('No hay filas válidas. Revisa el formato.', 'err'); return; }
+    // Validate and auto-pad person codes
+    const validatedRows = [];
+    const errors = [];
+    for (const row of rows) {
+      const validation = validateAndPadCode(row.person, st.by);
+      if (!validation.valid) {
+        errors.push(`Línea "${row.person} ${row.cns.join(', ')}": ${validation.error}`);
+      } else {
+        if (validation.warning) toast(validation.warning, 'info');
+        validatedRows.push({ person: validation.code, cns: row.cns });
+      }
+    }
+    if (errors.length > 0) { toast('Errores en los identificadores:\n' + errors.slice(0, 3).join('\n') + (errors.length > 3 ? '\n…' : ''), 'err'); return; }
     const qty = Math.max(1, Math.min(99, Math.round(Number($('mi-qty').value) || 1)));
     const btn = $('mi-go'); btn.disabled = true; btn.textContent = 'Importando (consultando CIMA)…';
     try {
-      const r = await api('/plan/import', jbody({ by: st.by, qty, rows }));
+      const r = await api('/plan/import', jbody({ by: st.by, qty, rows: validatedRows }));
       const errs = r.errors || [];
       const miss = (r.cima && Array.isArray(r.cima.missingCns)) ? r.cima.missingCns : [];
       const missHtml = miss.length ? `<details class="az-mi-missing" open>
@@ -2052,16 +2105,53 @@ function effectiveIso(iso, adv) {
 // field itself, next to «Si precisa», instead of full-width here).
 function releaseFieldsHtml(dateId, advId, effId, expId, dateVal, advVal, expVal) {
   return `<div class="az-relform">
-    <div class="qt-field"><label>Fecha</label><input type="date" class="qt-input" id="${dateId}" value="${esc(dateVal || '')}"></div>
-    <div class="qt-field"><label>Días</label><input type="number" class="qt-input" id="${advId}" min="0" max="365" step="1" value="${esc(String(advVal != null ? advVal : 15))}"></div>
-    <div class="qt-field"><label>Fecha de disponibilidad</label><input type="date" class="qt-input" id="${effId}" disabled></div>
+    <div class="qt-field az-wide-date-field"><label>Fecha</label>
+      <div class="az-date-input-group">
+        <input type="date" class="qt-input az-date-input" id="${dateId}" value="${esc(dateVal || '')}" placeholder="DD/MM/YYYY">
+        <button type="button" class="qt-btn qt-btn-ghost qt-btn-sm az-date-quick" data-dateId="${dateId}" data-quick="today" title="Establecer fecha de hoy">Hoy</button>
+        <button type="button" class="qt-btn qt-btn-ghost qt-btn-sm az-date-quick" data-dateId="${dateId}" data-quick="plus31" title="Establecer fecha de un mes (31 días) desde hoy">+Mes</button>
+      </div>
+    </div>
+    <div class="qt-field az-narrow-field"><label>Días</label><input type="number" class="qt-input" id="${advId}" min="0" max="365" step="1" value="${esc(String(advVal != null ? advVal : 15))}"></div>
+    <div class="qt-field az-narrow-field"><label>Disponibilidad</label><input type="date" class="qt-input" id="${effId}" disabled></div>
     <small class="az-field-hint az-relform-hint">La fecha de disponibilidad se calcula sola: Fecha menos Días (por defecto 15, los días que la farmacia puede adelantarse a la fecha oficial de Salud).</small>
-    ${expId ? `<div class="qt-field"><label>Fecha de caducidad de disponibilidad</label><input type="date" class="qt-input" id="${expId}" value="${esc(expVal || '')}"></div>` : ''}
+    ${expId ? `<div class="qt-field"><label>Caducidad de disponibilidad</label><input type="date" class="qt-input" id="${expId}" value="${esc(expVal || '')}" placeholder="DD/MM/YYYY"></div>` : ''}
   </div>`;
 }
 function wireReleaseFields(dateId, advId, effId) {
   const dateEl = $(dateId), advEl = $(advId), effEl = $(effId);
-  const update = () => { effEl.value = effectiveIso(dateEl.value, advEl.value) || ''; };
+  const update = () => {
+    let dateVal = dateEl.value;
+    // Try to parse flexible date format if entered as text (not via date picker).
+    if (dateVal && !/^\d{4}-\d{2}-\d{2}$/.test(dateVal)) {
+      const parsed = parseFlexibleDate(dateVal);
+      if (parsed) {
+        dateVal = parsed;
+        dateEl.value = parsed;
+      }
+    }
+    effEl.value = effectiveIso(dateVal, advEl.value) || '';
+  };
+  // Wire up the quick date buttons.
+  const container = dateEl.closest('.az-date-input-group') || dateEl.parentElement.parentElement;
+  if (container) {
+    container.querySelectorAll('.az-date-quick').forEach(btn => {
+      btn.addEventListener('click', (e) => {
+        e.preventDefault();
+        const quick = btn.dataset.quick;
+        let newDate;
+        if (quick === 'today') {
+          newDate = todayIsoClient();
+        } else if (quick === 'plus31') {
+          newDate = addDaysToDate(todayIsoClient(), 31);
+        }
+        if (newDate) {
+          dateEl.value = newDate;
+          update();
+        }
+      });
+    });
+  }
   dateEl.addEventListener('input', update); advEl.addEventListener('input', update); update();
 }
 // Set the official Salud date AND the days of anticipation for a MEDICATION (plan).
@@ -2194,6 +2284,8 @@ function openEditMed(med) {
 //    confirme después), así que los 5 campos van ANTES de la lista: hay que
 //    rellenarlos primero para que se apliquen al clic.
 function openMedPicker() {
+  // Ensure the person has an empty plan entry even if no medications are added.
+  api(`/person/${S.person.id}/plan-empty`, { method: 'POST' }).catch(() => {});
   openTool(`<div class="qt-modal-h"><h3>Añadir medicamento al plan</h3><button class="qt-x" id="mp-close">×</button></div>
     <div class="az-tabs"><button type="button" class="az-tab" data-tab="aemps">🔎 A través de la AEMPS</button><button type="button" class="az-tab" data-tab="dm">📦 A través del stock de Data Matrix</button></div>
     <div id="mp-pane-aemps" class="az-tabpane" hidden>
@@ -2273,9 +2365,16 @@ function openMedPicker() {
       if (!items.length) { list.innerHTML = '<div class="az-noresult">CIMA no devolvió resultados para esa búsqueda.</div>'; return; }
       list.innerHTML = `<div class="az-form-hint" style="margin:2px 0 6px">Resultados de CIMA (AEMPS) — pulsa uno para rellenar el formulario de arriba:</div>` +
         `<div class="az-medlist">${items.map((m, i) => `<button class="az-medrow" data-cima="${i}"><span class="az-plan-shape">💊</span><span class="az-medrow-name">${esc(m.nombre || 'Sin nombre')}<small>${m.cn ? 'CN ' + esc(m.cn) : 'sin CN'}${m.labtitular ? ' · ' + esc(m.labtitular) : ''}</small></span><span class="az-medrow-add">⬇</span></button>`).join('')}</div>`;
-      list.querySelectorAll('[data-cima]').forEach(b => b.addEventListener('click', () => { fillFromCima(items[Number(b.dataset.cima)]); toast('Datos copiados de CIMA. Revisa y pulsa «Añadir al plan».', 'ok'); }));
+      list.querySelectorAll('[data-cima]').forEach(b => b.addEventListener('click', () => { fillFromCima(items[Number(b.dataset.cima)]); toast('Código Nacional y datos copiados de CIMA. Pulsa «Añadir al plan» para guardarlo.', 'ok'); updateAddButtonState(); }));
     } catch (e) { list.innerHTML = `<div class="az-noresult">${esc(cimaErr(e))}</div>`; }
   };
+  const updateAddButtonState = () => {
+    const cn = $('mp-cn').value.trim();
+    const btn = $('mp-add-cn');
+    btn.disabled = !cn;
+  };
+  // Monitor CN field changes to enable/disable the add button.
+  $('mp-cn').addEventListener('input', updateAddButtonState);
   $('mp-add-cn').onclick = () => {
     const cn = $('mp-cn').value.trim(), nombre = $('mp-nombre').value.trim();
     const qty = Number($('mp-qty').value) || 1;
@@ -2283,6 +2382,7 @@ function openMedPicker() {
     if (!nombre) { toast('Indica el nombre del medicamento.', 'err'); return; }
     addMedToPlan({ cn, nombre, qty }, 'mp');
   };
+  updateAddButtonState();
   load();
 }
 // `prefix` selecciona de qué formulario leer Fecha/Días/Caducidad/Si precisa —
