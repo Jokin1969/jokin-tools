@@ -202,12 +202,20 @@ function verifyAccessToken(token) {
 
 function getReivindicacionPublico(reivindicacionId) {
   const stmt = db.prepare(`
-    SELECT id, titulo, descripcion, estado, fecha_inicio, fecha_fin, objetivo_firmas,
+    SELECT id, titulo, descripcion, contenido, estado, fecha_inicio, fecha_fin, objetivo_firmas,
            (SELECT COUNT(*) FROM firmas WHERE reivindicacion_id = ?) as contador_firmas
     FROM reivindicaciones
     WHERE id = ?
   `);
-  return stmt.get(reivindicacionId, reivindicacionId);
+  const row = stmt.get(reivindicacionId, reivindicacionId);
+  if (row && typeof row.contenido === 'string') {
+    try {
+      row.contenido = JSON.parse(row.contenido);
+    } catch (e) {
+      row.contenido = [];
+    }
+  }
+  return row;
 }
 
 // Votaciones
