@@ -413,6 +413,46 @@ body {
   z-index: 999;
 }
 
+/* ========== Editor de bloques ========== */
+.rv-bloque-editor {
+  background: #f9f9f9;
+  border: 1px solid #ddd;
+  border-radius: 4px;
+  padding: 15px;
+  margin-bottom: 15px;
+}
+
+.rv-bloque-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 10px;
+  padding-bottom: 10px;
+  border-bottom: 1px solid #ddd;
+}
+
+.rv-bloque-tipo {
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--color-primary);
+  text-transform: uppercase;
+}
+
+.rv-bloque-editor input,
+.rv-bloque-editor textarea {
+  width: 100%;
+  font-family: Inter, sans-serif;
+  border: 1px solid #ddd;
+  border-radius: 4px;
+  padding: 8px;
+}
+
+.rv-bloque-editor input:focus,
+.rv-bloque-editor textarea:focus {
+  outline: none;
+  border-color: var(--color-primary);
+}
+
 /* ========== Responsive ========== */
 @media (max-width: 768px) {
   .rv-header-in {

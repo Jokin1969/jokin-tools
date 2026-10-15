@@ -86,8 +86,11 @@
         <input type="number" id="rv-objetivo" min="0" />
       </div>
       <div class="rv-form-actions">
+        <button type="button" class="rv-btn rv-btn-secondary" onclick="abrirModal('modal-contenido')">Editar contenido</button>
+      </div>
+      <div class="rv-form-actions">
         <button type="button" class="rv-btn rv-btn-ghost" id="btn-cancelar">Cancelar</button>
-        <button type="submit" class="rv-btn rv-btn-primary">Guardar</button>
+        <button type="submit" class="rv-btn rv-btn-primary">Guardar reivindicación</button>
       </div>
     </form>
   </div>
@@ -119,6 +122,25 @@
         <tbody>
         </tbody>
       </table>
+    </div>
+  </div>
+</div>
+
+<!-- Modal: Editar contenido -->
+<div class="rv-modal" id="modal-contenido" hidden>
+  <div class="rv-modal-box rv-modal-large">
+    <div class="rv-modal-h">
+      <h3>Editar contenido de la reivindicación</h3>
+      <button class="rv-x" id="modal-contenido-close">×</button>
+    </div>
+    <div id="contenido-editor" style="padding: 20px;">
+      <!-- Bloques dinámicos aquí -->
+    </div>
+    <div class="rv-modal-actions">
+      <button class="rv-btn rv-btn-secondary" id="btn-anadir-titulo">+ Añadir título</button>
+      <button class="rv-btn rv-btn-secondary" id="btn-anadir-parrafo">+ Añadir párrafo</button>
+      <button class="rv-btn rv-btn-secondary" id="btn-anadir-lista">+ Añadir lista</button>
+      <button class="rv-btn rv-btn-primary" id="btn-guardar-contenido">Guardar contenido</button>
     </div>
   </div>
 </div>

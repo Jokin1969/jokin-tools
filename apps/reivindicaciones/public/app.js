@@ -1,7 +1,7 @@
 let reivindicacionesActual = [];
 let reivindicacionEnEdicion = null;
+let contenidoEnEdicion = [];
 
-// ========== Inicialización ==========
 document.addEventListener('DOMContentLoaded', () => {
   cargarReivindicaciones();
   setupEventListeners();
@@ -14,7 +14,12 @@ function setupEventListeners() {
   document.getElementById('form-reivindicacion').addEventListener('submit', guardarReivindicacion);
   document.getElementById('modal-firmas-close').addEventListener('click', cerrarModalFirmas);
   document.getElementById('modal-compartir-close').addEventListener('click', cerrarModalCompartir);
+  document.getElementById('modal-contenido-close').addEventListener('click', cerrarModalContenido);
   document.getElementById('btn-copiar-enlace').addEventListener('click', copiarEnlace);
+  document.getElementById('btn-anadir-titulo').addEventListener('click', () => anadirBloque('titulo'));
+  document.getElementById('btn-anadir-parrafo').addEventListener('click', () => anadirBloque('parrafo'));
+  document.getElementById('btn-anadir-lista').addEventListener('click', () => anadirBloque('lista'));
+  document.getElementById('btn-guardar-contenido').addEventListener('click', guardarContenido);
   document.getElementById('scrim').addEventListener('click', cerrarModal);
 }
 
@@ -72,6 +77,7 @@ function renderizarReivindicaciones() {
 // ========== Modales ==========
 function abrirModalNueva() {
   reivindicacionEnEdicion = null;
+  contenidoEnEdicion = [];
   document.getElementById('modal-titulo').textContent = 'Nueva reivindicación';
   document.getElementById('form-reivindicacion').reset();
   document.getElementById('rv-fecha-inicio').value = new Date().toISOString().split('T')[0];
@@ -82,46 +88,32 @@ function abrirEditar(id) {
   const r = reivindicacionesActual.find(x => x.id == id);
   if (!r) return;
   reivindicacionEnEdicion = r;
+  contenidoEnEdicion = JSON.parse(JSON.stringify(r.contenido || []));
   document.getElementById('modal-titulo').textContent = 'Editar reivindicación';
   document.getElementById('rv-titulo').value = r.titulo;
   document.getElementById('rv-fecha-inicio').value = r.fecha_inicio;
   document.getElementById('rv-fecha-fin').value = r.fecha_fin || '';
   document.getElementById('rv-objetivo').value = r.objetivo_firmas || '';
-
-  // Modal para editar bloques de contenido
-  abrirModalContenido(r);
-}
-
-function abrirModalContenido(reivindicacion) {
-  const html = `
-    <div class="rv-modal-contenido">
-      <div class="rv-modal-h">
-        <h3>Editar contenido</h3>
-        <button class="rv-x" onclick="cerrarModal()">×</button>
-      </div>
-      <div class="rv-bloques-editor" id="bloques-editor">
-        <!-- Cargado dinámicamente -->
-      </div>
-      <div class="rv-modal-actions">
-        <button class="rv-btn rv-btn-secondary" onclick="anadirBloque()">+ Añadir bloque</button>
-        <button class="rv-btn rv-btn-primary" onclick="guardarBloques(${reivindicacion.id})">Guardar bloques</button>
-      </div>
-    </div>
-  `;
-
-  // Mostrar en modal aparte - por ahora lo simplificamos
-  console.log('Editar contenido para:', reivindicacion.titulo);
-  // Aquí se abre un editor más complejo
   abrirModal('modal-reivindicacion');
 }
 
 function abrirModal(id) {
   document.getElementById(id).hidden = false;
   document.getElementById('scrim').hidden = false;
+  // Si es el modal de contenido, renderizar editor
+  if (id === 'modal-contenido') {
+    renderizarEditorContenido();
+  }
 }
 
 function cerrarModal() {
   document.getElementById('modal-reivindicacion').hidden = true;
+  document.getElementById('modal-contenido').hidden = true;
+  document.getElementById('scrim').hidden = true;
+}
+
+function cerrarModalContenido() {
+  document.getElementById('modal-contenido').hidden = true;
   document.getElementById('scrim').hidden = true;
 }
 
@@ -133,6 +125,51 @@ function cerrarModalFirmas() {
 function cerrarModalCompartir() {
   document.getElementById('modal-compartir').hidden = true;
   document.getElementById('scrim').hidden = true;
+}
+
+// ========== Editor de contenido ==========
+function renderizarEditorContenido() {
+  const editor = document.getElementById('contenido-editor');
+  if (!editor) return;
+
+  editor.innerHTML = contenidoEnEdicion.map((bloque, idx) => `
+    <div class="rv-bloque-editor" id="bloque-${idx}">
+      <div class="rv-bloque-header">
+        <span class="rv-bloque-tipo">${bloque.tipo.toUpperCase()}</span>
+        <button class="rv-btn rv-btn-danger" style="padding:5px 10px;font-size:12px;" onclick="eliminarBloque(${idx})">×</button>
+      </div>
+      ${bloque.tipo === 'titulo' ? `
+        <input type="text" value="${escapeHtml(bloque.texto)}" onchange="contenidoEnEdicion[${idx}].texto = this.value" placeholder="Título" style="width:100%;padding:8px;margin:8px 0;border:1px solid #ddd;border-radius:4px;" />
+      ` : bloque.tipo === 'parrafo' ? `
+        <textarea onchange="contenidoEnEdicion[${idx}].texto = this.value" placeholder="Párrafo de texto..." style="width:100%;padding:8px;margin:8px 0;border:1px solid #ddd;border-radius:4px;font-family:Inter,sans-serif;min-height:80px;">${escapeHtml(bloque.texto)}</textarea>
+      ` : bloque.tipo === 'lista' ? `
+        <div style="margin:8px 0;">
+          <textarea placeholder="Items de la lista (uno por línea)" onchange="contenidoEnEdicion[${idx}].items = this.value.split('\\n').filter(x=>x.trim())" style="width:100%;padding:8px;border:1px solid #ddd;border-radius:4px;font-family:Inter,sans-serif;min-height:80px;">${(bloque.items || []).join('\n')}</textarea>
+        </div>
+      ` : ''}
+    </div>
+  `).join('');
+}
+
+function anadirBloque(tipo) {
+  const bloques = {
+    titulo: { tipo: 'titulo', texto: '' },
+    parrafo: { tipo: 'parrafo', texto: '' },
+    lista: { tipo: 'lista', items: [] },
+  };
+  contenidoEnEdicion.push(bloques[tipo]);
+  renderizarEditorContenido();
+}
+
+function eliminarBloque(idx) {
+  contenidoEnEdicion.splice(idx, 1);
+  renderizarEditorContenido();
+}
+
+function guardarContenido() {
+  // El contenido ya está actualizado en el array contenidoEnEdicion por los onchange
+  // Cerramos el modal de contenido y continuamos con el formulario principal
+  cerrarModalContenido();
 }
 
 // ========== Guardar reivindicación ==========
@@ -149,12 +186,18 @@ async function guardarReivindicacion(e) {
     return;
   }
 
+  // Abrir editor de contenido antes de guardar
+  if (!document.getElementById('modal-contenido').hidden === false) {
+    abrirModal('modal-contenido');
+    return; // El usuario editará el contenido y luego guardará
+  }
+
   const datos = {
     titulo,
     fecha_inicio,
     fecha_fin: fecha_fin || null,
     objetivo_firmas,
-    contenido: reivindicacionEnEdicion?.contenido || [],
+    contenido: contenidoEnEdicion,
   };
 
   try {
@@ -230,7 +273,6 @@ async function abrirCompartir(id) {
     if (!resp.ok) throw new Error('Error');
     const datos = await resp.json();
 
-    // Si no tiene token, generar uno
     const token = datos.token || await generarToken(id);
     const enlace = `${window.location.origin}/reivindicaciones/firma/${token}`;
 
@@ -283,14 +325,4 @@ function escapeHtml(text) {
 
 function formatearFecha(fecha) {
   return new Date(fecha).toLocaleDateString('es-ES');
-}
-
-function anadirBloque() {
-  // Simplificado por ahora
-  console.log('Añadir bloque');
-}
-
-function guardarBloques(id) {
-  // Simplificado por ahora
-  console.log('Guardar bloques para:', id);
 }
