@@ -1,6 +1,16 @@
 let reivindicacionesActual = [];
 let reivindicacionEnEdicion = null;
 let contenidoEnEdicion = [];
+let columnasSeleccionadas = ['nombre', 'dni', 'creado_en'];
+let reivindicacionEnExportacion = null;
+
+const COLUMNAS_DISPONIBLES = [
+  { key: 'nombre', label: 'Nombre', checked: true },
+  { key: 'dni', label: 'DNI/NIE', checked: true },
+  { key: 'creado_en', label: 'Fecha y Hora', checked: true },
+  { key: 'ip_address', label: 'Dirección IP', checked: false },
+  { key: 'user_agent', label: 'Dispositivo/Navegador', checked: false },
+];
 
 document.addEventListener('DOMContentLoaded', () => {
   cargarReivindicaciones();
@@ -16,6 +26,10 @@ function setupEventListeners() {
   document.getElementById('modal-compartir-close').addEventListener('click', cerrarModalCompartir);
   document.getElementById('modal-contenido-close').addEventListener('click', cerrarModalContenido);
   document.getElementById('modal-estadisticas-close').addEventListener('click', cerrarModalEstadisticas);
+  document.getElementById('modal-columnas-close').addEventListener('click', cerrarModalColumnas);
+  document.getElementById('btn-columnas-todas').addEventListener('click', seleccionarTodas);
+  document.getElementById('btn-columnas-ninguna').addEventListener('click', desseleccionarTodas);
+  document.getElementById('btn-columnas-guardar').addEventListener('click', guardarColumnasSeleccionadas);
   document.getElementById('btn-copiar-enlace').addEventListener('click', copiarEnlace);
   document.getElementById('btn-anadir-titulo').addEventListener('click', () => anadirBloque('titulo'));
   document.getElementById('btn-anadir-parrafo').addEventListener('click', () => anadirBloque('parrafo'));
@@ -340,6 +354,8 @@ async function verFirmas(id) {
     `).join('');
 
     document.getElementById('btn-descargar-csv').onclick = () => descargarCSV(id, firmas);
+    document.getElementById('btn-columnas').onclick = () => abrirModalColumnas(id);
+    document.getElementById('btn-descargar-excel').onclick = () => exportarExcel(id);
     abrirModal('modal-firmas');
   } catch (error) {
     alert('Error: ' + error.message);
@@ -417,6 +433,79 @@ async function eliminar(id) {
     });
     if (!resp.ok) throw new Error('Error');
     cargarReivindicaciones();
+  } catch (error) {
+    alert('Error: ' + error.message);
+  }
+}
+
+// ========== Gestor de Columnas ==========
+function abrirModalColumnas(reivindicacionId) {
+  reivindicacionEnExportacion = reivindicacionId;
+
+  const contenedor = document.getElementById('columnas-list');
+  contenedor.innerHTML = COLUMNAS_DISPONIBLES.map((col, idx) => `
+    <label style="display:flex;align-items:center;gap:10px;padding:10px;background:#f9f9f9;border-radius:4px;cursor:pointer;">
+      <input type="checkbox" id="col-${col.key}" ${columnasSeleccionadas.includes(col.key) ? 'checked' : ''} />
+      <span>${col.label}</span>
+    </label>
+  `).join('');
+
+  abrirModal('modal-columnas');
+}
+
+function cerrarModalColumnas() {
+  document.getElementById('modal-columnas').hidden = true;
+  document.getElementById('scrim').hidden = true;
+}
+
+function seleccionarTodas() {
+  COLUMNAS_DISPONIBLES.forEach(col => {
+    const checkbox = document.getElementById(`col-${col.key}`);
+    if (checkbox) checkbox.checked = true;
+  });
+}
+
+function desseleccionarTodas() {
+  COLUMNAS_DISPONIBLES.forEach(col => {
+    const checkbox = document.getElementById(`col-${col.key}`);
+    if (checkbox) checkbox.checked = false;
+  });
+}
+
+function guardarColumnasSeleccionadas() {
+  columnasSeleccionadas = [];
+  COLUMNAS_DISPONIBLES.forEach(col => {
+    const checkbox = document.getElementById(`col-${col.key}`);
+    if (checkbox && checkbox.checked) {
+      columnasSeleccionadas.push(col.key);
+    }
+  });
+  cerrarModalColumnas();
+  alert('Columnas guardadas. Ahora puedes exportar con estas columnas seleccionadas.');
+}
+
+// ========== Exportación Excel ==========
+async function exportarExcel(reivindicacionId) {
+  if (columnasSeleccionadas.length === 0) {
+    alert('Debes seleccionar al menos una columna');
+    return;
+  }
+
+  try {
+    const resp = await fetch(`/reivindicaciones/api/reivindicaciones/${reivindicacionId}/exportar-excel`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ columnas: columnasSeleccionadas }),
+    });
+
+    if (!resp.ok) throw new Error('Error al generar Excel');
+
+    const blob = await resp.blob();
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement('a');
+    link.href = url;
+    link.download = `firmas-${reivindicacionId}-${new Date().toISOString().split('T')[0]}.xlsx`;
+    link.click();
   } catch (error) {
     alert('Error: ' + error.message);
   }

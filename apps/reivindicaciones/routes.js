@@ -3,6 +3,7 @@ const path = require('path');
 const router = express.Router();
 const db = require('./db');
 const { enviarNotificacionFirma } = require('./email');
+const { exportarExcel, generarNombreArchivo, COLUMNAS_PREDEFINIDAS } = require('../../lib/excel-export');
 
 // Validar DNI
 function validarDNI(dni) {
@@ -103,6 +104,39 @@ router.get('/api/reivindicaciones/:id/firmas', (req, res) => {
   if (!reivindicacion) return res.status(404).json({ error: 'No encontrada' });
   const firmas = db.getFirmas(req.params.id);
   res.json(firmas);
+});
+
+// API Admin: exportar firmas a Excel
+router.post('/api/reivindicaciones/:id/exportar-excel', express.json({ limit: '256kb' }), async (req, res) => {
+  if (!req.user) return res.status(403).json({ error: 'Sin login' });
+  const reivindicacion = db.getReivindicacionById(req.params.id, req.user.id);
+  if (!reivindicacion) return res.status(404).json({ error: 'No encontrada' });
+
+  const { columnas = ['nombre', 'dni', 'creado_en'] } = req.body;
+  const firmas = db.getFirmas(req.params.id);
+
+  // Mapear columnas seleccionadas
+  const columnasCompletas = COLUMNAS_PREDEFINIDAS.firmas_completo.filter(col =>
+    columnas.includes(col.key)
+  );
+
+  if (columnasCompletas.length === 0) {
+    return res.status(400).json({ error: 'Debes seleccionar al menos una columna' });
+  }
+
+  try {
+    const buffer = await exportarExcel(firmas, columnasCompletas, {
+      titulo: `Firmas - ${reivindicacion.titulo}`,
+      hoja: 'Firmas',
+    });
+
+    res.setHeader('Content-Type', 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet');
+    res.setHeader('Content-Disposition', `attachment; filename="${generarNombreArchivo(`firmas-${req.params.id}`)}"`);
+    res.send(buffer);
+  } catch (error) {
+    console.error('[reivindicaciones] Error exportando Excel:', error);
+    res.status(500).json({ error: 'Error al generar Excel' });
+  }
 });
 
 // API Admin: descargar firma en imagen

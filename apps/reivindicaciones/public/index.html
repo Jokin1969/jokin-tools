@@ -101,6 +101,24 @@
   </div>
 </div>
 
+<!-- Modal: Gestor de Columnas -->
+<div class="rv-modal" id="modal-columnas" hidden>
+  <div class="rv-modal-box">
+    <div class="rv-modal-h">
+      <h3>Seleccionar columnas para exportar</h3>
+      <button class="rv-x" id="modal-columnas-close">×</button>
+    </div>
+    <div style="padding:20px;">
+      <div id="columnas-list" style="display:flex;flex-direction:column;gap:15px;"></div>
+      <div class="rv-modal-actions">
+        <button class="rv-btn rv-btn-secondary" id="btn-columnas-todas">Seleccionar todas</button>
+        <button class="rv-btn rv-btn-secondary" id="btn-columnas-ninguna">Desseleccionar todas</button>
+        <button class="rv-btn rv-btn-primary" id="btn-columnas-guardar">Guardar selección</button>
+      </div>
+    </div>
+  </div>
+</div>
+
 <!-- Modal: Estadísticas -->
 <div class="rv-modal" id="modal-estadisticas" hidden>
   <div class="rv-modal-box rv-modal-large">
@@ -147,7 +165,11 @@
           <span class="rv-stat-label">Total de firmas</span>
           <span class="rv-stat-value" id="stat-total">0</span>
         </div>
-        <button class="rv-btn rv-btn-secondary" id="btn-descargar-csv">Descargar CSV</button>
+        <div style="display:flex;gap:10px;">
+          <button class="rv-btn rv-btn-secondary" id="btn-columnas">⚙️ Columnas</button>
+          <button class="rv-btn rv-btn-secondary" id="btn-descargar-excel">📊 Exportar Excel</button>
+          <button class="rv-btn rv-btn-secondary" id="btn-descargar-csv">Descargar CSV</button>
+        </div>
       </div>
       <table class="rv-table" id="tabla-firmas">
         <thead>
