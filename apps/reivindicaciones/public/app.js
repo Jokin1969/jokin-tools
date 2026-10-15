@@ -152,6 +152,8 @@ async function generarConIA() {
     document.getElementById('rv-fecha-fin').value = datos.fecha_fin || '';
     document.getElementById('rv-objetivo').value = datos.objetivo_firmas || '';
     document.getElementById('rv-email').value = '';
+    // Resumen generado por IA (opcional)
+    document.getElementById('rv-descripcion').value = datos.titulo || 'Generada con IA';
 
     abrirModal('modal-reivindicacion');
   } catch (error) {
@@ -312,14 +314,14 @@ async function guardarReivindicacion(e) {
   const email_notificacion = document.getElementById('rv-email').value;
 
   if (!titulo || !fecha_inicio) {
-    alert('Faltan campos requeridos');
+    alert('El título y la fecha de inicio son requeridos');
     return;
   }
 
-  // Abrir editor de contenido antes de guardar
-  if (!document.getElementById('modal-contenido').hidden === false) {
+  if (contenidoEnEdicion.length === 0) {
+    alert('Debes añadir al menos un bloque de contenido. Haz clic en "Editar contenido"');
     abrirModal('modal-contenido');
-    return; // El usuario editará el contenido y luego guardará
+    return;
   }
 
   const datos = {
