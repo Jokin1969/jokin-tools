@@ -68,6 +68,14 @@ db.exec(`
   CREATE INDEX IF NOT EXISTS idx_votos_votacion ON votos(votacion_id);
 `);
 
+// Crear reivindicación de ejemplo al inicializar
+try {
+  const { crearReivindicacionEjemplo } = require('./init-ejemplo');
+  crearReivindicacionEjemplo();
+} catch (e) {
+  console.error('[reivindicaciones] Error inicializando ejemplo:', e.message);
+}
+
 // Reivindicaciones
 function createReivindicacion(reivindicacion, userId) {
   const stmt = db.prepare(`
