@@ -222,6 +222,68 @@ router.post('/api/reivindicaciones/:id/token', (req, res) => {
   res.json({ token });
 });
 
+// API Admin: crear votación
+router.post('/api/reivindicaciones/:id/votacion', express.json({ limit: '256kb' }), (req, res) => {
+  if (!req.user) return res.status(403).json({ error: 'Sin login' });
+  const reivindicacion = db.getReivindicacionById(req.params.id, req.user.id);
+  if (!reivindicacion) return res.status(404).json({ error: 'No encontrada' });
+
+  const { pregunta, opciones } = req.body;
+  if (!pregunta || !Array.isArray(opciones) || opciones.length < 2) {
+    return res.status(400).json({ error: 'Pregunta y opciones requeridas' });
+  }
+
+  const votacion = db.createVotacion(req.params.id, { pregunta, opciones });
+  res.json(votacion);
+});
+
+// API Admin: obtener votaciones de una reivindicación
+router.get('/api/reivindicaciones/:id/votaciones', (req, res) => {
+  if (!req.user) return res.status(403).json({ error: 'Sin login' });
+  const reivindicacion = db.getReivindicacionById(req.params.id, req.user.id);
+  if (!reivindicacion) return res.status(404).json({ error: 'No encontrada' });
+
+  const votaciones = db.getVotacionesPorReivindicacion(req.params.id);
+  const conResultados = votaciones.map(v => ({
+    ...v,
+    resultados: db.getResultadosVotacion(v.id),
+  }));
+  res.json(conResultados);
+});
+
+// API Público: obtener votaciones de una reivindicación
+router.get('/api/firma/:token/votaciones', (req, res) => {
+  const reivindicacionId = db.verifyAccessToken(req.params.token);
+  if (!reivindicacionId) return res.status(403).json({ error: 'Token inválido' });
+
+  const votaciones = db.getVotacionesPorReivindicacion(reivindicacionId);
+  res.json(votaciones);
+});
+
+// API Público: registrar voto
+router.post('/api/firma/:token/votar', express.json({ limit: '256kb' }), (req, res) => {
+  const reivindicacionId = db.verifyAccessToken(req.params.token);
+  if (!reivindicacionId) return res.status(403).json({ error: 'Token inválido' });
+
+  const { votacion_id, opcion } = req.body;
+  if (!votacion_id || !opcion) {
+    return res.status(400).json({ error: 'Datos requeridos' });
+  }
+
+  // Obtener última firma (asumimos que acaba de firmar)
+  const firmas = db.getFirmas(reivindicacionId);
+  if (firmas.length === 0) return res.status(400).json({ error: 'Primero debes firmar' });
+
+  const ultimaFirma = firmas[0]; // Última firma registrada
+  const resultado = db.addVoto(votacion_id, ultimaFirma.id, opcion);
+
+  if (!resultado.exito) {
+    return res.status(409).json({ error: resultado.error });
+  }
+
+  res.json({ exito: true });
+});
+
 // ========== PÚBLICO (sin login, con token) ==========
 
 // Página pública de firma (acceso con token en URL)

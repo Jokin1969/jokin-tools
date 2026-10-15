@@ -40,9 +40,32 @@ db.exec(`
     FOREIGN KEY (reivindicacion_id) REFERENCES reivindicaciones(id) ON DELETE CASCADE
   );
 
+  CREATE TABLE IF NOT EXISTS votaciones (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    reivindicacion_id INTEGER NOT NULL,
+    pregunta TEXT NOT NULL,
+    opciones TEXT NOT NULL DEFAULT '[]',
+    activa INTEGER DEFAULT 1,
+    creado_en TEXT DEFAULT CURRENT_TIMESTAMP,
+    FOREIGN KEY (reivindicacion_id) REFERENCES reivindicaciones(id) ON DELETE CASCADE
+  );
+
+  CREATE TABLE IF NOT EXISTS votos (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    votacion_id INTEGER NOT NULL,
+    firma_id INTEGER NOT NULL,
+    opcion TEXT NOT NULL,
+    creado_en TEXT DEFAULT CURRENT_TIMESTAMP,
+    FOREIGN KEY (votacion_id) REFERENCES votaciones(id) ON DELETE CASCADE,
+    FOREIGN KEY (firma_id) REFERENCES firmas(id) ON DELETE CASCADE,
+    UNIQUE(votacion_id, firma_id)
+  );
+
   CREATE INDEX IF NOT EXISTS idx_firmas_reivindicacion ON firmas(reivindicacion_id);
   CREATE INDEX IF NOT EXISTS idx_access_tokens_reivindicacion ON access_tokens(reivindicacion_id);
   CREATE INDEX IF NOT EXISTS idx_access_tokens_token ON access_tokens(token);
+  CREATE INDEX IF NOT EXISTS idx_votaciones_reivindicacion ON votaciones(reivindicacion_id);
+  CREATE INDEX IF NOT EXISTS idx_votos_votacion ON votos(votacion_id);
 `);
 
 // Reivindicaciones
@@ -179,6 +202,53 @@ function getReivindicacionPublico(reivindicacionId) {
   return stmt.get(reivindicacionId, reivindicacionId);
 }
 
+// Votaciones
+function createVotacion(reivindicacionId, votacion) {
+  const stmt = db.prepare(`
+    INSERT INTO votaciones (reivindicacion_id, pregunta, opciones)
+    VALUES (?, ?, ?)
+  `);
+  const result = stmt.run(
+    reivindicacionId,
+    votacion.pregunta,
+    JSON.stringify(votacion.opciones || [])
+  );
+  return { id: result.lastInsertRowid, ...votacion };
+}
+
+function getVotacionesPorReivindicacion(reivindicacionId) {
+  const stmt = db.prepare(`
+    SELECT * FROM votaciones WHERE reivindicacion_id = ? AND activa = 1
+  `);
+  return stmt.all(reivindicacionId).map(v => ({
+    ...v,
+    opciones: JSON.parse(v.opciones || '[]'),
+  }));
+}
+
+function addVoto(votacionId, firmaId, opcion) {
+  const stmt = db.prepare(`
+    INSERT INTO votos (votacion_id, firma_id, opcion)
+    VALUES (?, ?, ?)
+  `);
+  try {
+    stmt.run(votacionId, firmaId, opcion);
+    return { exito: true };
+  } catch (e) {
+    if (e.message.includes('UNIQUE constraint failed')) {
+      return { exito: false, error: 'Ya has votado en esta encuesta' };
+    }
+    throw e;
+  }
+}
+
+function getResultadosVotacion(votacionId) {
+  const stmt = db.prepare(`
+    SELECT opcion, COUNT(*) as count FROM votos WHERE votacion_id = ? GROUP BY opcion
+  `);
+  return stmt.all(votacionId);
+}
+
 module.exports = {
   createReivindicacion,
   getReivindicaciones,
@@ -192,4 +262,8 @@ module.exports = {
   generateAccessToken,
   verifyAccessToken,
   getReivindicacionPublico,
+  createVotacion,
+  getVotacionesPorReivindicacion,
+  addVoto,
+  getResultadosVotacion,
 };
