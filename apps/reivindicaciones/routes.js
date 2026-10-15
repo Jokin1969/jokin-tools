@@ -54,7 +54,7 @@ Reglas:
 - Responde SOLO con el JSON, sin explicaciones`;
 
   const msg = await client.messages.create({
-    model: 'claude-opus-5.5',
+    model: 'claude-opus-5-5',
     max_tokens: 1500,
     messages: [{ role: 'user', content: prompt }],
   });
