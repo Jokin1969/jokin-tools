@@ -96,6 +96,39 @@
   </div>
 </div>
 
+<!-- Modal: Estadísticas -->
+<div class="rv-modal" id="modal-estadisticas" hidden>
+  <div class="rv-modal-box rv-modal-large">
+    <div class="rv-modal-h">
+      <h3 id="estadisticas-titulo">Estadísticas</h3>
+      <button class="rv-x" id="modal-estadisticas-close">×</button>
+    </div>
+    <div class="rv-estadisticas-container">
+      <div class="rv-stats-grid">
+        <div class="rv-stat-card">
+          <span class="rv-stat-label">Total de firmas</span>
+          <span class="rv-stat-value" id="stat-es-total">0</span>
+        </div>
+        <div class="rv-stat-card">
+          <span class="rv-stat-label">Objetivo</span>
+          <span class="rv-stat-value" id="stat-es-objetivo">-</span>
+        </div>
+        <div class="rv-stat-card">
+          <span class="rv-stat-label">Progreso</span>
+          <span class="rv-stat-value" id="stat-es-progreso">-</span>
+        </div>
+        <div class="rv-stat-card">
+          <span class="rv-stat-label">Días activa</span>
+          <span class="rv-stat-value" id="stat-es-dias">0</span>
+        </div>
+      </div>
+      <div id="grafica-container" style="margin-top: 30px;">
+        <!-- Gráfica de firmas por día -->
+      </div>
+    </div>
+  </div>
+</div>
+
 <!-- Modal: Ver firmas -->
 <div class="rv-modal" id="modal-firmas" hidden>
   <div class="rv-modal-box rv-modal-large">

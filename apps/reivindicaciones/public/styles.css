@@ -462,6 +462,43 @@ body {
   box-shadow: 0 2px 8px rgba(0,0,0,0.1);
 }
 
+/* Estadísticas */
+.rv-estadisticas-container {
+  padding: 20px;
+}
+
+.rv-stats-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
+  gap: 15px;
+  margin-bottom: 30px;
+}
+
+.rv-stat-card {
+  background: linear-gradient(135deg, #f5f5f5, #fff);
+  border: 1px solid var(--color-border);
+  border-radius: 8px;
+  padding: 20px;
+  text-align: center;
+  box-shadow: 0 2px 4px rgba(0,0,0,0.05);
+}
+
+.rv-stat-card .rv-stat-label {
+  display: block;
+  font-size: 12px;
+  color: var(--color-text-light);
+  font-weight: 500;
+  text-transform: uppercase;
+  margin-bottom: 8px;
+}
+
+.rv-stat-card .rv-stat-value {
+  display: block;
+  font-size: 24px;
+  font-weight: 700;
+  color: var(--color-primary);
+}
+
 /* ========== Responsive ========== */
 @media (max-width: 768px) {
   .rv-header-in {

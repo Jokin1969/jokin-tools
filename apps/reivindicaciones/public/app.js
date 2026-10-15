@@ -15,6 +15,7 @@ function setupEventListeners() {
   document.getElementById('modal-firmas-close').addEventListener('click', cerrarModalFirmas);
   document.getElementById('modal-compartir-close').addEventListener('click', cerrarModalCompartir);
   document.getElementById('modal-contenido-close').addEventListener('click', cerrarModalContenido);
+  document.getElementById('modal-estadisticas-close').addEventListener('click', cerrarModalEstadisticas);
   document.getElementById('btn-copiar-enlace').addEventListener('click', copiarEnlace);
   document.getElementById('btn-anadir-titulo').addEventListener('click', () => anadirBloque('titulo'));
   document.getElementById('btn-anadir-parrafo').addEventListener('click', () => anadirBloque('parrafo'));
@@ -66,6 +67,7 @@ function renderizarReivindicaciones() {
         </div>
       </div>
       <div class="rv-card-actions">
+        <button class="rv-btn rv-btn-secondary" onclick="verEstadisticas(${r.id})">Estadísticas</button>
         <button class="rv-btn rv-btn-secondary" onclick="verFirmas(${r.id})">Ver firmas</button>
         <button class="rv-btn rv-btn-secondary" onclick="abrirCompartir(${r.id})">Compartir</button>
         <button class="rv-btn rv-btn-secondary" onclick="abrirEditar(${r.id})">Editar</button>
@@ -125,6 +127,11 @@ function cerrarModalFirmas() {
 
 function cerrarModalCompartir() {
   document.getElementById('modal-compartir').hidden = true;
+  document.getElementById('scrim').hidden = true;
+}
+
+function cerrarModalEstadisticas() {
+  document.getElementById('modal-estadisticas').hidden = true;
   document.getElementById('scrim').hidden = true;
 }
 
@@ -239,6 +246,73 @@ async function guardarReivindicacion(e) {
   } catch (error) {
     alert('Error: ' + error.message);
   }
+}
+
+// ========== Estadísticas ==========
+async function verEstadisticas(id) {
+  try {
+    const resp = await fetch(`/reivindicaciones/api/reivindicaciones/${id}/firmas`);
+    if (!resp.ok) throw new Error('Error');
+    const firmas = await resp.json();
+
+    const r = reivindicacionesActual.find(x => x.id == id);
+    document.getElementById('estadisticas-titulo').textContent = `Estadísticas - ${r.titulo}`;
+
+    document.getElementById('stat-es-total').textContent = firmas.length;
+    document.getElementById('stat-es-objetivo').textContent = r.objetivo_firmas ? r.objetivo_firmas + ' firmas' : '-';
+
+    if (r.objetivo_firmas) {
+      const porcentaje = Math.round((firmas.length / r.objetivo_firmas) * 100);
+      document.getElementById('stat-es-progreso').textContent = porcentaje + '%';
+    } else {
+      document.getElementById('stat-es-progreso').textContent = '-';
+    }
+
+    // Calcular días activa
+    if (firmas.length > 0) {
+      const fechaInicio = new Date(r.fecha_inicio);
+      const ahora = new Date();
+      const dias = Math.floor((ahora - fechaInicio) / (1000 * 60 * 60 * 24)) + 1;
+      document.getElementById('stat-es-dias').textContent = dias;
+    }
+
+    // Generar gráfica de firmas por día
+    generarGrafica(firmas, r.fecha_inicio);
+    abrirModal('modal-estadisticas');
+  } catch (error) {
+    alert('Error: ' + error.message);
+  }
+}
+
+function generarGrafica(firmas, fechaInicio) {
+  const container = document.getElementById('grafica-container');
+
+  // Agrupar firmas por día
+  const porDia = {};
+  firmas.forEach(f => {
+    const fecha = new Date(f.creado_en).toLocaleDateString();
+    porDia[fecha] = (porDia[fecha] || 0) + 1;
+  });
+
+  const fechas = Object.keys(porDia).sort();
+  const maxFirmas = Math.max(...Object.values(porDia));
+
+  const html = `
+    <div style="border-bottom: 2px solid #ddd; padding-bottom: 10px; margin-bottom: 10px;">
+      <h4 style="margin: 0 0 20px 0;">Firmas por día</h4>
+      <div style="display: flex; align-items: flex-end; justify-content: space-around; height: 200px; gap: 8px;">
+        ${fechas.map(fecha => `
+          <div style="display: flex; flex-direction: column; align-items: center; flex: 1;">
+            <div style="background: linear-gradient(to top, #1B6CB0, #0097B2); width: 100%; border-radius: 4px 4px 0 0; height: ${(porDia[fecha] / maxFirmas) * 180}px; min-height: 20px;"></div>
+            <span style="font-size: 12px; color: #666; margin-top: 8px; text-align: center; word-break: break-word;">${porDia[fecha]}</span>
+            <span style="font-size: 10px; color: #999; margin-top: 4px;">${fecha}</span>
+          </div>
+        `).join('')}
+      </div>
+    </div>
+  `;
+
+  container.innerHTML = html;
 }
 
 // ========== Firmas ==========
