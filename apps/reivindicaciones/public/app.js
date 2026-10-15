@@ -335,6 +335,7 @@ async function verFirmas(id) {
         <td>${escapeHtml(f.nombre)}</td>
         <td>${escapeHtml(f.dni)}</td>
         <td>${formatearFecha(f.creado_en)}</td>
+        <td style="text-align:right;"><button class="rv-btn rv-btn-secondary" style="padding:5px 10px;font-size:12px;" onclick="descargarCertificado(${f.id})">Certificado</button></td>
       </tr>
     `).join('');
 
@@ -343,6 +344,14 @@ async function verFirmas(id) {
   } catch (error) {
     alert('Error: ' + error.message);
   }
+}
+
+function descargarCertificado(firmaId) {
+  const url = `/reivindicaciones/api/firmas/${firmaId}/certificado`;
+  const link = document.createElement('a');
+  link.href = url;
+  link.download = `certificado-firma-${firmaId}.html`;
+  link.click();
 }
 
 function descargarCSV(id, firmas) {
