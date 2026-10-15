@@ -1,0 +1,320 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Firmar reivindicación</title>
+  <link rel="icon" type="image/svg+xml" href="/public/favicon-jk.svg" />
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet" />
+  <link rel="stylesheet" href="/reivindicaciones/assets/styles.css?v=1" />
+  <style>
+    body { background: #f5f5f5; }
+    .rv-firma-container {
+      max-width: 800px;
+      margin: 0 auto;
+      padding: 40px 20px;
+    }
+    .rv-firma-card {
+      background: white;
+      border-radius: 8px;
+      box-shadow: 0 2px 8px rgba(0,0,0,0.1);
+      padding: 40px;
+    }
+    .rv-firma-titulo { font-size: 28px; font-weight: 700; margin-bottom: 20px; }
+    .rv-firma-objetivo { font-size: 14px; color: #666; margin-bottom: 30px; }
+    .rv-firma-contenido {
+      margin-bottom: 30px;
+      line-height: 1.6;
+      color: #333;
+    }
+    .rv-firma-bloque {
+      margin-bottom: 20px;
+      padding-bottom: 20px;
+      border-bottom: 1px solid #eee;
+    }
+    .rv-firma-bloque:last-child { border-bottom: none; }
+    .rv-firma-bloque h3 { font-size: 18px; font-weight: 600; margin-bottom: 10px; }
+    .rv-firma-bloque p { margin: 10px 0; }
+
+    .rv-firma-form {
+      background: #f9f9f9;
+      border-radius: 8px;
+      padding: 30px;
+      margin-top: 40px;
+    }
+    .rv-firma-form h3 { margin-top: 0; }
+
+    .rv-form-group label { display: block; font-weight: 500; margin-bottom: 8px; }
+    .rv-form-group input {
+      width: 100%;
+      padding: 10px;
+      border: 1px solid #ddd;
+      border-radius: 4px;
+      font-size: 14px;
+      box-sizing: border-box;
+    }
+    .rv-form-group input:focus { outline: none; border-color: #1B6CB0; }
+
+    .rv-canvas-wrapper {
+      border: 2px solid #ddd;
+      border-radius: 4px;
+      background: white;
+      margin: 10px 0;
+    }
+    #rv-canvas {
+      display: block;
+      touch-action: none;
+      cursor: crosshair;
+      width: 100%;
+      height: 250px;
+    }
+    .rv-canvas-nota { font-size: 12px; color: #999; margin-top: 5px; }
+    .rv-limpiar-firma { font-size: 12px; margin-top: 8px; }
+    .rv-limpiar-firma button { padding: 5px 10px; font-size: 12px; }
+
+    .rv-terminos {
+      margin: 20px 0;
+      padding: 15px;
+      background: #fff9e6;
+      border-left: 4px solid #ffa500;
+      border-radius: 4px;
+    }
+    .rv-terminos label {
+      display: flex;
+      align-items: flex-start;
+      cursor: pointer;
+    }
+    .rv-terminos input[type="checkbox"] {
+      width: auto;
+      margin-right: 10px;
+      margin-top: 4px;
+    }
+
+    .rv-form-actions {
+      margin-top: 30px;
+      display: flex;
+      gap: 10px;
+      justify-content: flex-end;
+    }
+    .rv-btn {
+      padding: 10px 20px;
+      border: none;
+      border-radius: 4px;
+      font-size: 14px;
+      font-weight: 500;
+      cursor: pointer;
+      transition: all 0.2s;
+    }
+    .rv-btn-primary {
+      background: #1B6CB0;
+      color: white;
+    }
+    .rv-btn-primary:hover:not(:disabled) { background: #154a7d; }
+    .rv-btn-primary:disabled { opacity: 0.5; cursor: not-allowed; }
+    .rv-btn-secondary {
+      background: #ddd;
+      color: #333;
+    }
+    .rv-btn-secondary:hover { background: #ccc; }
+
+    .rv-exito {
+      background: #e8f5e9;
+      border: 1px solid #4caf50;
+      border-radius: 4px;
+      padding: 20px;
+      text-align: center;
+      color: #2e7d32;
+      display: none;
+    }
+    .rv-exito.visible { display: block; }
+    .rv-exito-icono { font-size: 48px; margin-bottom: 10px; }
+  </style>
+</head>
+<body>
+
+<div class="rv-firma-container">
+  <div class="rv-firma-card">
+    <div id="rv-contenido-reivindicacion">
+      <!-- Cargado dinámicamente -->
+    </div>
+
+    <div id="rv-formulario-firma" style="display: none;">
+      <form class="rv-firma-form" id="form-firma">
+        <h3>Firma digital</h3>
+
+        <div class="rv-form-group">
+          <label for="rv-nombre">Nombre completo *</label>
+          <input type="text" id="rv-nombre" required />
+        </div>
+
+        <div class="rv-form-group">
+          <label for="rv-dni">DNI/NIE *</label>
+          <input type="text" id="rv-dni" placeholder="12345678A" required />
+        </div>
+
+        <div class="rv-form-group">
+          <label>Firma digital *</label>
+          <div class="rv-canvas-wrapper">
+            <canvas id="rv-canvas" width="800" height="250"></canvas>
+          </div>
+          <p class="rv-canvas-nota">Firma con tu dedo o ratón. Asegúrate de que sea clara y reconocible.</p>
+          <div class="rv-limpiar-firma">
+            <button type="button" id="btn-limpiar-firma" class="rv-btn rv-btn-secondary">Limpiar firma</button>
+          </div>
+        </div>
+
+        <div class="rv-terminos">
+          <label>
+            <input type="checkbox" id="rv-acepta-terminos" required />
+            <span>Acepto que esta firma tiene validez legal equivalente a una firma manuscrita y que la información proporcionada es correcta y veraz.</span>
+          </label>
+        </div>
+
+        <div class="rv-form-actions">
+          <button type="submit" class="rv-btn rv-btn-primary" id="btn-firmar">Firmar</button>
+        </div>
+      </form>
+    </div>
+
+    <div class="rv-exito" id="rv-exito">
+      <div class="rv-exito-icono">✓</div>
+      <h3>¡Gracias por tu firma!</h3>
+      <p>Tu firma ha sido registrada correctamente.</p>
+    </div>
+  </div>
+</div>
+
+<script>
+const token = window.location.pathname.split('/').pop();
+let reivindicacion = null;
+let canvasTouching = false;
+
+async function cargarReivindicacion() {
+  try {
+    const resp = await fetch(`/reivindicaciones/api/firma/${token}/reivindicacion`);
+    if (!resp.ok) throw new Error('No encontrada');
+    reivindicacion = await resp.json();
+
+    const contenedorHtml = document.getElementById('rv-contenido-reivindicacion');
+    contenedorHtml.innerHTML = `
+      <h1 class="rv-firma-titulo">${escapeHtml(reivindicacion.titulo)}</h1>
+      ${reivindicacion.objetivo_firmas ? `<div class="rv-firma-objetivo">Objetivo: ${reivindicacion.objetivo_firmas} firmas (${reivindicacion.contador_firmas || 0} conseguidas)</div>` : ''}
+      <div class="rv-firma-contenido" id="contenido-bloques"></div>
+    `;
+
+    if (reivindicacion.contenido && Array.isArray(reivindicacion.contenido)) {
+      const bloquesDiv = document.getElementById('contenido-bloques');
+      reivindicacion.contenido.forEach(bloque => {
+        const bloqueDiv = document.createElement('div');
+        bloqueDiv.className = 'rv-firma-bloque';
+        if (bloque.tipo === 'titulo') {
+          bloqueDiv.innerHTML = `<h3>${escapeHtml(bloque.texto)}</h3>`;
+        } else if (bloque.tipo === 'parrafo') {
+          bloqueDiv.innerHTML = `<p>${escapeHtml(bloque.texto).replace(/\n/g, '<br>')}</p>`;
+        } else if (bloque.tipo === 'lista') {
+          bloqueDiv.innerHTML = `<ul>${bloque.items.map(item => `<li>${escapeHtml(item)}</li>`).join('')}</ul>`;
+        }
+        bloquesDiv.appendChild(bloqueDiv);
+      });
+    }
+
+    document.getElementById('rv-formulario-firma').style.display = 'block';
+    inicializarCanvas();
+  } catch (error) {
+    alert('Error al cargar la reivindicación: ' + error.message);
+  }
+}
+
+function escapeHtml(text) {
+  const div = document.createElement('div');
+  div.textContent = text;
+  return div.innerHTML;
+}
+
+function inicializarCanvas() {
+  const canvas = document.getElementById('rv-canvas');
+  const ctx = canvas.getContext('2d');
+  const rect = canvas.getBoundingClientRect();
+
+  function dibujar(e) {
+    if (!canvasTouching) return;
+    const x = e.clientX ? e.clientX - rect.left : e.touches[0].clientX - rect.left;
+    const y = e.clientY ? e.clientY - rect.top : e.touches[0].clientY - rect.top;
+    ctx.lineTo(x, y);
+    ctx.stroke();
+  }
+
+  canvas.addEventListener('mousedown', () => {
+    canvasTouching = true;
+    ctx.beginPath();
+    ctx.lineWidth = 2;
+    ctx.lineCap = 'round';
+    ctx.lineJoin = 'round';
+  });
+
+  canvas.addEventListener('touchstart', (e) => {
+    e.preventDefault();
+    canvasTouching = true;
+    ctx.beginPath();
+    ctx.lineWidth = 2;
+    ctx.lineCap = 'round';
+    ctx.lineJoin = 'round';
+  });
+
+  canvas.addEventListener('mousemove', dibujar);
+  canvas.addEventListener('touchmove', (e) => { e.preventDefault(); dibujar(e); });
+
+  canvas.addEventListener('mouseup', () => { canvasTouching = false; });
+  canvas.addEventListener('mouseleave', () => { canvasTouching = false; });
+  canvas.addEventListener('touchend', () => { canvasTouching = false; });
+
+  document.getElementById('btn-limpiar-firma').addEventListener('click', () => {
+    ctx.clearRect(0, 0, canvas.width, canvas.height);
+  });
+}
+
+document.getElementById('form-firma').addEventListener('submit', async (e) => {
+  e.preventDefault();
+
+  const nombre = document.getElementById('rv-nombre').value;
+  const dni = document.getElementById('rv-dni').value;
+  const acepta = document.getElementById('rv-acepta-terminos').checked;
+  const canvas = document.getElementById('rv-canvas');
+  const firma_imagen = canvas.toDataURL('image/png');
+
+  if (!acepta) {
+    alert('Debes aceptar los términos');
+    return;
+  }
+
+  if (canvas.toDataURL('image/png') === 'data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNk+M9QDwADhgGAWjR9awAAAABJRU5ErkJggg==') {
+    alert('Debes firmar');
+    return;
+  }
+
+  try {
+    const resp = await fetch(`/reivindicaciones/api/firma/${token}/firmar`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ nombre, dni, firma_imagen, acepta_terminos: acepta })
+    });
+
+    const data = await resp.json();
+    if (!resp.ok) {
+      alert('Error: ' + data.error);
+      return;
+    }
+
+    document.getElementById('form-firma').style.display = 'none';
+    document.getElementById('rv-exito').classList.add('visible');
+  } catch (error) {
+    alert('Error al enviar firma: ' + error.message);
+  }
+});
+
+cargarReivindicacion();
+</script>
+</body>
+</html>
