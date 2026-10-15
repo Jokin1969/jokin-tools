@@ -1,0 +1,210 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Reivindicaciones · Jokin's Tools</title>
+  <link rel="icon" type="image/svg+xml" href="/public/favicon-jk.svg" />
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=JetBrains+Mono:wght@500;700&display=swap" rel="stylesheet" />
+  <link rel="stylesheet" href="/src/hub-nav.css?v=5" />
+  <script src="/src/hub-nav.js?v=3" defer></script>
+  <link rel="stylesheet" href="/reivindicaciones/assets/styles.css?v=1" />
+</head>
+<body>
+
+<nav class="hub-nav" data-app="reivindicaciones">
+  <a href="/" class="hub-nav-brand" title="Jokin's Tools Hub">
+    <svg viewBox="0 0 48 48" fill="none" xmlns="http://www.w3.org/2000/svg" aria-hidden="true">
+      <circle cx="24" cy="24" r="4" fill="#00B8D4"/>
+      <ellipse cx="24" cy="24" rx="20" ry="8" stroke="#1B6CB0" stroke-width="1.5" fill="none" opacity="0.7"/>
+      <ellipse cx="24" cy="24" rx="20" ry="8" stroke="#009B8D" stroke-width="1.5" fill="none" opacity="0.65" transform="rotate(60 24 24)"/>
+      <ellipse cx="24" cy="24" rx="20" ry="8" stroke="#0028A5" stroke-width="1.5" fill="none" opacity="0.5" transform="rotate(120 24 24)"/>
+    </svg>
+    <span class="hub-nav-brand-name"><span class="jn-accent">J</span>okin's Tools</span>
+  </a>
+  <div class="hub-nav-links">
+    <a href="/" class="hub-nav-link" data-app="hub">Hub</a>
+    <a href="/qr-tis" class="hub-nav-link" data-app="qr-tis">QR (TIS)</a>
+    <a href="/datamatrix" class="hub-nav-link" data-app="datamatrix">Data Matrix</a>
+    <a href="/asignacion" class="hub-nav-link" data-app="asignacion">Asignación</a>
+    <a href="/reivindicaciones" class="hub-nav-link is-current" data-app="reivindicaciones" aria-current="page">Reivindicaciones</a>
+  </div>
+</nav>
+
+<header class="rv-header">
+  <div class="rv-header-in">
+    <a href="/reivindicaciones" class="rv-logo">
+      <svg viewBox="0 0 64 64" fill="none" xmlns="http://www.w3.org/2000/svg" aria-hidden="true">
+        <path d="M12 24v-8a4 4 0 0 1 4-4h32a4 4 0 0 1 4 4v24a4 4 0 0 1-4 4H16a4 4 0 0 1-4-4" stroke="currentColor" stroke-width="2.4" stroke-linecap="round"/>
+        <path d="M12 24h40M20 12v28M44 12v28" stroke="currentColor" stroke-width="2" stroke-linecap="round"/>
+        <circle cx="28" cy="40" r="3" fill="currentColor"/>
+        <circle cx="36" cy="40" r="3" fill="currentColor"/>
+      </svg>
+      <div class="rv-logo-txt">
+        <span class="t">Reivindicaciones</span>
+        <span class="s">Gestión de firmas digitales</span>
+      </div>
+    </a>
+    <button class="rv-btn rv-btn-primary" id="btn-nueva-reivindicacion">+ Nueva reivindicación</button>
+  </div>
+</header>
+
+<main class="rv-main" id="rv-main">
+  <!-- Contenido dinámico inyectado por JS -->
+</main>
+
+<!-- Modal: Nueva/editar reivindicación -->
+<div class="rv-modal" id="modal-reivindicacion" hidden>
+  <div class="rv-modal-box">
+    <div class="rv-modal-h">
+      <h3 id="modal-titulo">Nueva reivindicación</h3>
+      <button class="rv-x" id="modal-close">×</button>
+    </div>
+    <form id="form-reivindicacion">
+      <div class="rv-form-group">
+        <label for="rv-titulo">Título *</label>
+        <input type="text" id="rv-titulo" required />
+      </div>
+      <div class="rv-form-group">
+        <label for="rv-descripcion">Descripción *</label>
+        <textarea id="rv-descripcion" rows="4" required></textarea>
+      </div>
+      <div class="rv-form-row">
+        <div class="rv-form-group">
+          <label for="rv-fecha-inicio">Fecha de inicio *</label>
+          <input type="date" id="rv-fecha-inicio" required />
+        </div>
+        <div class="rv-form-group">
+          <label for="rv-fecha-fin">Fecha de fin</label>
+          <input type="date" id="rv-fecha-fin" />
+        </div>
+      </div>
+      <div class="rv-form-group">
+        <label for="rv-objetivo">Objetivo de firmas</label>
+        <input type="number" id="rv-objetivo" min="0" />
+      </div>
+      <div class="rv-form-group">
+        <label for="rv-email">Email para notificaciones (opcional)</label>
+        <input type="email" id="rv-email" placeholder="tu@correo.com" />
+        <small style="color:#999;">Recibirás un email cada vez que alguien firme</small>
+      </div>
+      <div class="rv-form-actions">
+        <button type="button" class="rv-btn rv-btn-secondary" onclick="abrirModal('modal-contenido')">Editar contenido</button>
+      </div>
+      <div class="rv-form-actions">
+        <button type="button" class="rv-btn rv-btn-ghost" id="btn-cancelar">Cancelar</button>
+        <button type="submit" class="rv-btn rv-btn-primary">Guardar reivindicación</button>
+      </div>
+    </form>
+  </div>
+</div>
+
+<!-- Modal: Estadísticas -->
+<div class="rv-modal" id="modal-estadisticas" hidden>
+  <div class="rv-modal-box rv-modal-large">
+    <div class="rv-modal-h">
+      <h3 id="estadisticas-titulo">Estadísticas</h3>
+      <button class="rv-x" id="modal-estadisticas-close">×</button>
+    </div>
+    <div class="rv-estadisticas-container">
+      <div class="rv-stats-grid">
+        <div class="rv-stat-card">
+          <span class="rv-stat-label">Total de firmas</span>
+          <span class="rv-stat-value" id="stat-es-total">0</span>
+        </div>
+        <div class="rv-stat-card">
+          <span class="rv-stat-label">Objetivo</span>
+          <span class="rv-stat-value" id="stat-es-objetivo">-</span>
+        </div>
+        <div class="rv-stat-card">
+          <span class="rv-stat-label">Progreso</span>
+          <span class="rv-stat-value" id="stat-es-progreso">-</span>
+        </div>
+        <div class="rv-stat-card">
+          <span class="rv-stat-label">Días activa</span>
+          <span class="rv-stat-value" id="stat-es-dias">0</span>
+        </div>
+      </div>
+      <div id="grafica-container" style="margin-top: 30px;">
+        <!-- Gráfica de firmas por día -->
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- Modal: Ver firmas -->
+<div class="rv-modal" id="modal-firmas" hidden>
+  <div class="rv-modal-box rv-modal-large">
+    <div class="rv-modal-h">
+      <h3 id="firmas-titulo">Firmas</h3>
+      <button class="rv-x" id="modal-firmas-close">×</button>
+    </div>
+    <div class="rv-firmas-container">
+      <div class="rv-firmas-stats">
+        <div class="rv-stat">
+          <span class="rv-stat-label">Total de firmas</span>
+          <span class="rv-stat-value" id="stat-total">0</span>
+        </div>
+        <button class="rv-btn rv-btn-secondary" id="btn-descargar-csv">Descargar CSV</button>
+      </div>
+      <table class="rv-table" id="tabla-firmas">
+        <thead>
+          <tr>
+            <th>Nombre</th>
+            <th>DNI</th>
+            <th>Fecha</th>
+            <th style="text-align:right;width:120px;">Acciones</th>
+          </tr>
+        </thead>
+        <tbody>
+        </tbody>
+      </table>
+    </div>
+  </div>
+</div>
+
+<!-- Modal: Editar contenido -->
+<div class="rv-modal" id="modal-contenido" hidden>
+  <div class="rv-modal-box rv-modal-large">
+    <div class="rv-modal-h">
+      <h3>Editar contenido de la reivindicación</h3>
+      <button class="rv-x" id="modal-contenido-close">×</button>
+    </div>
+    <div id="contenido-editor" style="padding: 20px;">
+      <!-- Bloques dinámicos aquí -->
+    </div>
+    <div class="rv-modal-actions">
+      <button class="rv-btn rv-btn-secondary" id="btn-anadir-titulo">+ Título</button>
+      <button class="rv-btn rv-btn-secondary" id="btn-anadir-parrafo">+ Párrafo</button>
+      <button class="rv-btn rv-btn-secondary" id="btn-anadir-lista">+ Lista</button>
+      <button class="rv-btn rv-btn-secondary" id="btn-anadir-imagen">+ Imagen</button>
+      <button class="rv-btn rv-btn-primary" id="btn-guardar-contenido">Guardar</button>
+    </div>
+  </div>
+</div>
+
+<!-- Modal: Compartir enlace -->
+<div class="rv-modal" id="modal-compartir" hidden>
+  <div class="rv-modal-box">
+    <div class="rv-modal-h">
+      <h3>Compartir enlace de firma</h3>
+      <button class="rv-x" id="modal-compartir-close">×</button>
+    </div>
+    <div class="rv-compartir-content">
+      <p>Comparte este enlace para que la gente pueda firmar:</p>
+      <div class="rv-copy-box">
+        <input type="text" id="input-enlace" readonly />
+        <button class="rv-btn rv-btn-secondary" id="btn-copiar-enlace">Copiar</button>
+      </div>
+      <p class="rv-nota">Este enlace es público y no requiere login.</p>
+    </div>
+  </div>
+</div>
+
+<div class="rv-scrim" id="scrim" hidden></div>
+
+<script src="/reivindicaciones/public/app.js"></script>
+</body>
+</html>

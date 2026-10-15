@@ -147,6 +147,13 @@ const asigDb = require('./apps/asignacion/db');
 const asigRouter = require('./apps/asignacion/routes');
 app.use('/asignacion', requireApp('asignacion'), asigRouter);
 
+// ─── Reivindicaciones (requires access to 'reivindicaciones') ────────────────────
+// Digital signature collection for advocacy campaigns. Its own SQLite file
+// (apps/reivindicaciones/db.js → reivindicaciones.db).
+const reivDb = require('./apps/reivindicaciones/db');
+const reivRouter = require('./apps/reivindicaciones/routes');
+app.use('/reivindicaciones', requireApp('reivindicaciones'), reivRouter);
+
 // ─── Pastillero (residencias) ────────────────────────────────────────────────────
 // NOT gated at the top level: caregivers have no farmacia account, they log in
 // with a shared per-residencia code (their own session, see apps/pastillero/db.js).

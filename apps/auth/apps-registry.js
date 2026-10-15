@@ -161,6 +161,19 @@ const APPS = [
       <path d="M28 44l-1.5 6 5.5-3 5.5 3L36 44" stroke="#1b2a4a" stroke-width="1.6" stroke-linejoin="round"/>
     </svg>`,
   },
+  {
+    id: 'reivindicaciones',
+    name: 'Reivindicaciones',
+    path: '/reivindicaciones',
+    desc: 'Campañas de reivindicación con firma digital. Crea reivindicaciones con contenido flexible, genera URLs públicas sin login, y recoge firmas con DNI y firma manuscrita digital.',
+    tags: ['Firmas', 'Reivindicaciones', 'Advocacy'],
+    icon: `<svg viewBox="0 0 64 64" fill="none" xmlns="http://www.w3.org/2000/svg" class="card-icon" aria-hidden="true">
+      <path d="M12 24v-8a4 4 0 0 1 4-4h32a4 4 0 0 1 4 4v24a4 4 0 0 1-4 4H16a4 4 0 0 1-4-4" stroke="#1B6CB0" stroke-width="2.4" stroke-linecap="round"/>
+      <path d="M12 24h40M20 12v28M44 12v28" stroke="#0097B2" stroke-width="2" stroke-linecap="round"/>
+      <circle cx="28" cy="40" r="3" fill="#00B8D4"/>
+      <circle cx="36" cy="40" r="3" fill="#009B8D"/>
+    </svg>`,
+  },
 ];
 
 const APP_IDS = APPS.map(a => a.id);
