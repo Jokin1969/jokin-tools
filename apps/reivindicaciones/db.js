@@ -14,6 +14,7 @@ db.exec(`
     fecha_inicio TEXT NOT NULL,
     fecha_fin TEXT,
     objetivo_firmas INTEGER DEFAULT 0,
+    email_notificacion TEXT,
     creado_en TEXT DEFAULT CURRENT_TIMESTAMP,
     actualizado_en TEXT DEFAULT CURRENT_TIMESTAMP
   );
@@ -47,8 +48,8 @@ db.exec(`
 // Reivindicaciones
 function createReivindicacion(reivindicacion, userId) {
   const stmt = db.prepare(`
-    INSERT INTO reivindicaciones (user_id, titulo, contenido, fecha_inicio, fecha_fin, objetivo_firmas)
-    VALUES (?, ?, ?, ?, ?, ?)
+    INSERT INTO reivindicaciones (user_id, titulo, contenido, fecha_inicio, fecha_fin, objetivo_firmas, email_notificacion)
+    VALUES (?, ?, ?, ?, ?, ?, ?)
   `);
   const result = stmt.run(
     userId,
@@ -56,7 +57,8 @@ function createReivindicacion(reivindicacion, userId) {
     JSON.stringify(reivindicacion.contenido || []),
     reivindicacion.fecha_inicio,
     reivindicacion.fecha_fin || null,
-    reivindicacion.objetivo_firmas || 0
+    reivindicacion.objetivo_firmas || 0,
+    reivindicacion.email_notificacion || null
   );
   return { id: result.lastInsertRowid, ...reivindicacion };
 }
@@ -87,7 +89,7 @@ function getReivindicacionById(id, userId) {
 function updateReivindicacion(id, reivindicacion, userId) {
   const stmt = db.prepare(`
     UPDATE reivindicaciones
-    SET titulo = ?, contenido = ?, estado = ?, fecha_inicio = ?, fecha_fin = ?, objetivo_firmas = ?, actualizado_en = CURRENT_TIMESTAMP
+    SET titulo = ?, contenido = ?, estado = ?, fecha_inicio = ?, fecha_fin = ?, objetivo_firmas = ?, email_notificacion = ?, actualizado_en = CURRENT_TIMESTAMP
     WHERE id = ? AND user_id = ?
   `);
   stmt.run(
@@ -97,6 +99,7 @@ function updateReivindicacion(id, reivindicacion, userId) {
     reivindicacion.fecha_inicio,
     reivindicacion.fecha_fin || null,
     reivindicacion.objetivo_firmas || 0,
+    reivindicacion.email_notificacion || null,
     id,
     userId
   );

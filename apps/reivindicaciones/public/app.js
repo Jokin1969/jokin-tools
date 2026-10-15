@@ -97,6 +97,7 @@ function abrirEditar(id) {
   document.getElementById('rv-fecha-inicio').value = r.fecha_inicio;
   document.getElementById('rv-fecha-fin').value = r.fecha_fin || '';
   document.getElementById('rv-objetivo').value = r.objetivo_firmas || '';
+  document.getElementById('rv-email').value = r.email_notificacion || '';
   abrirModal('modal-reivindicacion');
 }
 
@@ -207,6 +208,7 @@ async function guardarReivindicacion(e) {
   const fecha_inicio = document.getElementById('rv-fecha-inicio').value;
   const fecha_fin = document.getElementById('rv-fecha-fin').value;
   const objetivo_firmas = parseInt(document.getElementById('rv-objetivo').value) || 0;
+  const email_notificacion = document.getElementById('rv-email').value;
 
   if (!titulo || !fecha_inicio) {
     alert('Faltan campos requeridos');
@@ -224,6 +226,7 @@ async function guardarReivindicacion(e) {
     fecha_inicio,
     fecha_fin: fecha_fin || null,
     objetivo_firmas,
+    email_notificacion: email_notificacion || null,
     contenido: contenidoEnEdicion,
   };
 

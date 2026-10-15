@@ -2,6 +2,7 @@ const express = require('express');
 const path = require('path');
 const router = express.Router();
 const db = require('./db');
+const { enviarNotificacionFirma } = require('./email');
 
 // Validar DNI
 function validarDNI(dni) {
@@ -47,7 +48,7 @@ router.get('/api/reivindicaciones', (req, res) => {
 // API Admin: crear reivindicación
 router.post('/api/reivindicaciones', express.json({ limit: '256kb' }), (req, res) => {
   if (!req.user) return res.status(403).json({ error: 'Sin login' });
-  const { titulo, contenido, fecha_inicio, fecha_fin, objetivo_firmas } = req.body;
+  const { titulo, contenido, fecha_inicio, fecha_fin, objetivo_firmas, email_notificacion } = req.body;
   if (!titulo || !fecha_inicio) {
     return res.status(400).json({ error: 'Faltan campos requeridos' });
   }
@@ -57,6 +58,7 @@ router.post('/api/reivindicaciones', express.json({ limit: '256kb' }), (req, res
     fecha_inicio,
     fecha_fin,
     objetivo_firmas: objetivo_firmas || 0,
+    email_notificacion: email_notificacion || null,
   }, req.user.id);
   // Generar token de acceso
   const token = db.generateAccessToken(reivindicacion.id);
@@ -74,7 +76,7 @@ router.get('/api/reivindicaciones/:id', (req, res) => {
 // API Admin: actualizar reivindicación
 router.put('/api/reivindicaciones/:id', express.json({ limit: '256kb' }), (req, res) => {
   if (!req.user) return res.status(403).json({ error: 'Sin login' });
-  const { titulo, contenido, estado, fecha_inicio, fecha_fin, objetivo_firmas } = req.body;
+  const { titulo, contenido, estado, fecha_inicio, fecha_fin, objetivo_firmas, email_notificacion } = req.body;
   const reivindicacion = db.updateReivindicacion(req.params.id, {
     titulo,
     contenido,
@@ -82,6 +84,7 @@ router.put('/api/reivindicaciones/:id', express.json({ limit: '256kb' }), (req, 
     fecha_inicio,
     fecha_fin,
     objetivo_firmas,
+    email_notificacion,
   }, req.user.id);
   res.json(reivindicacion);
 });
@@ -201,6 +204,16 @@ router.post('/api/firma/:token/firmar', express.json({ limit: '10mb' }), (req, r
 
   if (!resultado.exito) {
     return res.status(409).json({ error: resultado.error });
+  }
+
+  // Enviar notificación por email (async, no bloquea)
+  const reivindicacion = db.getReivindicacionPublico(reivindicacionId);
+  if (reivindicacion && reivindicacion.email_notificacion) {
+    enviarNotificacionFirma(
+      { ...reivindicacion, contador_firmas: (reivindicacion.contador_firmas || 0) + 1 },
+      { nombre, dni: dniValidacion.dni, creado_en: new Date().toISOString() },
+      reivindicacion.email_notificacion
+    ).catch(() => {}); // Ignorar errores de email
   }
 
   res.json({ exito: true, mensaje: '¡Gracias por tu firma!' });
