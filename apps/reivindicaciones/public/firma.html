@@ -215,6 +215,8 @@ async function cargarReivindicacion() {
           bloqueDiv.innerHTML = `<p>${escapeHtml(bloque.texto).replace(/\n/g, '<br>')}</p>`;
         } else if (bloque.tipo === 'lista') {
           bloqueDiv.innerHTML = `<ul>${bloque.items.map(item => `<li>${escapeHtml(item)}</li>`).join('')}</ul>`;
+        } else if (bloque.tipo === 'imagen' && bloque.imagen_url) {
+          bloqueDiv.innerHTML = `<img src="${bloque.imagen_url}" style="max-width:100%;height:auto;border-radius:4px;margin:20px 0;" />`;
         }
         bloquesDiv.appendChild(bloqueDiv);
       });

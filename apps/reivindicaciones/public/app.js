@@ -19,6 +19,7 @@ function setupEventListeners() {
   document.getElementById('btn-anadir-titulo').addEventListener('click', () => anadirBloque('titulo'));
   document.getElementById('btn-anadir-parrafo').addEventListener('click', () => anadirBloque('parrafo'));
   document.getElementById('btn-anadir-lista').addEventListener('click', () => anadirBloque('lista'));
+  document.getElementById('btn-anadir-imagen').addEventListener('click', () => anadirBloque('imagen'));
   document.getElementById('btn-guardar-contenido').addEventListener('click', guardarContenido);
   document.getElementById('scrim').addEventListener('click', cerrarModal);
 }
@@ -146,6 +147,12 @@ function renderizarEditorContenido() {
         <div style="margin:8px 0;">
           <textarea placeholder="Items de la lista (uno por línea)" onchange="contenidoEnEdicion[${idx}].items = this.value.split('\\n').filter(x=>x.trim())" style="width:100%;padding:8px;border:1px solid #ddd;border-radius:4px;font-family:Inter,sans-serif;min-height:80px;">${(bloque.items || []).join('\n')}</textarea>
         </div>
+      ` : bloque.tipo === 'imagen' ? `
+        <div style="margin:8px 0;">
+          <label style="display:block;margin-bottom:8px;">Selecciona imagen:</label>
+          <input type="file" accept="image/*" onchange="subirImagenBloque(${idx}, this)" style="width:100%;padding:8px;border:1px solid #ddd;border-radius:4px;" />
+          ${bloque.imagen_url ? `<div style="margin-top:10px;"><img src="${bloque.imagen_url}" style="max-width:200px;max-height:200px;border-radius:4px;" /><br/><small style="color:#666;">Imagen cargada</small></div>` : ''}
+        </div>
       ` : ''}
     </div>
   `).join('');
@@ -156,9 +163,22 @@ function anadirBloque(tipo) {
     titulo: { tipo: 'titulo', texto: '' },
     parrafo: { tipo: 'parrafo', texto: '' },
     lista: { tipo: 'lista', items: [] },
+    imagen: { tipo: 'imagen', imagen_url: null },
   };
   contenidoEnEdicion.push(bloques[tipo]);
   renderizarEditorContenido();
+}
+
+function subirImagenBloque(idx, input) {
+  const file = input.files[0];
+  if (!file) return;
+
+  const reader = new FileReader();
+  reader.onload = (e) => {
+    contenidoEnEdicion[idx].imagen_url = e.target.result;
+    renderizarEditorContenido();
+  };
+  reader.readAsDataURL(file);
 }
 
 function eliminarBloque(idx) {
