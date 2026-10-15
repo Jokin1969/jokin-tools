@@ -115,9 +115,27 @@ function abrirEditar(id) {
   abrirModal('modal-reivindicacion');
 }
 
+// Stack de modales abiertos
+let modalStack = [];
+
+function cerrarTodosLosModales() {
+  document.querySelectorAll('.rv-modal').forEach(modal => {
+    modal.hidden = true;
+  });
+  document.getElementById('scrim').hidden = true;
+  modalStack = [];
+}
+
 function abrirModal(id) {
-  document.getElementById(id).hidden = false;
+  // Cerrar todos los otros modales
+  cerrarTodosLosModales();
+
+  // Abrir el modal solicitado
+  const modal = document.getElementById(id);
+  modal.hidden = false;
   document.getElementById('scrim').hidden = false;
+  modalStack.push(id);
+
   // Si es el modal de contenido, renderizar editor
   if (id === 'modal-contenido') {
     renderizarEditorContenido();
@@ -125,29 +143,27 @@ function abrirModal(id) {
 }
 
 function cerrarModal() {
-  document.getElementById('modal-reivindicacion').hidden = true;
-  document.getElementById('modal-contenido').hidden = true;
-  document.getElementById('scrim').hidden = true;
+  cerrarTodosLosModales();
 }
 
 function cerrarModalContenido() {
-  document.getElementById('modal-contenido').hidden = true;
-  document.getElementById('scrim').hidden = true;
+  cerrarTodosLosModales();
 }
 
 function cerrarModalFirmas() {
-  document.getElementById('modal-firmas').hidden = true;
-  document.getElementById('scrim').hidden = true;
+  cerrarTodosLosModales();
 }
 
 function cerrarModalCompartir() {
-  document.getElementById('modal-compartir').hidden = true;
-  document.getElementById('scrim').hidden = true;
+  cerrarTodosLosModales();
 }
 
 function cerrarModalEstadisticas() {
-  document.getElementById('modal-estadisticas').hidden = true;
-  document.getElementById('scrim').hidden = true;
+  cerrarTodosLosModales();
+}
+
+function cerrarModalColumnas() {
+  cerrarTodosLosModales();
 }
 
 // ========== Editor de contenido ==========

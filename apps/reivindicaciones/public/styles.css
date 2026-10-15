@@ -236,6 +236,12 @@ body {
   align-items: center;
   justify-content: center;
   z-index: 1000;
+  background: transparent;
+}
+
+.rv-modal[hidden] {
+  display: none !important;
+  pointer-events: none;
 }
 
 .rv-modal-box {
@@ -411,6 +417,11 @@ body {
   bottom: 0;
   background: rgba(0,0,0,0.3);
   z-index: 999;
+}
+
+.rv-scrim[hidden] {
+  display: none !important;
+  pointer-events: none;
 }
 
 /* ========== Editor de bloques ========== */
