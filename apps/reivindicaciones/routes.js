@@ -438,13 +438,21 @@ router.get('/firma/:token', (req, res) => {
 
 // API Público: obtener datos de reivindicación para firma
 router.get('/api/firma/:token/reivindicacion', (req, res) => {
-  const reivindicacionId = db.verifyAccessToken(req.params.token);
-  if (!reivindicacionId) {
-    return res.status(403).json({ error: 'Token inválido' });
+  try {
+    const reivindicacionId = db.verifyAccessToken(req.params.token);
+    if (!reivindicacionId) {
+      return res.status(403).json({ error: 'Token inválido o expirado' });
+    }
+    const reivindicacion = db.getReivindicacionPublico(reivindicacionId);
+    if (!reivindicacion) {
+      console.error(`[reivindicaciones] Reivindicación no encontrada: ID=${reivindicacionId}, token=${req.params.token.slice(0, 8)}...`);
+      return res.status(404).json({ error: `No encontrada (ID: ${reivindicacionId})` });
+    }
+    res.json(reivindicacion);
+  } catch (error) {
+    console.error('[reivindicaciones] Error cargando reivindicación pública:', error);
+    res.status(500).json({ error: 'Error interno' });
   }
-  const reivindicacion = db.getReivindicacionPublico(reivindicacionId);
-  if (!reivindicacion) return res.status(404).json({ error: 'No encontrada' });
-  res.json(reivindicacion);
 });
 
 // API Público: enviar firma

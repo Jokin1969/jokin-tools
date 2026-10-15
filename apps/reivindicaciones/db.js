@@ -267,6 +267,7 @@ function getResultadosVotacion(votacionId) {
 }
 
 module.exports = {
+  db, // Exportar instancia de BD para acceso directo si es necesario
   createReivindicacion,
   getReivindicaciones,
   getReivindicacionById,

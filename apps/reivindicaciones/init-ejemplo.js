@@ -4,13 +4,18 @@ const db = require('./db');
 
 function crearReivindicacionEjemplo() {
   // Verificar si ya existe una reivindicación con este título
-  const existente = db.db.prepare(`
-    SELECT id FROM reivindicaciones WHERE titulo = ?
-  `).get('Permitir firmar las Actas digitalmente');
+  try {
+    const existente = db.db.prepare(`
+      SELECT id FROM reivindicaciones WHERE titulo = ?
+    `).get('Permitir firmar las Actas digitalmente');
 
-  if (existente) {
-    console.log('[reivindicaciones] Reivindicación de ejemplo ya existe');
-    return;
+    if (existente) {
+      console.log('[reivindicaciones] Reivindicación de ejemplo ya existe');
+      return;
+    }
+  } catch (e) {
+    console.error('[reivindicaciones] Error verificando reivindicación de ejemplo:', e.message);
+    // Continuar de todas formas
   }
 
   // Crear reivindicación de ejemplo
