@@ -35,6 +35,7 @@ function setupEventListeners() {
   document.getElementById('btn-columnas-ninguna').addEventListener('click', desseleccionarTodas);
   document.getElementById('btn-columnas-guardar').addEventListener('click', guardarColumnasSeleccionadas);
   document.getElementById('btn-copiar-enlace').addEventListener('click', copiarEnlace);
+  document.getElementById('btn-abrir-enlace').addEventListener('click', abrirEnlace);
   document.getElementById('btn-anadir-titulo').addEventListener('click', () => anadirBloque('titulo'));
   document.getElementById('btn-anadir-parrafo').addEventListener('click', () => anadirBloque('parrafo'));
   document.getElementById('btn-anadir-lista').addEventListener('click', () => anadirBloque('lista'));
@@ -508,6 +509,13 @@ function copiarEnlace() {
   input.select();
   document.execCommand('copy');
   alert('¡Enlace copiado al portapapeles!');
+}
+
+function abrirEnlace() {
+  const enlace = document.getElementById('input-enlace').value;
+  if (enlace) {
+    window.open(enlace, '_blank');
+  }
 }
 
 // ========== Eliminar ==========
