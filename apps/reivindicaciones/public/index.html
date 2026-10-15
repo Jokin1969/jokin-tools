@@ -47,7 +47,10 @@
         <span class="s">Gestión de firmas digitales</span>
       </div>
     </a>
-    <button class="rv-btn rv-btn-primary" id="btn-nueva-reivindicacion">+ Nueva reivindicación</button>
+    <div style="display:flex;gap:10px;">
+      <button class="rv-btn rv-btn-primary" id="btn-nueva-reivindicacion">+ Nueva reivindicación</button>
+      <button class="rv-btn rv-btn-secondary" id="btn-ia" title="Generar con IA">🤖 IA</button>
+    </div>
   </div>
 </header>
 
@@ -183,6 +186,24 @@
         <tbody>
         </tbody>
       </table>
+    </div>
+  </div>
+</div>
+
+<!-- Modal: Generar con IA -->
+<div class="rv-modal" id="modal-ia" hidden>
+  <div class="rv-modal-box">
+    <div class="rv-modal-h">
+      <h3>🤖 Generar reivindicación con IA</h3>
+      <button class="rv-x" id="modal-ia-close">×</button>
+    </div>
+    <div style="padding:20px;">
+      <p style="color:#666;margin-bottom:15px;">Describe detalladamente la reivindicación. La IA rellenará automáticamente el título, contenido y objetivo de firmas.</p>
+      <textarea id="ia-descripcion" placeholder="Ejemplo: Solicitar que se permita firmar las Actas digitalmente para agilizar procesos administrativos. Los estudiantes desean modernizar la documentación académica..." style="width:100%;height:200px;padding:10px;border:1px solid #ddd;border-radius:4px;font-family:Inter,sans-serif;font-size:14px;resize:vertical;"></textarea>
+      <div class="rv-modal-actions" style="margin-top:20px;">
+        <button class="rv-btn rv-btn-ghost" id="btn-ia-cancelar">Cancelar</button>
+        <button class="rv-btn rv-btn-primary" id="btn-ia-generar">Generar con IA</button>
+      </div>
     </div>
   </div>
 </div>

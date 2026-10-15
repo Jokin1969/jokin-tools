@@ -19,8 +19,12 @@ document.addEventListener('DOMContentLoaded', () => {
 
 function setupEventListeners() {
   document.getElementById('btn-nueva-reivindicacion').addEventListener('click', abrirModalNueva);
+  document.getElementById('btn-ia').addEventListener('click', abrirModalIA);
   document.getElementById('btn-cancelar').addEventListener('click', cerrarModal);
   document.getElementById('modal-close').addEventListener('click', cerrarModal);
+  document.getElementById('modal-ia-close').addEventListener('click', cerrarModalIA);
+  document.getElementById('btn-ia-cancelar').addEventListener('click', cerrarModalIA);
+  document.getElementById('btn-ia-generar').addEventListener('click', generarConIA);
   document.getElementById('form-reivindicacion').addEventListener('submit', guardarReivindicacion);
   document.getElementById('modal-firmas-close').addEventListener('click', cerrarModalFirmas);
   document.getElementById('modal-compartir-close').addEventListener('click', cerrarModalCompartir);
@@ -101,11 +105,78 @@ function abrirModalNueva() {
   abrirModal('modal-reivindicacion');
 }
 
+function abrirModalIA() {
+  document.getElementById('ia-descripcion').value = '';
+  document.getElementById('btn-ia-generar').disabled = false;
+  document.getElementById('btn-ia-generar').textContent = 'Generar con IA';
+  abrirModal('modal-ia');
+}
+
+function cerrarModalIA() {
+  cerrarTodosLosModales();
+}
+
+async function generarConIA() {
+  const descripcion = document.getElementById('ia-descripcion').value.trim();
+  if (!descripcion) {
+    alert('Por favor, describe detalladamente la reivindicación');
+    return;
+  }
+
+  const btn = document.getElementById('btn-ia-generar');
+  btn.disabled = true;
+  btn.textContent = '⏳ Generando...';
+
+  try {
+    const resp = await fetch('/reivindicaciones/api/generar-con-ia', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ descripcion }),
+    });
+
+    if (!resp.ok) {
+      const error = await resp.json();
+      throw new Error(error.error || 'Error al generar con IA');
+    }
+
+    const datos = await resp.json();
+    cerrarModalIA();
+
+    // Abrimos una nueva reivindicación y rellenamos los datos generados
+    reivindicacionEnEdicion = null;
+    contenidoEnEdicion = datos.contenido || [];
+    document.getElementById('modal-titulo').textContent = 'Nueva reivindicación (generada con IA)';
+    document.getElementById('form-reivindicacion').reset();
+    document.getElementById('rv-titulo').value = datos.titulo || '';
+    document.getElementById('rv-fecha-inicio').value = datos.fecha_inicio || new Date().toISOString().split('T')[0];
+    document.getElementById('rv-fecha-fin').value = datos.fecha_fin || '';
+    document.getElementById('rv-objetivo').value = datos.objetivo_firmas || '';
+    document.getElementById('rv-email').value = '';
+
+    abrirModal('modal-reivindicacion');
+  } catch (error) {
+    alert('Error: ' + error.message);
+    btn.disabled = false;
+    btn.textContent = 'Generar con IA';
+  }
+}
+
 function abrirEditar(id) {
   const r = reivindicacionesActual.find(x => x.id == id);
   if (!r) return;
   reivindicacionEnEdicion = r;
-  contenidoEnEdicion = JSON.parse(JSON.stringify(r.contenido || []));
+
+  // Asegurar que contenido se parsea correctamente
+  let contenido = r.contenido;
+  if (typeof contenido === 'string') {
+    try {
+      contenido = JSON.parse(contenido);
+    } catch (e) {
+      contenido = [];
+    }
+  }
+  contenidoEnEdicion = JSON.parse(JSON.stringify(contenido || []));
+
   document.getElementById('modal-titulo').textContent = 'Editar reivindicación';
   document.getElementById('rv-titulo').value = r.titulo;
   document.getElementById('rv-fecha-inicio').value = r.fecha_inicio;

@@ -14,6 +14,74 @@ function validarDNI(dni) {
   return { valido: true, dni: cleaned };
 }
 
+// Generar reivindicación con IA a partir de descripción
+async function generarReivindicacionConIA(descripcion) {
+  const apiKey = process.env.ANTHROPIC_API_KEY;
+  if (!apiKey) {
+    const e = new Error('ANTHROPIC_API_KEY no configurada.');
+    e.status = 503;
+    throw e;
+  }
+
+  const Anthropic = require('@anthropic-ai/sdk');
+  const client = new Anthropic({ apiKey });
+
+  const prompt = `Analiza el siguiente texto descriptivo sobre una reivindicación y extrae la información estructurada.
+
+DESCRIPCIÓN:
+${descripcion}
+
+Responde ÚNICAMENTE con un JSON válido (sin triple backticks, sin explicaciones adicionales) con esta estructura:
+{
+  "titulo": "Título breve y conciso de la reivindicación",
+  "contenido": [
+    {
+      "tipo": "parrafo",
+      "texto": "Párrafo explicativo basado en la descripción"
+    }
+  ],
+  "objetivo_firmas": 1000,
+  "fecha_inicio": "2026-10-15",
+  "fecha_fin": null
+}
+
+Reglas:
+- Si no se menciona una fecha específica, NO incluyas "fecha_inicio" (dejar null o vacío)
+- Si no se menciona un objetivo de firmas, NO incluyas "objetivo_firmas" (dejar null)
+- El contenido puede tener varios bloques (párrafos, listas, etc.)
+- Sé conciso pero claro
+- Todo en español
+- Responde SOLO con el JSON, sin explicaciones`;
+
+  const msg = await client.messages.create({
+    model: 'claude-opus-5.5',
+    max_tokens: 1500,
+    messages: [{ role: 'user', content: prompt }],
+  });
+
+  const textBlock = (msg.content || []).find(b => b.type === 'text');
+  if (!textBlock) throw new Error('Claude no devolvió texto');
+
+  let jsonText = textBlock.text.trim();
+  // Limpiar si viene con triple backticks
+  if (jsonText.startsWith('```json')) {
+    jsonText = jsonText.replace(/^```json\s*/, '').replace(/\s*```$/, '');
+  } else if (jsonText.startsWith('```')) {
+    jsonText = jsonText.replace(/^```\s*/, '').replace(/\s*```$/, '');
+  }
+
+  const parsed = JSON.parse(jsonText);
+
+  // Asegurar formato correcto
+  return {
+    titulo: parsed.titulo || 'Sin título',
+    contenido: Array.isArray(parsed.contenido) ? parsed.contenido : [],
+    objetivo_firmas: parsed.objetivo_firmas || 0,
+    fecha_inicio: parsed.fecha_inicio || new Date().toISOString().split('T')[0],
+    fecha_fin: parsed.fecha_fin || null,
+  };
+}
+
 // Middleware: verificar token de acceso público
 function verifyPublicToken(req, res, next) {
   const token = req.params.token || req.query.token;
@@ -254,6 +322,26 @@ router.post('/api/reivindicaciones/:id/token', (req, res) => {
   if (!reivindicacion) return res.status(404).json({ error: 'No encontrada' });
   const token = db.generateAccessToken(reivindicacion.id);
   res.json({ token });
+});
+
+// API Admin: generar reivindicación con IA
+router.post('/api/generar-con-ia', express.json({ limit: '256kb' }), async (req, res) => {
+  if (!req.user) return res.status(403).json({ error: 'Sin login' });
+  const { descripcion } = req.body;
+  if (!descripcion || descripcion.trim().length === 0) {
+    return res.status(400).json({ error: 'Descripción requerida' });
+  }
+
+  try {
+    const datos = await generarReivindicacionConIA(descripcion);
+    res.json(datos);
+  } catch (error) {
+    console.error('[reivindicaciones] Error generando con IA:', error);
+    if (error.status === 503) {
+      return res.status(503).json({ error: error.message });
+    }
+    res.status(500).json({ error: 'Error al generar con IA: ' + error.message });
+  }
 });
 
 // API Admin: crear votación
