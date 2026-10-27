@@ -12,7 +12,8 @@ const {
   deleteMemory, toggleMemory, resetCounter, getAllIds, getAllMemoriesForExport,
   listHistory, postponeMemory,
   createQuiz, addQuizQuestion, getQuizByToken, getQuizQuestions, submitQuizResponse,
-  getQuizResponses, calculateQuizScore
+  getQuizResponses, calculateQuizScore,
+  getOrCreateQuizSettings, updateQuizSettings, updateQuizStats, getQuizStats, getQuizHistory
 } = require('./db');
 
 const { sendMemoryEmail, generateDeactivationToken, isDeactivationSecretConfigured } = require('./email');
@@ -813,6 +814,56 @@ router.get('/api/quiz/:token/result', (req, res) => {
     });
   } catch (error) {
     console.error('[re-memory] Error getting results:', error);
+    res.status(500).json({ error: error.message });
+  }
+});
+
+// ─── Quiz Settings and Statistics ────────────────────────────────────────────
+
+// GET /api/quiz/settings - Get user's quiz settings
+router.get('/api/quiz/settings', requireAdmin, (req, res) => {
+  try {
+    const settings = getOrCreateQuizSettings(req.user.id);
+    res.json(settings);
+  } catch (error) {
+    console.error('[re-memory] Error getting quiz settings:', error);
+    res.status(500).json({ error: error.message });
+  }
+});
+
+// PUT /api/quiz/settings - Update quiz settings
+router.put('/api/quiz/settings', requireAdmin, express.json(), (req, res) => {
+  try {
+    const updated = updateQuizSettings(req.user.id, req.body);
+    res.json(updated);
+  } catch (error) {
+    console.error('[re-memory] Error updating quiz settings:', error);
+    res.status(500).json({ error: error.message });
+  }
+});
+
+// GET /api/quiz/stats - Get quiz statistics
+router.get('/api/quiz/stats', requireAdmin, (req, res) => {
+  try {
+    const topic = req.query.topic;
+    const stats = topic
+      ? getQuizStats(req.user.id, topic)
+      : getQuizStats(req.user.id);
+    res.json(stats);
+  } catch (error) {
+    console.error('[re-memory] Error getting quiz stats:', error);
+    res.status(500).json({ error: error.message });
+  }
+});
+
+// GET /api/quiz/history - Get quiz completion history
+router.get('/api/quiz/history', requireAdmin, (req, res) => {
+  try {
+    const limit = Math.min(parseInt(req.query.limit || '20'), 100);
+    const history = getQuizHistory(req.user.id, limit);
+    res.json(history);
+  } catch (error) {
+    console.error('[re-memory] Error getting quiz history:', error);
     res.status(500).json({ error: error.message });
   }
 });

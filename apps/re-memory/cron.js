@@ -1,5 +1,5 @@
 const cron = require('node-cron');
-const { getMemoriesDueToday, markSent, createQuiz } = require('./db');
+const { getMemoriesDueToday, markSent, createQuiz, getOrCreateQuizSettings } = require('./db');
 const { sendMemoryEmail, sendQuizEmail } = require('./email');
 const { createBackup, hasDbChangedSinceLastBackup } = require('./backup');
 const { generateQuizQuestions } = require('./quiz-ai');
@@ -28,15 +28,33 @@ function startCron() {
 
       for (const memory of batch) {
         try {
-          // Generate quiz instead of sending simple email
+          // Get user's quiz settings
+          const settings = getOrCreateQuizSettings(memory.user_id);
+
+          // Check if quizzes are enabled for this user
+          if (!settings.enabled) {
+            console.log(`[cron] Quizzes disabled for user ${memory.user_id}, skipping`);
+            // Fall back to regular email
+            await sendMemoryEmail(memory, memory.owner_email);
+            markSent(memory.id, memory.frequency);
+            continue;
+          }
+
+          // Generate quiz with user's settings
           const quiz = createQuiz(memory.id, memory.user_id);
 
           try {
-            await generateQuizQuestions(quiz.id, memory.description, memory.topic);
+            await generateQuizQuestions(
+              quiz.id,
+              memory.description,
+              memory.topic,
+              settings.difficulty_level,
+              settings.questions_per_quiz
+            );
             // Send quiz email
             await sendQuizEmail(memory, memory.owner_email, quiz.token);
             markSent(memory.id, memory.frequency);
-            console.log(`[cron] ✓ Quiz generated and sent for Memory #${memory.id} to ${memory.owner_email}`);
+            console.log(`[cron] ✓ Quiz generated (${settings.difficulty_level}/${settings.questions_per_quiz}Q) and sent for Memory #${memory.id} to ${memory.owner_email}`);
           } catch (quizError) {
             console.error(`[cron] ✗ Failed to generate quiz for memory #${memory.id}:`, quizError.message);
             // Fall back to regular email if quiz generation fails

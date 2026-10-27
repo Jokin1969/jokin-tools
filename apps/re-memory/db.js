@@ -100,6 +100,36 @@ db.exec(`
     FOREIGN KEY (quiz_id) REFERENCES quizzes(id) ON DELETE CASCADE
   );
   CREATE INDEX IF NOT EXISTS idx_quiz_responses_quiz ON quiz_responses(quiz_id);
+
+  -- Quiz settings: configure quiz behavior per user
+  CREATE TABLE IF NOT EXISTS quiz_settings (
+    id                  INTEGER PRIMARY KEY AUTOINCREMENT,
+    user_id             INTEGER NOT NULL UNIQUE,
+    quiz_frequency      TEXT DEFAULT '2m' CHECK(quiz_frequency IN ('1w','2w','3w','1m','2m','3m','6m','1y')),
+    difficulty_level    TEXT DEFAULT 'mixed' CHECK(difficulty_level IN ('easy','medium','hard','mixed')),
+    questions_per_quiz  INTEGER DEFAULT 10 CHECK(questions_per_quiz >= 5 AND questions_per_quiz <= 20),
+    enabled             INTEGER DEFAULT 1,
+    created_at          DATETIME DEFAULT CURRENT_TIMESTAMP,
+    updated_at          DATETIME DEFAULT CURRENT_TIMESTAMP
+  );
+  CREATE INDEX IF NOT EXISTS idx_quiz_settings_user ON quiz_settings(user_id);
+
+  -- Quiz performance stats: track score history by topic
+  CREATE TABLE IF NOT EXISTS quiz_stats (
+    id                  INTEGER PRIMARY KEY AUTOINCREMENT,
+    user_id             INTEGER NOT NULL,
+    topic               TEXT NOT NULL,
+    total_quizzes       INTEGER DEFAULT 0,
+    total_score         INTEGER DEFAULT 0,
+    average_score       REAL DEFAULT 0,
+    best_score          INTEGER DEFAULT 0,
+    worst_score         INTEGER DEFAULT 0,
+    last_quiz_date      DATETIME,
+    FOREIGN KEY (user_id) REFERENCES memories(user_id),
+    UNIQUE(user_id, topic)
+  );
+  CREATE INDEX IF NOT EXISTS idx_quiz_stats_user ON quiz_stats(user_id);
+  CREATE INDEX IF NOT EXISTS idx_quiz_stats_topic ON quiz_stats(topic);
 `);
 
 console.log('[db] Database initialized at:', DB_PATH);
@@ -548,6 +578,88 @@ function calculateQuizScore(quizId) {
   return score;
 }
 
+// ─── Quiz Settings ────────────────────────────────────────────────────────────
+
+function getOrCreateQuizSettings(userId) {
+  let settings = db.prepare('SELECT * FROM quiz_settings WHERE user_id = ?').get(userId);
+  if (!settings) {
+    db.prepare(`
+      INSERT INTO quiz_settings (user_id, quiz_frequency, difficulty_level, questions_per_quiz)
+      VALUES (?, '2m', 'mixed', 10)
+    `).run(userId);
+    settings = db.prepare('SELECT * FROM quiz_settings WHERE user_id = ?').get(userId);
+  }
+  return settings;
+}
+
+function updateQuizSettings(userId, updates) {
+  const allowed = ['quiz_frequency', 'difficulty_level', 'questions_per_quiz', 'enabled'];
+  const fields = [];
+  const values = [];
+
+  for (const [key, value] of Object.entries(updates)) {
+    if (allowed.includes(key)) {
+      fields.push(`${key} = ?`);
+      values.push(value);
+    }
+  }
+
+  if (fields.length === 0) return getOrCreateQuizSettings(userId);
+
+  values.push(userId);
+  db.prepare(`UPDATE quiz_settings SET ${fields.join(', ')}, updated_at = CURRENT_TIMESTAMP WHERE user_id = ?`)
+    .run(...values);
+
+  return getOrCreateQuizSettings(userId);
+}
+
+// ─── Quiz Statistics ──────────────────────────────────────────────────────────
+
+function updateQuizStats(userId, topic, score) {
+  const existingStats = db.prepare('SELECT * FROM quiz_stats WHERE user_id = ? AND topic = ?')
+    .get(userId, topic);
+
+  if (!existingStats) {
+    db.prepare(`
+      INSERT INTO quiz_stats (user_id, topic, total_quizzes, total_score, average_score, best_score, worst_score, last_quiz_date)
+      VALUES (?, ?, 1, ?, ?, ?, ?, CURRENT_TIMESTAMP)
+    `).run(userId, topic, score, score, score, score);
+  } else {
+    const newTotal = existingStats.total_quizzes + 1;
+    const newTotalScore = existingStats.total_score + score;
+    const newAverage = Math.round(newTotalScore / newTotal);
+    const newBest = Math.max(existingStats.best_score, score);
+    const newWorst = Math.min(existingStats.worst_score, score);
+
+    db.prepare(`
+      UPDATE quiz_stats
+      SET total_quizzes = ?, total_score = ?, average_score = ?, best_score = ?, worst_score = ?, last_quiz_date = CURRENT_TIMESTAMP
+      WHERE user_id = ? AND topic = ?
+    `).run(newTotal, newTotalScore, newAverage, newBest, newWorst, userId, topic);
+  }
+}
+
+function getQuizStats(userId, topic = null) {
+  if (topic) {
+    return db.prepare('SELECT * FROM quiz_stats WHERE user_id = ? AND topic = ?').get(userId, topic);
+  }
+  return db.prepare('SELECT * FROM quiz_stats WHERE user_id = ? ORDER BY average_score DESC, last_quiz_date DESC')
+    .all(userId);
+}
+
+function getQuizHistory(userId, limit = 20) {
+  return db.prepare(`
+    SELECT q.*, m.topic, m.description, COUNT(qr.id) as answered_questions
+    FROM quizzes q
+    JOIN memories m ON q.memory_id = m.id
+    LEFT JOIN quiz_responses qr ON q.id = qr.quiz_id
+    WHERE q.user_id = ?
+    GROUP BY q.id
+    ORDER BY q.completed_at DESC
+    LIMIT ?
+  `).all(userId, limit);
+}
+
 // ─── CSV export ───────────────────────────────────────────────────────────────
 
 function getAllMemoriesForExport(userId) {
@@ -596,7 +708,13 @@ module.exports = {
   getQuizQuestions,
   submitQuizResponse,
   getQuizResponses,
-  calculateQuizScore
+  calculateQuizScore,
+  // Quiz settings and stats
+  getOrCreateQuizSettings,
+  updateQuizSettings,
+  updateQuizStats,
+  getQuizStats,
+  getQuizHistory
 };
 
 // One-time, idempotent: ensure old memories have a 'created' event so their

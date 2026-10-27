@@ -3,7 +3,7 @@
 
 const db = require('./db');
 
-async function generateQuizQuestions(quizId, memoryDescription, memoryTopic) {
+async function generateQuizQuestions(quizId, memoryDescription, memoryTopic, difficulty = 'mixed', numQuestions = 10) {
   const apiKey = process.env.ANTHROPIC_API_KEY;
   if (!apiKey) {
     throw new Error('ANTHROPIC_API_KEY no configurada');
@@ -12,18 +12,37 @@ async function generateQuizQuestions(quizId, memoryDescription, memoryTopic) {
   const Anthropic = require('@anthropic-ai/sdk');
   const client = new Anthropic({ apiKey });
 
-  const prompt = `Basándote en la siguiente información sobre un tema, genera 10 preguntas de opción múltiple para un cuestionario educativo.
+  // Define difficulty levels
+  const difficultyGuide = {
+    easy: `Las preguntas deben ser fáciles, enfocadas en hechos básicos y conceptos fundamentales.
+           Diseñadas para que la mayoría de personas con conocimiento general puedan responder correctamente.`,
+    medium: `Las preguntas deben tener dificultad media, requiriendo comprensión moderada y aplicación de conceptos.
+             Incluye algunas inferencias pero nada demasiado complejo.`,
+    hard: `Las preguntas deben ser difíciles, requiriendo análisis profundo, síntesis y aplicación avanzada.
+           Enfócate en detalles, excepciones y relaciones complejas entre conceptos.`,
+    mixed: `Distribuye las preguntas en diferentes niveles de dificultad:
+            - 3 preguntas fáciles (conceptos básicos)
+            - 4 preguntas de dificultad media (comprensión y aplicación)
+            - 3 preguntas difíciles (análisis y síntesis)`
+  };
+
+  const difficultyDesc = difficultyGuide[difficulty] || difficultyGuide.mixed;
+
+  const prompt = `Basándote en la siguiente información sobre un tema, genera ${numQuestions} preguntas de opción múltiple para un cuestionario educativo.
 
 TEMA: ${memoryTopic}
 INFORMACIÓN:
 ${memoryDescription}
 
+NIVEL DE DIFICULTAD:
+${difficultyDesc}
+
 Requisitos:
-1. Crea exactamente 10 preguntas
+1. Crea exactamente ${numQuestions} preguntas
 2. Cada pregunta debe tener 4 opciones de respuesta
-3. Una opción es correcta, las otras 3 son distractores creíbles
-4. Las preguntas deben variar en dificultad (fácil, medio, difícil)
-5. Cada pregunta tiene una explicación clara del por qué la respuesta es correcta
+3. Una opción es correcta, las otras 3 son distractores creíbles y realistas
+4. Cada pregunta tiene una explicación clara del por qué la respuesta es correcta
+5. Las explicaciones deben ayudar a aprender, no solo decir que es correcto
 
 Responde ÚNICAMENTE en formato JSON válido (sin backticks, sin explicaciones adicionales):
 {
@@ -32,7 +51,7 @@ Responde ÚNICAMENTE en formato JSON válido (sin backticks, sin explicaciones a
       "question": "¿Pregunta aquí?",
       "options": ["opción A", "opción B", "opción C", "opción D"],
       "correct_answer": "opción correcta",
-      "explanation": "Explicación clara de por qué esta es la respuesta correcta"
+      "explanation": "Explicación clara de por qué esta es la respuesta correcta y qué aprendemos"
     }
   ]
 }
@@ -59,8 +78,8 @@ Importante: El formato debe ser JSON puro, válido y parseble.`;
 
     const parsed = JSON.parse(jsonText);
 
-    if (!Array.isArray(parsed.questions) || parsed.questions.length !== 10) {
-      throw new Error('La IA no generó exactamente 10 preguntas');
+    if (!Array.isArray(parsed.questions) || parsed.questions.length !== numQuestions) {
+      throw new Error(`La IA no generó exactamente ${numQuestions} preguntas (generó ${parsed.questions.length})`);
     }
 
     // Insertar preguntas en la BD
@@ -84,7 +103,7 @@ Importante: El formato debe ser JSON puro, válido y parseble.`;
       }
     }
 
-    console.log(`[quiz-ai] Generated 10 questions for quiz ${quizId}`);
+    console.log(`[quiz-ai] Generated ${numQuestions} questions for quiz ${quizId} (difficulty: ${difficulty})`);
     return true;
   } catch (error) {
     console.error('[quiz-ai] Error generating questions:', error.message);
