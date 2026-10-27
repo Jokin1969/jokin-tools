@@ -10,12 +10,15 @@ const router = express.Router();
 const {
   createMemory, setMemoryImage, getMemoryById, listMemories, updateMemory,
   deleteMemory, toggleMemory, resetCounter, getAllIds, getAllMemoriesForExport,
-  listHistory, postponeMemory
+  listHistory, postponeMemory,
+  createQuiz, addQuizQuestion, getQuizByToken, getQuizQuestions, submitQuizResponse,
+  getQuizResponses, calculateQuizScore
 } = require('./db');
 
 const { sendMemoryEmail, generateDeactivationToken, isDeactivationSecretConfigured } = require('./email');
 const { exportToDropbox, getAuthorizationUrl, exchangeCodeForTokens } = require('./dropbox');
 const { createBackup, listBackups, restoreBackup } = require('./backup');
+const { generateQuizQuestions } = require('./quiz-ai');
 const { requireAdmin } = require('../auth/middleware');
 
 // Note: the cron jobs are started from server.js (so they can be stopped on
@@ -693,6 +696,124 @@ router.get('/auth/dropbox/callback', requireAdmin, async (req, res) => {
     </body></html>`);
   } catch (err) {
     res.status(500).send(`<pre>Error: ${err.message}</pre>`);
+  }
+});
+
+// ─── Quiz API ────────────────────────────────────────────────────────────────
+
+// Serve quiz page
+router.get('/quiz', (req, res) => {
+  res.sendFile(path.join(__dirname, 'public', 'quiz.html'));
+});
+
+// POST /api/quiz - Create a new quiz for a memory
+router.post('/api/quiz', requireAdmin, async (req, res) => {
+  try {
+    const { memory_id } = req.body;
+    if (!memory_id) return res.status(400).json({ error: 'memory_id requerido' });
+
+    const memory = getMemoryById(memory_id, req.user.id);
+    if (!memory) return res.status(404).json({ error: 'Memoria no encontrada' });
+
+    // Create quiz in DB
+    const quiz = createQuiz(memory_id, req.user.id);
+
+    // Generate questions with AI
+    try {
+      await generateQuizQuestions(quiz.id, memory.description, memory.topic);
+    } catch (aiError) {
+      console.error('[re-memory] Quiz generation failed:', aiError.message);
+      // Delete the quiz if generation failed
+      res.status(500).json({ error: 'Error generando preguntas con IA: ' + aiError.message });
+      return;
+    }
+
+    res.json({
+      quiz_id: quiz.id,
+      token: quiz.token,
+      url: `/re-memory/quiz?token=${quiz.token}`
+    });
+  } catch (error) {
+    console.error('[re-memory] Error creating quiz:', error);
+    res.status(500).json({ error: error.message });
+  }
+});
+
+// GET /api/quiz/:token - Get quiz questions
+router.get('/api/quiz/:token', (req, res) => {
+  try {
+    const quiz = getQuizByToken(req.params.token);
+    if (!quiz) return res.status(404).json({ error: 'Cuestionario no encontrado' });
+
+    if (quiz.status === 'completed') {
+      return res.status(400).json({ error: 'El cuestionario ya ha sido completado' });
+    }
+
+    const questions = getQuizQuestions(quiz.id);
+    res.json({
+      id: quiz.id,
+      token: req.params.token,
+      topic: quiz.topic,
+      description: quiz.description,
+      questions: questions.map(q => ({
+        id: q.id,
+        question: q.question,
+        options: q.options.map(o => ({ id: o.id, text: o.text }))
+      }))
+    });
+  } catch (error) {
+    console.error('[re-memory] Error getting quiz:', error);
+    res.status(500).json({ error: error.message });
+  }
+});
+
+// POST /api/quiz/:token/answer - Submit an answer
+router.post('/api/quiz/:token/answer', (req, res) => {
+  try {
+    const { question_id, answer } = req.body;
+    if (!question_id || !answer) {
+      return res.status(400).json({ error: 'question_id y answer requeridos' });
+    }
+
+    const quiz = getQuizByToken(req.params.token);
+    if (!quiz) return res.status(404).json({ error: 'Cuestionario no encontrado' });
+
+    submitQuizResponse(quiz.id, question_id, answer);
+    res.json({ success: true });
+  } catch (error) {
+    console.error('[re-memory] Error submitting answer:', error);
+    res.status(500).json({ error: error.message });
+  }
+});
+
+// GET /api/quiz/:token/result - Get quiz results
+router.get('/api/quiz/:token/result', (req, res) => {
+  try {
+    const quiz = getQuizByToken(req.params.token);
+    if (!quiz) return res.status(404).json({ error: 'Cuestionario no encontrado' });
+
+    // Get responses
+    const responses = getQuizResponses(quiz.id);
+
+    // Calculate score
+    const score = calculateQuizScore(quiz.id);
+
+    // Get updated quiz with score
+    const updatedQuiz = getQuizByToken(req.params.token);
+
+    res.json({
+      score: updatedQuiz.score,
+      responses: responses.map(r => ({
+        question: r.question,
+        user_answer: r.user_answer,
+        correct_answer: r.correct_answer,
+        explanation: r.explanation,
+        is_correct: r.is_correct
+      }))
+    });
+  } catch (error) {
+    console.error('[re-memory] Error getting results:', error);
+    res.status(500).json({ error: error.message });
   }
 });
 
