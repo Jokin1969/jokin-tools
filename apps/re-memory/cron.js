@@ -1,7 +1,8 @@
 const cron = require('node-cron');
-const { getMemoriesDueToday, markSent } = require('./db');
-const { sendMemoryEmail } = require('./email');
+const { getMemoriesDueToday, markSent, createQuiz } = require('./db');
+const { sendMemoryEmail, sendQuizEmail } = require('./email');
 const { createBackup, hasDbChangedSinceLastBackup } = require('./backup');
+const { generateQuizQuestions } = require('./quiz-ai');
 
 // ─── Daily email job: 06:50 Madrid time ──────────────────────────────────────
 
@@ -27,12 +28,24 @@ function startCron() {
 
       for (const memory of batch) {
         try {
-          // Each memory is emailed to its own owner.
-          await sendMemoryEmail(memory, memory.owner_email);
-          markSent(memory.id, memory.frequency);
-          console.log(`[cron] ✓ Memory #${memory.id} sent to ${memory.owner_email} and updated`);
+          // Generate quiz instead of sending simple email
+          const quiz = createQuiz(memory.id, memory.user_id);
+
+          try {
+            await generateQuizQuestions(quiz.id, memory.description, memory.topic);
+            // Send quiz email
+            await sendQuizEmail(memory, memory.owner_email, quiz.token);
+            markSent(memory.id, memory.frequency);
+            console.log(`[cron] ✓ Quiz generated and sent for Memory #${memory.id} to ${memory.owner_email}`);
+          } catch (quizError) {
+            console.error(`[cron] ✗ Failed to generate quiz for memory #${memory.id}:`, quizError.message);
+            // Fall back to regular email if quiz generation fails
+            await sendMemoryEmail(memory, memory.owner_email);
+            markSent(memory.id, memory.frequency);
+            console.log(`[cron] ⚠ Fallback: sent regular email for Memory #${memory.id}`);
+          }
         } catch (err) {
-          console.error(`[cron] ✗ Failed to send memory #${memory.id}:`, err.message);
+          console.error(`[cron] ✗ Failed to process memory #${memory.id}:`, err.message);
         }
       }
       if (due.length > batch.length) {
