@@ -46,18 +46,21 @@ function redrawCanvas() {
 // Eventos del canvas
 function getCoordinates(e) {
   const rect = canvas.getBoundingClientRect();
-  const dpr = window.devicePixelRatio || 1;
+
+  // Escalar correctamente considerando que canvas.width puede diferir de rect.width
+  const scaleX = canvas.width / rect.width;
+  const scaleY = canvas.height / rect.height;
 
   if (e.touches) {
     const touch = e.touches[0];
     return {
-      x: (touch.clientX - rect.left) / dpr,
-      y: (touch.clientY - rect.top) / dpr
+      x: (touch.clientX - rect.left) * scaleX,
+      y: (touch.clientY - rect.top) * scaleY
     };
   } else {
     return {
-      x: (e.clientX - rect.left) / dpr,
-      y: (e.clientY - rect.top) / dpr
+      x: (e.clientX - rect.left) * scaleX,
+      y: (e.clientY - rect.top) * scaleY
     };
   }
 }
