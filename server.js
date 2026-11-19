@@ -158,7 +158,6 @@ app.use('/reivindicaciones', requireApp('reivindicaciones'), reivRouter);
 // Canvas-based digital signature: draw, copy, download (PNG/PDF/SVG). No persistence.
 const signRouter = require('./apps/sign/routes');
 app.use('/sign', requireApp('sign'), signRouter);
-app.use('/sign/public', express.static(path.join(__dirname, 'apps/sign/public')));
 
 // ─── Pastillero (residencias) ────────────────────────────────────────────────────
 // NOT gated at the top level: caregivers have no farmacia account, they log in

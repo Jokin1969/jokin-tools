@@ -1,8 +1,14 @@
 const express = require('express');
+const path = require('path');
 const router = express.Router();
 
-// Esta app no requiere persistencia ni autenticación especial
-// Solo sirve archivos estáticos. Las rutas adicionales son opcionales.
+// Servir HTML principal
+router.get('/', (req, res) => {
+  res.sendFile(path.join(__dirname, 'public', 'index.html'));
+});
+
+// Servir assets estáticos
+router.use('/public', express.static(path.join(__dirname, 'public')));
 
 // Health check
 router.get('/health', (req, res) => {
