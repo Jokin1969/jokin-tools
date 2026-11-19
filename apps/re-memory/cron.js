@@ -1,7 +1,8 @@
 const cron = require('node-cron');
-const { getMemoriesDueToday, markSent } = require('./db');
-const { sendMemoryEmail } = require('./email');
+const { getMemoriesDueToday, markSent, createQuiz, getOrCreateQuizSettings } = require('./db');
+const { sendMemoryEmail, sendQuizEmail } = require('./email');
 const { createBackup, hasDbChangedSinceLastBackup } = require('./backup');
+const { generateQuizQuestions } = require('./quiz-ai');
 
 // ─── Daily email job: 06:50 Madrid time ──────────────────────────────────────
 
@@ -27,12 +28,42 @@ function startCron() {
 
       for (const memory of batch) {
         try {
-          // Each memory is emailed to its own owner.
-          await sendMemoryEmail(memory, memory.owner_email);
-          markSent(memory.id, memory.frequency);
-          console.log(`[cron] ✓ Memory #${memory.id} sent to ${memory.owner_email} and updated`);
+          // Get user's quiz settings
+          const settings = getOrCreateQuizSettings(memory.user_id);
+
+          // Check if quizzes are enabled for this user
+          if (!settings.enabled) {
+            console.log(`[cron] Quizzes disabled for user ${memory.user_id}, skipping`);
+            // Fall back to regular email
+            await sendMemoryEmail(memory, memory.owner_email);
+            markSent(memory.id, memory.frequency);
+            continue;
+          }
+
+          // Generate quiz with user's settings
+          const quiz = createQuiz(memory.id, memory.user_id);
+
+          try {
+            await generateQuizQuestions(
+              quiz.id,
+              memory.description,
+              memory.topic,
+              settings.difficulty_level,
+              settings.questions_per_quiz
+            );
+            // Send quiz email
+            await sendQuizEmail(memory, memory.owner_email, quiz.token);
+            markSent(memory.id, memory.frequency);
+            console.log(`[cron] ✓ Quiz generated (${settings.difficulty_level}/${settings.questions_per_quiz}Q) and sent for Memory #${memory.id} to ${memory.owner_email}`);
+          } catch (quizError) {
+            console.error(`[cron] ✗ Failed to generate quiz for memory #${memory.id}:`, quizError.message);
+            // Fall back to regular email if quiz generation fails
+            await sendMemoryEmail(memory, memory.owner_email);
+            markSent(memory.id, memory.frequency);
+            console.log(`[cron] ⚠ Fallback: sent regular email for Memory #${memory.id}`);
+          }
         } catch (err) {
-          console.error(`[cron] ✗ Failed to send memory #${memory.id}:`, err.message);
+          console.error(`[cron] ✗ Failed to process memory #${memory.id}:`, err.message);
         }
       }
       if (due.length > batch.length) {

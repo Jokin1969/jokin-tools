@@ -1,0 +1,415 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Cuestionario - Re-memory</title>
+  <link rel="icon" type="image/svg+xml" href="/public/favicon-jk.svg" />
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet" />
+  <style>
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+
+    :root {
+      --primary: #1B6CB0;
+      --success: #4caf50;
+      --danger: #d32f2f;
+      --warning: #ff9800;
+      --bg: #f5f5f5;
+      --surface: #ffffff;
+      --text: #333;
+      --text-light: #666;
+      --border: #ddd;
+    }
+
+    body {
+      font-family: 'Inter', sans-serif;
+      background: var(--bg);
+      color: var(--text);
+      line-height: 1.6;
+    }
+
+    .quiz-container {
+      max-width: 800px;
+      margin: 0 auto;
+      padding: 20px;
+      min-height: 100vh;
+    }
+
+    .quiz-header {
+      background: var(--surface);
+      border-radius: 8px;
+      padding: 30px;
+      margin-bottom: 30px;
+      box-shadow: 0 2px 8px rgba(0,0,0,0.1);
+      text-align: center;
+    }
+
+    .quiz-header h1 {
+      font-size: 28px;
+      margin-bottom: 10px;
+      color: var(--primary);
+    }
+
+    .quiz-header p {
+      color: var(--text-light);
+      font-size: 14px;
+    }
+
+    .quiz-progress {
+      display: flex;
+      align-items: center;
+      gap: 15px;
+      margin-top: 20px;
+    }
+
+    .progress-bar {
+      flex: 1;
+      height: 6px;
+      background: var(--border);
+      border-radius: 3px;
+      overflow: hidden;
+    }
+
+    .progress-fill {
+      height: 100%;
+      background: var(--primary);
+      transition: width 0.3s ease;
+    }
+
+    .progress-text {
+      font-size: 12px;
+      color: var(--text-light);
+      font-weight: 600;
+    }
+
+    .quiz-content {
+      display: none;
+    }
+
+    .quiz-content.active {
+      display: block;
+      animation: fadeIn 0.3s ease-in;
+    }
+
+    @keyframes fadeIn {
+      from { opacity: 0; }
+      to { opacity: 1; }
+    }
+
+    .question-card {
+      background: var(--surface);
+      border-radius: 8px;
+      padding: 30px;
+      margin-bottom: 30px;
+      box-shadow: 0 2px 8px rgba(0,0,0,0.1);
+    }
+
+    .question-number {
+      display: inline-block;
+      background: var(--primary);
+      color: white;
+      padding: 4px 12px;
+      border-radius: 20px;
+      font-size: 12px;
+      font-weight: 600;
+      margin-bottom: 15px;
+    }
+
+    .question-text {
+      font-size: 18px;
+      font-weight: 600;
+      margin-bottom: 25px;
+      color: var(--text);
+    }
+
+    .options-group {
+      display: flex;
+      flex-direction: column;
+      gap: 12px;
+    }
+
+    .option-btn {
+      display: flex;
+      align-items: center;
+      gap: 15px;
+      padding: 15px 20px;
+      border: 2px solid var(--border);
+      background: white;
+      border-radius: 6px;
+      cursor: pointer;
+      transition: all 0.2s ease;
+      font-size: 15px;
+    }
+
+    .option-btn:hover {
+      border-color: var(--primary);
+      background: #f9f9f9;
+    }
+
+    .option-btn.selected {
+      border-color: var(--primary);
+      background: #e3f2fd;
+    }
+
+    .option-btn.correct {
+      border-color: var(--success);
+      background: #e8f5e9;
+    }
+
+    .option-btn.incorrect {
+      border-color: var(--danger);
+      background: #ffebee;
+    }
+
+    .option-radio {
+      width: 20px;
+      height: 20px;
+      border: 2px solid var(--border);
+      border-radius: 50%;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      flex-shrink: 0;
+    }
+
+    .option-btn.selected .option-radio {
+      border-color: var(--primary);
+      background: var(--primary);
+    }
+
+    .option-btn.selected .option-radio::after {
+      content: '✓';
+      color: white;
+      font-weight: bold;
+      font-size: 12px;
+    }
+
+    .nav-buttons {
+      display: flex;
+      gap: 15px;
+      justify-content: space-between;
+      margin-top: 30px;
+    }
+
+    .btn {
+      padding: 12px 30px;
+      border: none;
+      border-radius: 6px;
+      font-weight: 600;
+      cursor: pointer;
+      transition: all 0.2s ease;
+      font-size: 14px;
+    }
+
+    .btn-primary {
+      background: var(--primary);
+      color: white;
+    }
+
+    .btn-primary:hover {
+      background: #154a7d;
+    }
+
+    .btn-primary:disabled {
+      opacity: 0.5;
+      cursor: not-allowed;
+    }
+
+    .btn-secondary {
+      background: var(--border);
+      color: var(--text);
+    }
+
+    .btn-secondary:hover {
+      background: #ccc;
+    }
+
+    /* Results screen */
+    .results-screen {
+      display: none;
+      text-align: center;
+    }
+
+    .results-screen.active {
+      display: block;
+    }
+
+    .score-display {
+      background: var(--surface);
+      border-radius: 8px;
+      padding: 50px 30px;
+      margin-bottom: 30px;
+      box-shadow: 0 2px 8px rgba(0,0,0,0.1);
+    }
+
+    .score-circle {
+      width: 150px;
+      height: 150px;
+      border-radius: 50%;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      margin: 0 auto 20px;
+      font-size: 48px;
+      font-weight: 800;
+      color: white;
+    }
+
+    .score-circle.excellent {
+      background: var(--success);
+    }
+
+    .score-circle.good {
+      background: var(--primary);
+    }
+
+    .score-circle.poor {
+      background: var(--warning);
+    }
+
+    .score-circle.fail {
+      background: var(--danger);
+    }
+
+    .score-message {
+      font-size: 24px;
+      font-weight: 700;
+      margin-bottom: 10px;
+    }
+
+    .score-feedback {
+      color: var(--text-light);
+      font-size: 16px;
+    }
+
+    .feedback-item {
+      background: var(--surface);
+      border-radius: 8px;
+      padding: 20px;
+      margin-bottom: 15px;
+      box-shadow: 0 2px 8px rgba(0,0,0,0.1);
+      border-left: 4px solid var(--border);
+    }
+
+    .feedback-item.incorrect {
+      border-left-color: var(--danger);
+    }
+
+    .feedback-item.correct {
+      border-left-color: var(--success);
+    }
+
+    .feedback-question {
+      font-weight: 600;
+      margin-bottom: 10px;
+      text-align: left;
+    }
+
+    .feedback-answer {
+      text-align: left;
+      font-size: 14px;
+      margin-bottom: 8px;
+    }
+
+    .feedback-label {
+      font-weight: 500;
+      color: var(--primary);
+      display: block;
+      margin-bottom: 4px;
+    }
+
+    .feedback-explanation {
+      text-align: left;
+      font-size: 14px;
+      color: var(--text-light);
+      padding: 12px;
+      background: #f9f9f9;
+      border-radius: 4px;
+      margin-top: 10px;
+    }
+
+    .loading {
+      text-align: center;
+      padding: 50px;
+      font-size: 16px;
+      color: var(--text-light);
+    }
+
+    .spinner {
+      display: inline-block;
+      width: 20px;
+      height: 20px;
+      border: 3px solid var(--border);
+      border-top-color: var(--primary);
+      border-radius: 50%;
+      animation: spin 0.8s linear infinite;
+      margin-right: 10px;
+    }
+
+    @keyframes spin {
+      to { transform: rotate(360deg); }
+    }
+
+    .error {
+      background: #ffebee;
+      border: 1px solid var(--danger);
+      border-radius: 8px;
+      padding: 20px;
+      color: var(--danger);
+      margin-bottom: 20px;
+      text-align: center;
+    }
+  </style>
+</head>
+<body>
+
+<div class="quiz-container">
+  <!-- Loading state -->
+  <div class="loading" id="loading-state">
+    <div class="spinner"></div>
+    Cargando cuestionario...
+  </div>
+
+  <!-- Error state -->
+  <div class="error" id="error-state" style="display: none;"></div>
+
+  <!-- Quiz header -->
+  <div class="quiz-header" id="quiz-header" style="display: none;">
+    <h1 id="quiz-topic">Cuestionario</h1>
+    <p id="quiz-subtitle">Responde las 10 preguntas para evaluar tu conocimiento</p>
+    <div class="quiz-progress">
+      <div class="progress-bar">
+        <div class="progress-fill" id="progress-bar" style="width: 0%"></div>
+      </div>
+      <div class="progress-text"><span id="current-question">1</span> / 10</div>
+    </div>
+  </div>
+
+  <!-- Quiz questions -->
+  <div id="quiz-questions"></div>
+
+  <!-- Navigation -->
+  <div class="nav-buttons" id="nav-buttons" style="display: none;">
+    <button class="btn btn-secondary" id="btn-prev" disabled>← Anterior</button>
+    <button class="btn btn-primary" id="btn-next" disabled>Siguiente →</button>
+  </div>
+
+  <!-- Results screen -->
+  <div class="results-screen" id="results-screen">
+    <div class="score-display">
+      <div class="score-circle" id="score-circle"></div>
+      <div class="score-message" id="score-message"></div>
+      <div class="score-feedback" id="score-feedback"></div>
+    </div>
+
+    <div id="feedback-items"></div>
+
+    <button class="btn btn-primary" onclick="window.close()" style="margin-top: 20px;">Cerrar</button>
+  </div>
+</div>
+
+<script src="/re-memory/quiz.js"></script>
+</body>
+</html>

@@ -1,8 +1,9 @@
 const Database = require('better-sqlite3');
 const path = require('path');
 
-const dbPath = process.env.DB_PATH || '/data';
-const db = new Database(path.join(path.dirname(dbPath), 'reivindicaciones.db'));
+const dataDir = process.env.DB_PATH || '/data';
+const dbPath = path.join(dataDir, 'reivindicaciones.db');
+const db = new Database(dbPath);
 
 db.exec(`
   CREATE TABLE IF NOT EXISTS reivindicaciones (
@@ -202,12 +203,20 @@ function verifyAccessToken(token) {
 
 function getReivindicacionPublico(reivindicacionId) {
   const stmt = db.prepare(`
-    SELECT id, titulo, descripcion, estado, fecha_inicio, fecha_fin, objetivo_firmas,
+    SELECT id, titulo, descripcion, contenido, estado, fecha_inicio, fecha_fin, objetivo_firmas,
            (SELECT COUNT(*) FROM firmas WHERE reivindicacion_id = ?) as contador_firmas
     FROM reivindicaciones
     WHERE id = ?
   `);
-  return stmt.get(reivindicacionId, reivindicacionId);
+  const row = stmt.get(reivindicacionId, reivindicacionId);
+  if (row && typeof row.contenido === 'string') {
+    try {
+      row.contenido = JSON.parse(row.contenido);
+    } catch (e) {
+      row.contenido = [];
+    }
+  }
+  return row;
 }
 
 // Votaciones
@@ -258,6 +267,7 @@ function getResultadosVotacion(votacionId) {
 }
 
 module.exports = {
+  db, // Exportar instancia de BD para acceso directo si es necesario
   createReivindicacion,
   getReivindicaciones,
   getReivindicacionById,

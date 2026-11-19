@@ -299,8 +299,98 @@ async function sendMemoryEmail(memory, toEmail) {
   return info;
 }
 
+// Send quiz email with link to interactive quiz
+async function sendQuizEmail(memory, toEmail, quizToken) {
+  const recipient = toEmail || process.env.EMAIL_TO;
+  if (!recipient) throw new Error('No recipient: el usuario no tiene email y EMAIL_TO no está definido');
+
+  const baseUrl = getBaseUrl();
+  const quizUrl = `${baseUrl}/re-memory/quiz?token=${quizToken}`;
+
+  const html = `
+    <!DOCTYPE html>
+    <html lang="es">
+    <head>
+      <meta charset="UTF-8">
+      <style>
+        body { font-family: 'Segoe UI', sans-serif; background: #f5f5f5; margin: 0; padding: 20px; }
+        .container { max-width: 600px; margin: 0 auto; background: white; border-radius: 8px; box-shadow: 0 2px 8px rgba(0,0,0,0.1); padding: 30px; }
+        h2 { color: #1B6CB0; margin-top: 0; }
+        p { color: #666; line-height: 1.6; }
+        .quiz-box { background: #e3f2fd; border-left: 4px solid #1B6CB0; padding: 20px; margin: 20px 0; border-radius: 4px; }
+        .quiz-box h3 { color: #1B6CB0; margin-top: 0; }
+        .quiz-box p { margin: 10px 0; }
+        .btn { display: inline-block; background: #1B6CB0; color: white; padding: 12px 30px; text-decoration: none; border-radius: 4px; font-weight: bold; margin: 20px 0; }
+        .btn:hover { background: #154a7d; }
+        .footer { text-align: center; color: #999; font-size: 12px; margin-top: 30px; padding-top: 20px; border-top: 1px solid #eee; }
+        .topic { color: #1B6CB0; font-weight: bold; }
+      </style>
+    </head>
+    <body>
+      <div class="container">
+        <h2>¿Recuerdas esto? 📚</h2>
+
+        <p>Hola,</p>
+
+        <p>Es hora de repasar tu memoria sobre: <span class="topic">${escapeHtml(memory.topic)}</span></p>
+
+        <p>Para ayudarte a repasar y consolidar lo que aprendiste, hemos generado un cuestionario personalizado con <strong>10 preguntas</strong> basadas en tu información:</p>
+
+        <div class="quiz-box">
+          <h3>📝 Cuestionario interactivo</h3>
+          <p><strong>${escapeHtml(memory.description.substring(0, 150))}${memory.description.length > 150 ? '…' : ''}</strong></p>
+          <p>El cuestionario incluye:</p>
+          <ul>
+            <li>10 preguntas con 4 opciones cada una</li>
+            <li>Evaluación automática con tu puntuación</li>
+            <li>Explicaciones detalladas de las respuestas correctas</li>
+          </ul>
+          <a href="${quizUrl}" class="btn">Comenzar cuestionario</a>
+        </div>
+
+        <p>Este cuestionario está personalizado para ti y solo es accesible con este enlace.</p>
+
+        <p>¿Necesitas ayuda? Simplemente haz clic en el botón de arriba para comenzar.</p>
+
+        <p>¡Buena suerte! 🎯</p>
+
+        <div class="footer">
+          <p>Re-memory: Tu asistente de aprendizaje personalizado</p>
+          <p><a href="${baseUrl}/re-memory" style="color: #1B6CB0; text-decoration: none;">Volver a Re-memory</a></p>
+        </div>
+      </div>
+    </body>
+    </html>
+  `;
+
+  const transporter = createTransporter();
+  const subject = `[Re-memory] Cuestionario: ${memory.topic}`;
+
+  const info = await transporter.sendMail({
+    from: process.env.EMAIL_FROM || '"Re-memory" <noreply@example.com>',
+    to: recipient,
+    subject,
+    html
+  });
+
+  console.log(`[email] Sent quiz email for memory #${memory.id} → ${info.messageId}`);
+  return info;
+}
+
+function escapeHtml(text) {
+  const map = {
+    '&': '&amp;',
+    '<': '&lt;',
+    '>': '&gt;',
+    '"': '&quot;',
+    "'": '&#039;'
+  };
+  return String(text).replace(/[&<>"']/g, m => map[m]);
+}
+
 module.exports = {
   sendMemoryEmail,
+  sendQuizEmail,
   generateDeactivationToken,
   isDeactivationSecretConfigured,
   getBadgeColor,
