@@ -1,0 +1,266 @@
+:root {
+  --primary: #1B6CB0;
+  --secondary: #0097B2;
+  --accent: #009B8D;
+  --light: #F5F7FA;
+  --border: #E0E7EF;
+  --text: #1F2937;
+  --text-light: #6B7280;
+}
+
+@media (prefers-color-scheme: dark) {
+  :root {
+    --light: #1A1F2E;
+    --border: #2D3748;
+    --text: #F3F4F6;
+    --text-light: #9CA3AF;
+  }
+}
+
+* {
+  margin: 0;
+  padding: 0;
+  box-sizing: border-box;
+}
+
+body {
+  font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+  color: var(--text);
+  background: var(--light);
+  line-height: 1.6;
+}
+
+.sign-header {
+  padding: 24px 20px;
+  border-bottom: 1px solid var(--border);
+  background: var(--light);
+  position: sticky;
+  top: 56px;
+  z-index: 10;
+}
+
+.sign-header-in {
+  max-width: 1200px;
+  margin: 0 auto;
+  display: flex;
+  align-items: center;
+  gap: 20px;
+}
+
+.sign-logo {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  text-decoration: none;
+  color: var(--text);
+  transition: opacity 0.2s;
+}
+
+.sign-logo:hover {
+  opacity: 0.8;
+}
+
+.sign-logo svg {
+  width: 40px;
+  height: 40px;
+  color: var(--primary);
+  flex-shrink: 0;
+}
+
+.sign-logo-txt {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.sign-logo-txt .t {
+  font-weight: 600;
+  font-size: 16px;
+  color: var(--text);
+}
+
+.sign-logo-txt .s {
+  font-size: 12px;
+  color: var(--text-light);
+}
+
+.sign-main {
+  max-width: 1200px;
+  margin: 0 auto;
+  padding: 40px 20px;
+}
+
+.sign-container {
+  display: flex;
+  flex-direction: column;
+  gap: 30px;
+}
+
+.sign-canvas-wrapper {
+  display: flex;
+  justify-content: center;
+  gap: 20px;
+}
+
+.sign-canvas-frame {
+  position: relative;
+  border: 2px solid var(--border);
+  border-radius: 8px;
+  background: white;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
+  overflow: hidden;
+  flex-grow: 1;
+  max-width: 900px;
+}
+
+@media (prefers-color-scheme: dark) {
+  .sign-canvas-frame {
+    background: #0F1419;
+  }
+}
+
+#signatureCanvas {
+  display: block;
+  cursor: crosshair;
+  touch-action: none;
+  width: 100%;
+  height: auto;
+  aspect-ratio: 2 / 1;
+}
+
+.sign-canvas-hint {
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%);
+  color: var(--text-light);
+  font-size: 14px;
+  opacity: 0.5;
+  pointer-events: none;
+  white-space: nowrap;
+}
+
+.sign-controls {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+  align-items: center;
+  flex-wrap: wrap;
+}
+
+.sign-control-group {
+  display: flex;
+  gap: 10px;
+  flex-wrap: wrap;
+  justify-content: center;
+}
+
+.sign-btn {
+  padding: 10px 16px;
+  border: none;
+  border-radius: 6px;
+  font-size: 14px;
+  font-weight: 500;
+  cursor: pointer;
+  transition: all 0.2s;
+  font-family: 'Inter', sans-serif;
+  white-space: nowrap;
+}
+
+.sign-btn-primary {
+  background: var(--primary);
+  color: white;
+}
+
+.sign-btn-primary:hover:not(:disabled) {
+  background: #154B8B;
+  transform: translateY(-1px);
+  box-shadow: 0 4px 8px rgba(27, 108, 176, 0.2);
+}
+
+.sign-btn-primary:active:not(:disabled) {
+  transform: translateY(0);
+}
+
+.sign-btn-secondary {
+  background: var(--light);
+  color: var(--text);
+  border: 1px solid var(--border);
+}
+
+.sign-btn-secondary:hover:not(:disabled) {
+  background: var(--border);
+  transform: translateY(-1px);
+}
+
+.sign-btn-secondary:active:not(:disabled) {
+  transform: translateY(0);
+}
+
+.sign-btn:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+.sign-feedback {
+  position: fixed;
+  bottom: 20px;
+  right: 20px;
+  background: var(--accent);
+  color: white;
+  padding: 12px 20px;
+  border-radius: 6px;
+  font-size: 14px;
+  animation: slideIn 0.3s ease;
+  box-shadow: 0 4px 12px rgba(0, 155, 141, 0.3);
+}
+
+.sign-feedback[hidden] {
+  display: none;
+}
+
+@keyframes slideIn {
+  from {
+    opacity: 0;
+    transform: translateY(10px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+/* Responsive */
+@media (max-width: 768px) {
+  .sign-main {
+    padding: 20px 16px;
+  }
+
+  .sign-container {
+    gap: 20px;
+  }
+
+  .sign-header {
+    padding: 16px 16px;
+  }
+
+  #signatureCanvas {
+    aspect-ratio: auto;
+    max-height: 300px;
+  }
+
+  .sign-btn {
+    padding: 8px 12px;
+    font-size: 13px;
+  }
+
+  .sign-control-group {
+    gap: 8px;
+  }
+
+  .sign-feedback {
+    bottom: 16px;
+    right: 16px;
+    left: 16px;
+  }
+}

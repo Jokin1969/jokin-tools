@@ -174,6 +174,18 @@ const APPS = [
       <circle cx="36" cy="40" r="3" fill="#009B8D"/>
     </svg>`,
   },
+  {
+    id: 'sign',
+    name: 'Firma Digital',
+    path: '/sign',
+    desc: 'Dibuja tu firma en la pantalla. Copia al portapapeles o descarga en PNG, PDF o SVG. Sin persistencia, cada firma es única y desaparece.',
+    tags: ['Firma', 'Canvas', 'Sin guardar'],
+    icon: `<svg viewBox="0 0 64 64" fill="none" xmlns="http://www.w3.org/2000/svg" class="card-icon" aria-hidden="true">
+      <path d="M12 48c8-8 16-16 24-24s12-8 16-4c2 2 0 10-4 16-4 6-12 12-20 16" stroke="#1B6CB0" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"/>
+      <circle cx="52" cy="12" r="3" fill="#1B6CB0"/>
+      <path d="M48 16l8-8M42 10l16-16" stroke="#00B8D4" stroke-width="1.5" stroke-linecap="round" opacity="0.6"/>
+    </svg>`,
+  },
 ];
 
 const APP_IDS = APPS.map(a => a.id);
