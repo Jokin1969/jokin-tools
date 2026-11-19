@@ -47,20 +47,17 @@ function redrawCanvas() {
 function getCoordinates(e) {
   const rect = canvas.getBoundingClientRect();
 
-  // Escalar correctamente considerando que canvas.width puede diferir de rect.width
-  const scaleX = canvas.width / rect.width;
-  const scaleY = canvas.height / rect.height;
-
+  // ctx.scale(dpr, dpr) ya maneja la conversión. Pasar coordenadas CSS directas.
   if (e.touches) {
     const touch = e.touches[0];
     return {
-      x: (touch.clientX - rect.left) * scaleX,
-      y: (touch.clientY - rect.top) * scaleY
+      x: touch.clientX - rect.left,
+      y: touch.clientY - rect.top
     };
   } else {
     return {
-      x: (e.clientX - rect.left) * scaleX,
-      y: (e.clientY - rect.top) * scaleY
+      x: e.clientX - rect.left,
+      y: e.clientY - rect.top
     };
   }
 }
