@@ -1,0 +1,333 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Debug Re-memory - Emails</title>
+  <style>
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+      background: #f5f7fa;
+      padding: 20px;
+      color: #1f2937;
+    }
+    .container { max-width: 1200px; margin: 0 auto; }
+    h1 { margin-bottom: 30px; color: #0f172a; }
+    .panel {
+      background: white;
+      border-radius: 8px;
+      padding: 20px;
+      margin-bottom: 20px;
+      box-shadow: 0 1px 3px rgba(0,0,0,0.1);
+    }
+    .panel h2 {
+      font-size: 18px;
+      margin-bottom: 15px;
+      color: #0f172a;
+      border-bottom: 2px solid #1B6CB0;
+      padding-bottom: 10px;
+    }
+    .status-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+      gap: 15px;
+      margin-bottom: 20px;
+    }
+    .status-card {
+      background: #f9fafb;
+      border: 1px solid #e5e7eb;
+      border-radius: 6px;
+      padding: 15px;
+    }
+    .status-label {
+      font-size: 12px;
+      color: #6b7280;
+      text-transform: uppercase;
+      margin-bottom: 5px;
+    }
+    .status-value {
+      font-size: 18px;
+      font-weight: bold;
+      color: #1f2937;
+    }
+    .status-value.warning { color: #d97706; }
+    .status-value.error { color: #dc2626; }
+    .status-value.success { color: #059669; }
+
+    .buttons {
+      display: flex;
+      gap: 10px;
+      flex-wrap: wrap;
+      margin-bottom: 20px;
+    }
+    button {
+      padding: 10px 16px;
+      border: none;
+      border-radius: 6px;
+      font-size: 14px;
+      font-weight: 500;
+      cursor: pointer;
+      transition: all 0.2s;
+    }
+    button.primary {
+      background: #1B6CB0;
+      color: white;
+    }
+    button.primary:hover { background: #154B8B; }
+    button.secondary {
+      background: #e5e7eb;
+      color: #1f2937;
+    }
+    button.secondary:hover { background: #d1d5db; }
+    button:disabled { opacity: 0.5; cursor: not-allowed; }
+
+    .output {
+      background: #111827;
+      color: #d1d5db;
+      padding: 15px;
+      border-radius: 6px;
+      font-family: 'Monaco', 'Courier New', monospace;
+      font-size: 12px;
+      max-height: 400px;
+      overflow-y: auto;
+      margin-bottom: 15px;
+      white-space: pre-wrap;
+      word-break: break-word;
+    }
+    .output.error { color: #fca5a5; }
+    .output.success { color: #86efac; }
+
+    .memory-list {
+      list-style: none;
+      border: 1px solid #e5e7eb;
+      border-radius: 6px;
+      overflow: hidden;
+    }
+    .memory-list li {
+      padding: 15px;
+      border-bottom: 1px solid #e5e7eb;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+    }
+    .memory-list li:last-child { border-bottom: none; }
+    .memory-info { flex: 1; }
+    .memory-topic {
+      font-weight: 600;
+      color: #0f172a;
+      margin-bottom: 5px;
+    }
+    .memory-meta {
+      font-size: 12px;
+      color: #6b7280;
+    }
+    .badge {
+      display: inline-block;
+      padding: 4px 8px;
+      border-radius: 4px;
+      font-size: 11px;
+      font-weight: 600;
+      margin-left: 10px;
+    }
+    .badge.quiz { background: #dbeafe; color: #0c4a6e; }
+    .badge.email { background: #fecaca; color: #7c2d12; }
+
+    .loading { opacity: 0.6; }
+    .success-msg { color: #059669; padding: 10px; background: #f0fdf4; border-radius: 4px; margin-bottom: 10px; }
+    .error-msg { color: #dc2626; padding: 10px; background: #fef2f2; border-radius: 4px; margin-bottom: 10px; }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <h1>🔧 Debug Re-memory - Sistema de Emails</h1>
+
+    <!-- Estado del Cron -->
+    <div class="panel">
+      <h2>📊 Estado del Sistema de Emails</h2>
+      <div class="buttons">
+        <button class="primary" onclick="checkStatus()">🔄 Verificar Estado</button>
+        <button class="secondary" onclick="checkMemoriesDue()">📋 Ver Memorias Debido</button>
+      </div>
+
+      <div id="status-output"></div>
+      <div id="status-grid" class="status-grid"></div>
+    </div>
+
+    <!-- Test de Envío -->
+    <div class="panel">
+      <h2>✉️ Test de Envío</h2>
+      <p style="margin-bottom: 15px; color: #6b7280;">Envía un email de prueba con la próxima memoria que está debido.</p>
+      <div class="buttons">
+        <button class="primary" onclick="sendTestEmail()">📤 Enviar Email de Test</button>
+        <button class="secondary" onclick="clearOutput()">🗑️ Limpiar Salida</button>
+      </div>
+      <div id="test-output"></div>
+    </div>
+
+    <!-- Memorias Debido -->
+    <div class="panel">
+      <h2>📬 Memorias que Deberían Haberse Enviado</h2>
+      <div id="memories-output" style="text-align: center; color: #6b7280;">
+        <p>Haz clic en "Verificar Estado" para ver las memorias</p>
+      </div>
+    </div>
+  </div>
+
+  <script>
+    async function apiCall(endpoint, method = 'GET', body = null) {
+      const opts = { method, headers: { 'Content-Type': 'application/json' } };
+      if (body) opts.body = JSON.stringify(body);
+
+      const res = await fetch(`/re-memory${endpoint}`, opts);
+      if (!res.ok) throw new Error(`Error ${res.status}: ${await res.text()}`);
+      return res.json();
+    }
+
+    async function checkStatus() {
+      const output = document.getElementById('status-output');
+      output.innerHTML = '<p style="color: #6b7280;">Cargando...</p>';
+
+      try {
+        const data = await apiCall('/api/debug/cron-status');
+
+        // Grid de estado
+        const grid = document.getElementById('status-grid');
+        grid.innerHTML = `
+          <div class="status-card">
+            <div class="status-label">Memorias Debido Ahora</div>
+            <div class="status-value ${data.cron_status.memorias_debido_ahora > 0 ? 'success' : 'warning'}">
+              ${data.cron_status.memorias_debido_ahora}
+            </div>
+          </div>
+          <div class="status-card">
+            <div class="status-label">SMTP User</div>
+            <div class="status-value ${data.cron_status.smtp_user.includes('✓') ? 'success' : 'error'}">
+              ${data.cron_status.smtp_user}
+            </div>
+          </div>
+          <div class="status-card">
+            <div class="status-label">SMTP Pass</div>
+            <div class="status-value ${data.cron_status.smtp_pass.includes('✓') ? 'success' : 'error'}">
+              ${data.cron_status.smtp_pass}
+            </div>
+          </div>
+          <div class="status-card">
+            <div class="status-label">BASE_URL</div>
+            <div class="status-value ${data.cron_status.base_url.includes('no') ? 'warning' : 'success'}">
+              ${data.cron_status.base_url.includes('no') ? '⚠️' : '✓'}
+            </div>
+          </div>
+        `;
+
+        // Detalles
+        output.innerHTML = `<div class="success-msg">✓ Estado verificado a las ${new Date().toLocaleTimeString()}</div>`;
+
+        if (data.memoria_debido.length > 0) {
+          output.innerHTML += '<p style="margin-top: 10px;"><strong>Memorias debido:</strong></p>';
+          const list = document.createElement('ul');
+          list.className = 'memory-list';
+          data.memoria_debido.forEach(m => {
+            const li = document.createElement('li');
+            li.innerHTML = `
+              <div class="memory-info">
+                <div class="memory-topic">${m.topic}</div>
+                <div class="memory-meta">ID: ${m.id} | Frecuencia: ${m.frequency} | Email: ${m.owner_email}</div>
+                <div class="memory-meta">Próximo envío: ${m.next_send_date}</div>
+              </div>
+            `;
+            list.appendChild(li);
+          });
+          output.appendChild(list);
+        } else {
+          output.innerHTML += '<p style="margin-top: 10px; color: #6b7280;">No hay memorias debido en este momento.</p>';
+        }
+      } catch (err) {
+        output.innerHTML = `<div class="error-msg">❌ Error: ${err.message}</div>`;
+      }
+    }
+
+    async function checkMemoriesDue() {
+      const output = document.getElementById('memories-output');
+      output.innerHTML = '<p style="color: #6b7280;">Cargando...</p>';
+
+      try {
+        const data = await apiCall('/api/debug/memories-due');
+
+        if (data.count === 0) {
+          output.innerHTML = '<p style="color: #6b7280; padding: 20px;">✓ No hay memorias pendientes. ¡Perfecto!</p>';
+          return;
+        }
+
+        output.innerHTML = `<p><strong>${data.count} memorias pendientes:</strong></p>`;
+        const list = document.createElement('ul');
+        list.className = 'memory-list';
+
+        data.memories.forEach(m => {
+          const li = document.createElement('li');
+          li.innerHTML = `
+            <div class="memory-info">
+              <div class="memory-topic">${m.topic}</div>
+              <div class="memory-meta">
+                ID: ${m.id} | Email: ${m.owner_email}<br>
+                Frecuencia: ${m.frequency} | Recordadas: ${m.times_recalled} veces<br>
+                Próximo envío: ${m.next_send_date}
+              </div>
+            </div>
+          `;
+          list.appendChild(li);
+        });
+        output.appendChild(list);
+      } catch (err) {
+        output.innerHTML = `<div class="error-msg">❌ Error: ${err.message}</div>`;
+      }
+    }
+
+    async function sendTestEmail() {
+      const output = document.getElementById('test-output');
+      const btn = event.target;
+      btn.disabled = true;
+      btn.textContent = '⏳ Enviando...';
+
+      output.innerHTML = '<p style="color: #6b7280;">Procesando...</p>';
+
+      try {
+        const data = await apiCall('/api/debug/send-test', 'POST');
+
+        if (data.success) {
+          output.innerHTML = `
+            <div class="success-msg">
+              ✅ Email enviado correctamente!<br><br>
+              <strong>Detalles:</strong><br>
+              Tema: ${data.memory_sent.topic}<br>
+              Para: ${data.memory_sent.to}<br>
+              Tipo: ${data.memory_sent.type === 'quiz' ? '📝 Quiz' : '📧 Email Regular'}<br><br>
+              Total pendiente: ${data.total_due}
+            </div>
+          `;
+        } else {
+          output.innerHTML = `
+            <div class="error-msg">
+              ❌ Error al enviar email<br><br>
+              <strong>Motivo:</strong><br>
+              ${data.error || data.message}
+            </div>
+          `;
+        }
+      } catch (err) {
+        output.innerHTML = `<div class="error-msg">❌ Error: ${err.message}</div>`;
+      } finally {
+        btn.disabled = false;
+        btn.textContent = '📤 Enviar Email de Test';
+      }
+    }
+
+    function clearOutput() {
+      document.getElementById('test-output').innerHTML = '';
+    }
+
+    // Cargar estado al abrir
+    window.addEventListener('load', checkStatus);
+  </script>
+</body>
+</html>

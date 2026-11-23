@@ -868,4 +868,140 @@ router.get('/api/quiz/history', requireAdmin, (req, res) => {
   }
 });
 
+// ─── DEBUG ENDPOINTS ──────────────────────────────────────────────────────────
+// GET /api/debug/cron-status - Ver estado del cron y logs
+router.get('/api/debug/cron-status', requireAdmin, (req, res) => {
+  try {
+    const { getMemoriesDueToday } = require('./db');
+    const due = getMemoriesDueToday();
+
+    const baseUrl = process.env.BASE_URL || 'no configurada';
+    const smtpUser = process.env.SMTP_USER ? '✓ configurado' : '✗ NO configurado';
+    const smtpPass = process.env.SMTP_PASS ? '✓ configurado' : '✗ NO configurado';
+
+    res.json({
+      timestamp: new Date().toISOString(),
+      cron_status: {
+        memorias_debido_ahora: due.length,
+        base_url: baseUrl,
+        smtp_user: smtpUser,
+        smtp_pass: smtpPass,
+        deactivation_secret: process.env.DEACTIVATION_SECRET ? '✓' : '✗'
+      },
+      memoria_debido: due.map(m => ({
+        id: m.id,
+        topic: m.topic,
+        frequency: m.frequency,
+        next_send_date: m.next_send_date,
+        owner_email: m.owner_email
+      }))
+    });
+  } catch (error) {
+    console.error('[debug] Error:', error);
+    res.status(500).json({ error: error.message });
+  }
+});
+
+// POST /api/debug/send-test - Disparar manualmente un envío de test
+router.post('/api/debug/send-test', requireAdmin, express.json(), async (req, res) => {
+  try {
+    const { getMemoriesDueToday } = require('./db');
+    const { sendMemoryEmail, sendQuizEmail } = require('./email');
+    const { createQuiz } = require('./db');
+    const { generateQuizQuestions } = require('./quiz-ai');
+    const { getOrCreateQuizSettings } = require('./db');
+
+    const due = getMemoriesDueToday();
+
+    if (due.length === 0) {
+      return res.json({
+        success: false,
+        message: 'No hay memorias debido para enviar en este momento',
+        due_count: 0
+      });
+    }
+
+    // Enviar la primera memoria de prueba
+    const memory = due[0];
+    let sent = false;
+    let error_msg = null;
+
+    try {
+      // Intentar envío como quiz si está habilitado
+      const settings = getOrCreateQuizSettings(memory.user_id);
+
+      if (settings.enabled) {
+        const quiz = createQuiz(memory.id, memory.user_id);
+        try {
+          await generateQuizQuestions(
+            quiz.id,
+            memory.description,
+            memory.topic,
+            settings.difficulty_level,
+            settings.questions_per_quiz
+          );
+          await sendQuizEmail(memory, memory.owner_email, quiz.token);
+          sent = true;
+        } catch (quizError) {
+          console.log('[debug] Quiz generation failed, falling back to regular email');
+          await sendMemoryEmail(memory, memory.owner_email);
+          sent = true;
+        }
+      } else {
+        await sendMemoryEmail(memory, memory.owner_email);
+        sent = true;
+      }
+    } catch (err) {
+      error_msg = err.message;
+      sent = false;
+    }
+
+    res.json({
+      success: sent,
+      message: sent ? '✓ Email enviado correctamente' : '✗ Error al enviar',
+      error: error_msg,
+      memory_sent: {
+        id: memory.id,
+        topic: memory.topic,
+        to: memory.owner_email,
+        type: settings?.enabled ? 'quiz' : 'regular'
+      },
+      total_due: due.length
+    });
+  } catch (error) {
+    console.error('[debug] send-test error:', error);
+    res.status(500).json({ error: error.message });
+  }
+});
+
+// GET /api/debug/memories-due - Ver todas las memorias que deberían haberse enviado
+router.get('/api/debug/memories-due', requireAdmin, (req, res) => {
+  try {
+    const { getMemoriesDueToday } = require('./db');
+    const due = getMemoriesDueToday();
+
+    res.json({
+      count: due.length,
+      memories: due.map(m => ({
+        id: m.id,
+        topic: m.topic,
+        description: m.description.substring(0, 100),
+        frequency: m.frequency,
+        next_send_date: m.next_send_date,
+        owner_email: m.owner_email,
+        times_recalled: m.times_recalled,
+        active: m.active
+      }))
+    });
+  } catch (error) {
+    console.error('[debug] Error:', error);
+    res.status(500).json({ error: error.message });
+  }
+});
+
+// GET /debug - Página de debug (acceso restringido a admin)
+router.get('/debug', requireAdmin, (req, res) => {
+  res.sendFile(path.join(__dirname, 'public', 'debug.html'));
+});
+
 module.exports = router;
