@@ -1,14 +1,80 @@
 const cron = require('node-cron');
-const { getMemoriesDueToday, markSent, createQuiz, getOrCreateQuizSettings } = require('./db');
-const { sendMemoryEmail, sendQuizEmail } = require('./email');
+const { getMemoriesDueToday, markSent, createQuiz, getOrCreateQuizSettings, logCronRun } = require('./db');
+const email = require('./email');
 const { createBackup, hasDbChangedSinceLastBackup } = require('./backup');
-const { generateQuizQuestions } = require('./quiz-ai');
-
-// ─── Daily email job: 06:50 Madrid time ──────────────────────────────────────
+const quizAi = require('./quiz-ai');
 
 // Guard against being started twice (e.g. a stray require) and expose the
 // scheduled tasks so the server can stop them on shutdown.
 let tasks = null;
+
+function maxPerRunFromEnv() {
+  return Math.max(1, parseInt(process.env.REMEMORY_MAX_PER_RUN || '2', 10));
+}
+
+// Cuestionario si el usuario los tiene activos; si cualquier paso del cuestionario
+// falla (base de datos, IA, lo que sea), el recordatorio normal. El cuestionario es
+// un extra: nunca puede impedir que el recordatorio salga.
+async function sendOne(memory, deps) {
+  let quizError = null;
+  try {
+    const settings = getOrCreateQuizSettings(memory.user_id);
+    if (settings.enabled) {
+      const quiz = createQuiz(memory.id, memory.user_id);
+      await deps.generateQuizQuestions(
+        quiz.id, memory.description, memory.topic, settings.difficulty_level, settings.questions_per_quiz
+      );
+      await deps.sendQuizEmail(memory, memory.owner_email, quiz.token);
+      return { type: 'quiz' };
+    }
+  } catch (err) {
+    quizError = err.message;
+    console.error(`[cron] Cuestionario fallido para la ficha #${memory.id}, se envía el recordatorio normal:`, err.message);
+  }
+  await deps.sendMemoryEmail(memory, memory.owner_email);
+  return quizError ? { type: 'email', quiz_error: quizError } : { type: 'email' };
+}
+
+// The send job itself. The schedule and the debug panel's "run now" button both call
+// THIS, so the button exercises exactly what the schedule does. `deps` is for tests.
+async function runSendJob({ maxPerRun = maxPerRunFromEnv(), trigger = 'cron', deps = {} } = {}) {
+  const d = {
+    sendMemoryEmail: email.sendMemoryEmail,
+    sendQuizEmail: email.sendQuizEmail,
+    generateQuizQuestions: quizAi.generateQuizQuestions,
+    ...deps,
+  };
+  const due = getMemoriesDueToday()
+    .sort((a, b) => String(a.next_send_date).localeCompare(String(b.next_send_date)));
+  const batch = due.slice(0, maxPerRun);
+  console.log(`[cron] ${trigger}: ${due.length} pendiente(s) · enviando ${batch.length} (máx ${maxPerRun})`);
+
+  const details = [];
+  for (const memory of batch) {
+    const entry = { id: memory.id, topic: memory.topic, to: memory.owner_email };
+    try {
+      Object.assign(entry, await sendOne(memory, d));
+      markSent(memory.id, memory.frequency);
+      entry.ok = true;
+      console.log(`[cron] ✓ Ficha #${memory.id} enviada (${entry.type}) a ${memory.owner_email}`);
+    } catch (err) {
+      entry.ok = false;
+      entry.error = err.message;
+      console.error(`[cron] ✗ Ficha #${memory.id} NO enviada:`, err.message);
+    }
+    details.push(entry);
+  }
+
+  const summary = {
+    trigger,
+    due: due.length,
+    sent: details.filter(x => x.ok).length,
+    failed: details.filter(x => !x.ok).length,
+    details,
+  };
+  try { logCronRun(summary); } catch (err) { console.error('[cron] No se pudo registrar la ejecución:', err.message); }
+  return summary;
+}
 
 function startCron() {
   if (tasks) return { stop: stopCron };
@@ -16,61 +82,14 @@ function startCron() {
   // Run at several times of day and send only a few per run, so a morning batch
   // of due reminders trickles out across the day instead of arriving all at once.
   const sendCron = process.env.REMEMORY_SEND_CRON || '50 6,10,14,18 * * *';
-  const maxPerRun = Math.max(1, parseInt(process.env.REMEMORY_MAX_PER_RUN || '2', 10));
+  const maxPerRun = maxPerRunFromEnv();
 
   tasks.push(cron.schedule(sendCron, async () => {
-    console.log('[cron] Running Re-memory send job…');
     try {
-      const due = getMemoriesDueToday()
-        .sort((a, b) => String(a.next_send_date).localeCompare(String(b.next_send_date)));
-      const batch = due.slice(0, maxPerRun);
-      console.log(`[cron] ${due.length} due · sending ${batch.length} (máx ${maxPerRun}/run)`);
-
-      for (const memory of batch) {
-        try {
-          // Get user's quiz settings
-          const settings = getOrCreateQuizSettings(memory.user_id);
-
-          // Check if quizzes are enabled for this user
-          if (!settings.enabled) {
-            console.log(`[cron] Quizzes disabled for user ${memory.user_id}, skipping`);
-            // Fall back to regular email
-            await sendMemoryEmail(memory, memory.owner_email);
-            markSent(memory.id, memory.frequency);
-            continue;
-          }
-
-          // Generate quiz with user's settings
-          const quiz = createQuiz(memory.id, memory.user_id);
-
-          try {
-            await generateQuizQuestions(
-              quiz.id,
-              memory.description,
-              memory.topic,
-              settings.difficulty_level,
-              settings.questions_per_quiz
-            );
-            // Send quiz email
-            await sendQuizEmail(memory, memory.owner_email, quiz.token);
-            markSent(memory.id, memory.frequency);
-            console.log(`[cron] ✓ Quiz generated (${settings.difficulty_level}/${settings.questions_per_quiz}Q) and sent for Memory #${memory.id} to ${memory.owner_email}`);
-          } catch (quizError) {
-            console.error(`[cron] ✗ Failed to generate quiz for memory #${memory.id}:`, quizError.message);
-            // Fall back to regular email if quiz generation fails
-            await sendMemoryEmail(memory, memory.owner_email);
-            markSent(memory.id, memory.frequency);
-            console.log(`[cron] ⚠ Fallback: sent regular email for Memory #${memory.id}`);
-          }
-        } catch (err) {
-          console.error(`[cron] ✗ Failed to process memory #${memory.id}:`, err.message);
-        }
-      }
-      if (due.length > batch.length) {
-        console.log(`[cron] ${due.length - batch.length} pendiente(s) para el siguiente turno (reparte los emails).`);
-      }
+      await runSendJob({ maxPerRun, trigger: 'cron' });
     } catch (err) {
       console.error('[cron] Fatal error in send job:', err);
+      try { logCronRun({ trigger: 'cron', due: 0, sent: 0, failed: 0, details: [{ ok: false, error: `Fallo general: ${err.message}` }] }); } catch { /* ignore */ }
     }
   }, { timezone: 'Europe/Madrid' }));
 
@@ -108,4 +127,4 @@ function stopCron() {
   tasks = null;
 }
 
-module.exports = { startCron, stopCron };
+module.exports = { startCron, stopCron, runSendJob };

@@ -868,138 +868,53 @@ router.get('/api/quiz/history', requireAdmin, (req, res) => {
   }
 });
 
-// ─── DEBUG ENDPOINTS ──────────────────────────────────────────────────────────
-// GET /api/debug/cron-status - Ver estado del cron y logs
+// ─── DEBUG: envío de recordatorios ───────────────────────────────────────────
+// Estado, historial de ejecuciones y un botón que ejecuta el MISMO trabajo que el
+// envío programado (runSendJob): una copia aparte de la lógica puede funcionar
+// mientras el envío real falla, que es justo lo que escondió el último fallo.
+function debugDueList() {
+  const { getMemoriesDueToday } = require('./db');
+  return getMemoriesDueToday()
+    .sort((a, b) => String(a.next_send_date).localeCompare(String(b.next_send_date)))
+    .map(m => ({
+      id: m.id, topic: m.topic, frequency: m.frequency,
+      next_send_date: m.next_send_date, owner_email: m.owner_email, times_recalled: m.times_recalled,
+    }));
+}
+
 router.get('/api/debug/cron-status', requireAdmin, (req, res) => {
   try {
-    const { getMemoriesDueToday } = require('./db');
-    const due = getMemoriesDueToday();
-
-    const baseUrl = process.env.BASE_URL || 'no configurada';
-    const smtpUser = process.env.SMTP_USER ? '✓ configurado' : '✗ NO configurado';
-    const smtpPass = process.env.SMTP_PASS ? '✓ configurado' : '✗ NO configurado';
-
+    const { listCronRuns } = require('./db');
+    const baseUrl = (process.env.BASE_URL || '').trim();
     res.json({
-      timestamp: new Date().toISOString(),
-      cron_status: {
-        memorias_debido_ahora: due.length,
-        base_url: baseUrl,
-        smtp_user: smtpUser,
-        smtp_pass: smtpPass,
-        deactivation_secret: process.env.DEACTIVATION_SECRET ? '✓' : '✗'
+      now: new Date().toISOString(),
+      config: {
+        smtp: !!(process.env.SMTP_USER && process.env.SMTP_PASS),
+        base_url: baseUrl || null,
+        anthropic: !!process.env.ANTHROPIC_API_KEY,
+        schedule: process.env.REMEMORY_SEND_CRON || '50 6,10,14,18 * * *',
+        max_per_run: Math.max(1, parseInt(process.env.REMEMORY_MAX_PER_RUN || '2', 10)),
       },
-      memoria_debido: due.map(m => ({
-        id: m.id,
-        topic: m.topic,
-        frequency: m.frequency,
-        next_send_date: m.next_send_date,
-        owner_email: m.owner_email
-      }))
+      due: debugDueList(),
+      runs: listCronRuns(30),
     });
   } catch (error) {
-    console.error('[debug] Error:', error);
+    console.error('[debug] cron-status:', error);
     res.status(500).json({ error: error.message });
   }
 });
 
-// POST /api/debug/send-test - Disparar manualmente un envío de test
-router.post('/api/debug/send-test', requireAdmin, express.json(), async (req, res) => {
+router.post('/api/debug/run-now', requireAdmin, async (req, res) => {
   try {
-    const { getMemoriesDueToday } = require('./db');
-    const { sendMemoryEmail, sendQuizEmail } = require('./email');
-    const { createQuiz } = require('./db');
-    const { generateQuizQuestions } = require('./quiz-ai');
-    const { getOrCreateQuizSettings } = require('./db');
-
-    const due = getMemoriesDueToday();
-
-    if (due.length === 0) {
-      return res.json({
-        success: false,
-        message: 'No hay memorias debido para enviar en este momento',
-        due_count: 0
-      });
-    }
-
-    // Enviar la primera memoria de prueba
-    const memory = due[0];
-    let sent = false;
-    let error_msg = null;
-
-    try {
-      // Intentar envío como quiz si está habilitado
-      const settings = getOrCreateQuizSettings(memory.user_id);
-
-      if (settings.enabled) {
-        const quiz = createQuiz(memory.id, memory.user_id);
-        try {
-          await generateQuizQuestions(
-            quiz.id,
-            memory.description,
-            memory.topic,
-            settings.difficulty_level,
-            settings.questions_per_quiz
-          );
-          await sendQuizEmail(memory, memory.owner_email, quiz.token);
-          sent = true;
-        } catch (quizError) {
-          console.log('[debug] Quiz generation failed, falling back to regular email');
-          await sendMemoryEmail(memory, memory.owner_email);
-          sent = true;
-        }
-      } else {
-        await sendMemoryEmail(memory, memory.owner_email);
-        sent = true;
-      }
-    } catch (err) {
-      error_msg = err.message;
-      sent = false;
-    }
-
-    res.json({
-      success: sent,
-      message: sent ? '✓ Email enviado correctamente' : '✗ Error al enviar',
-      error: error_msg,
-      memory_sent: {
-        id: memory.id,
-        topic: memory.topic,
-        to: memory.owner_email,
-        type: settings?.enabled ? 'quiz' : 'regular'
-      },
-      total_due: due.length
-    });
+    const { runSendJob } = require('./cron');
+    const summary = await runSendJob({ trigger: 'manual' });
+    res.json(summary);
   } catch (error) {
-    console.error('[debug] send-test error:', error);
+    console.error('[debug] run-now:', error);
     res.status(500).json({ error: error.message });
   }
 });
 
-// GET /api/debug/memories-due - Ver todas las memorias que deberían haberse enviado
-router.get('/api/debug/memories-due', requireAdmin, (req, res) => {
-  try {
-    const { getMemoriesDueToday } = require('./db');
-    const due = getMemoriesDueToday();
-
-    res.json({
-      count: due.length,
-      memories: due.map(m => ({
-        id: m.id,
-        topic: m.topic,
-        description: m.description.substring(0, 100),
-        frequency: m.frequency,
-        next_send_date: m.next_send_date,
-        owner_email: m.owner_email,
-        times_recalled: m.times_recalled,
-        active: m.active
-      }))
-    });
-  } catch (error) {
-    console.error('[debug] Error:', error);
-    res.status(500).json({ error: error.message });
-  }
-});
-
-// GET /debug - Página de debug (acceso restringido a admin)
 router.get('/debug', requireAdmin, (req, res) => {
   res.sendFile(path.join(__dirname, 'public', 'debug.html'));
 });

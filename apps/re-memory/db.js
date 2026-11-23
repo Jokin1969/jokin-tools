@@ -16,6 +16,34 @@ const db = new Database(DB_PATH);
 db.pragma('journal_mode = WAL');
 db.pragma('foreign_keys = ON');
 
+// quizzes y quiz_stats se crearon con FOREIGN KEY (user_id) REFERENCES memories(user_id).
+// memories.user_id no es UNIQUE, así que SQLite rechaza con «foreign key mismatch» toda
+// inserción en ellas Y todo borrado de una ficha. Eso tumbó el envío de recordatorios.
+// Se reconstruyen sin esa FK conservando las filas (procedimiento de 12 pasos de SQLite).
+const BAD_USER_FK = /,\s*FOREIGN KEY\s*\(\s*user_id\s*\)\s*REFERENCES\s+memories\s*\(\s*user_id\s*\)/i;
+function dropBadUserFk(table) {
+  const row = db.prepare("SELECT sql FROM sqlite_master WHERE type = 'table' AND name = ?").get(table);
+  if (!row || !BAD_USER_FK.test(row.sql)) return;
+  const tmp = `${table}__fixed`;
+  const createTmp = row.sql
+    .replace(BAD_USER_FK, '')
+    .replace(/^CREATE TABLE\s+("?)\w+\1/i, `CREATE TABLE ${tmp}`);
+  db.pragma('foreign_keys = OFF');
+  try {
+    db.transaction(() => {
+      db.exec(createTmp);
+      db.exec(`INSERT INTO ${tmp} SELECT * FROM ${table}`);
+      db.exec(`DROP TABLE ${table}`);
+      db.exec(`ALTER TABLE ${tmp} RENAME TO ${table}`);
+    })();
+  } finally {
+    db.pragma('foreign_keys = ON');
+  }
+  console.log(`[db] Migrated: ${table} sin FK a memories(user_id)`);
+}
+dropBadUserFk('quizzes');
+dropBadUserFk('quiz_stats');
+
 // ─── Schema ───────────────────────────────────────────────────────────────────
 db.exec(`
   CREATE TABLE IF NOT EXISTS memories (
@@ -61,8 +89,7 @@ db.exec(`
     created_at      DATETIME DEFAULT CURRENT_TIMESTAMP,
     completed_at    DATETIME,
     score           INTEGER,
-    FOREIGN KEY (memory_id) REFERENCES memories(id) ON DELETE CASCADE,
-    FOREIGN KEY (user_id) REFERENCES memories(user_id)
+    FOREIGN KEY (memory_id) REFERENCES memories(id) ON DELETE CASCADE
   );
   CREATE INDEX IF NOT EXISTS idx_quizzes_memory ON quizzes(memory_id);
   CREATE INDEX IF NOT EXISTS idx_quizzes_user ON quizzes(user_id);
@@ -125,11 +152,22 @@ db.exec(`
     best_score          INTEGER DEFAULT 0,
     worst_score         INTEGER DEFAULT 0,
     last_quiz_date      DATETIME,
-    FOREIGN KEY (user_id) REFERENCES memories(user_id),
     UNIQUE(user_id, topic)
   );
   CREATE INDEX IF NOT EXISTS idx_quiz_stats_user ON quiz_stats(user_id);
   CREATE INDEX IF NOT EXISTS idx_quiz_stats_topic ON quiz_stats(topic);
+
+  -- Una fila por ejecución del envío de recordatorios (programada o manual), con el
+  -- resultado de cada ficha: lo que hizo falta para ver por qué dejaron de llegar.
+  CREATE TABLE IF NOT EXISTS cron_runs (
+    id       INTEGER PRIMARY KEY AUTOINCREMENT,
+    run_at   DATETIME DEFAULT CURRENT_TIMESTAMP,
+    trigger  TEXT NOT NULL,
+    due      INTEGER NOT NULL,
+    sent     INTEGER NOT NULL,
+    failed   INTEGER NOT NULL,
+    details  TEXT NOT NULL DEFAULT '[]'
+  );
 `);
 
 console.log('[db] Database initialized at:', DB_PATH);
@@ -677,8 +715,21 @@ function getAllMemoriesForExport(userId) {
   return userId != null ? db.prepare(q).all(userId) : db.prepare(q).all();
 }
 
+function logCronRun({ trigger, due, sent, failed, details }) {
+  db.prepare('INSERT INTO cron_runs (trigger, due, sent, failed, details) VALUES (?, ?, ?, ?, ?)')
+    .run(trigger, due, sent, failed, JSON.stringify(details || []));
+  db.prepare('DELETE FROM cron_runs WHERE id <= (SELECT MAX(id) - 500 FROM cron_runs)').run();
+}
+
+function listCronRuns(limit = 30) {
+  return db.prepare('SELECT * FROM cron_runs ORDER BY id DESC LIMIT ?').all(limit)
+    .map(r => ({ ...r, details: JSON.parse(r.details) }));
+}
+
 module.exports = {
   db,
+  logCronRun,
+  listCronRuns,
   calcNextSendDate,
   createMemory,
   setMemoryImage,

@@ -1,7 +1,8 @@
 const Database = require('better-sqlite3');
 const path = require('path');
 
-const dataDir = process.env.DB_PATH || '/data';
+// DB_PATH es la ruta del FICHERO principal (/data/jokin_tools.db); esta base va al lado.
+const dataDir = path.dirname(process.env.DB_PATH || '/data/jokin_tools.db');
 const dbPath = path.join(dataDir, 'reivindicaciones.db');
 const db = new Database(dbPath);
 
