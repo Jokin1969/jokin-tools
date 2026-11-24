@@ -11,8 +11,7 @@ const {
   createMemory, setMemoryImage, getMemoryById, listMemories, updateMemory,
   deleteMemory, toggleMemory, resetCounter, getAllIds, getAllMemoriesForExport,
   listHistory, postponeMemory,
-  createQuiz, addQuizQuestion, getQuizByToken, getQuizQuestions, submitQuizResponse,
-  getQuizResponses, calculateQuizScore,
+  createQuiz, addQuizQuestion, getQuizByToken, getQuizQuestions, submitQuiz, getQuizResult,
   getOrCreateQuizSettings, updateQuizSettings, updateQuizStats, getQuizStats, getQuizHistory
 } = require('./db');
 
@@ -740,27 +739,29 @@ router.post('/api/quiz', requireAdmin, async (req, res) => {
   }
 });
 
-// GET /api/quiz/:token - Get quiz questions
-router.get('/api/quiz/:token', (req, res) => {
+// Los tokens son 64 hex: así /api/quiz/settings, /stats e /history no caen en «:token».
+const QUIZ_TOKEN = ':token([a-f0-9]{64})';
+
+function quizResultPayload(quiz) {
+  return { status: 'completed', topic: quiz.topic, score: quiz.score, results: getQuizResult(quiz.id) };
+}
+
+// GET /api/quiz/:token — preguntas (sin la correcta) o, si ya está hecho, su resultado.
+router.get(`/api/quiz/${QUIZ_TOKEN}`, (req, res) => {
   try {
     const quiz = getQuizByToken(req.params.token);
     if (!quiz) return res.status(404).json({ error: 'Cuestionario no encontrado' });
+    if (quiz.status === 'completed') return res.json(quizResultPayload(quiz));
 
-    if (quiz.status === 'completed') {
-      return res.status(400).json({ error: 'El cuestionario ya ha sido completado' });
-    }
-
-    const questions = getQuizQuestions(quiz.id);
     res.json({
-      id: quiz.id,
-      token: req.params.token,
+      status: 'pending',
       topic: quiz.topic,
       description: quiz.description,
-      questions: questions.map(q => ({
+      questions: getQuizQuestions(quiz.id).map(q => ({
         id: q.id,
         question: q.question,
-        options: q.options.map(o => ({ id: o.id, text: o.text }))
-      }))
+        options: q.options.map(o => ({ id: o.id, text: o.text })),
+      })),
     });
   } catch (error) {
     console.error('[re-memory] Error getting quiz:', error);
@@ -768,52 +769,16 @@ router.get('/api/quiz/:token', (req, res) => {
   }
 });
 
-// POST /api/quiz/:token/answer - Submit an answer
-router.post('/api/quiz/:token/answer', (req, res) => {
-  try {
-    const { question_id, answer } = req.body;
-    if (!question_id || !answer) {
-      return res.status(400).json({ error: 'question_id y answer requeridos' });
-    }
-
-    const quiz = getQuizByToken(req.params.token);
-    if (!quiz) return res.status(404).json({ error: 'Cuestionario no encontrado' });
-
-    submitQuizResponse(quiz.id, question_id, answer);
-    res.json({ success: true });
-  } catch (error) {
-    console.error('[re-memory] Error submitting answer:', error);
-    res.status(500).json({ error: error.message });
-  }
-});
-
-// GET /api/quiz/:token/result - Get quiz results
-router.get('/api/quiz/:token/result', (req, res) => {
+// POST /api/quiz/:token/submit { answers: [{ question_id, answer }] } — puntúa y devuelve
+// el resultado. Si ya estaba hecho, devuelve el resultado guardado sin tocarlo.
+router.post(`/api/quiz/${QUIZ_TOKEN}/submit`, (req, res) => {
   try {
     const quiz = getQuizByToken(req.params.token);
     if (!quiz) return res.status(404).json({ error: 'Cuestionario no encontrado' });
-
-    // Get responses
-    const responses = getQuizResponses(quiz.id);
-
-    // Calculate score
-    const score = calculateQuizScore(quiz.id);
-
-    // Get updated quiz with score
-    const updatedQuiz = getQuizByToken(req.params.token);
-
-    res.json({
-      score: updatedQuiz.score,
-      responses: responses.map(r => ({
-        question: r.question,
-        user_answer: r.user_answer,
-        correct_answer: r.correct_answer,
-        explanation: r.explanation,
-        is_correct: r.is_correct
-      }))
-    });
+    submitQuiz(quiz.id, (req.body || {}).answers);
+    res.json(quizResultPayload(getQuizByToken(req.params.token)));
   } catch (error) {
-    console.error('[re-memory] Error getting results:', error);
+    console.error('[re-memory] Error submitting quiz:', error);
     res.status(500).json({ error: error.message });
   }
 });

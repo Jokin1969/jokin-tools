@@ -79,29 +79,30 @@ Importante: El formato debe ser JSON puro, válido y parseble.`;
     const parsed = JSON.parse(jsonText);
 
     if (!Array.isArray(parsed.questions) || parsed.questions.length !== numQuestions) {
-      throw new Error(`La IA no generó exactamente ${numQuestions} preguntas (generó ${parsed.questions.length})`);
+      throw new Error(`La IA no generó exactamente ${numQuestions} preguntas (generó ${Array.isArray(parsed.questions) ? parsed.questions.length : 0})`);
     }
 
-    // Insertar preguntas en la BD
-    for (let i = 0; i < parsed.questions.length; i++) {
-      const q = parsed.questions[i];
-
-      if (!q.question || !q.options || q.options.length !== 4 || !q.correct_answer) {
+    // Validar TODO antes de insertar nada: un cuestionario a medias no se envía, pero
+    // tampoco debe quedar en la base de datos. La correcta tiene que ser una de las
+    // cuatro opciones; se guarda con el texto exacto de esa opción.
+    const items = parsed.questions.map((q, i) => {
+      if (!q || !q.question || !Array.isArray(q.options) || q.options.length !== 4 || !q.correct_answer) {
         throw new Error(`Pregunta ${i + 1} incompleta o mal formada`);
       }
+      const options = q.options.map(o => String(o));
+      const correct = options.find(o => db.normalizeAnswer(o) === db.normalizeAnswer(q.correct_answer));
+      if (!correct) throw new Error(`Pregunta ${i + 1}: la respuesta correcta no es ninguna de las opciones`);
+      return { question: q.question, options, correct, explanation: q.explanation || '' };
+    });
 
-      const questionId = db.addQuizQuestion(quizId, {
-        question: q.question,
-        order_num: i + 1,
-        correct_answer: q.correct_answer,
-        explanation: q.explanation || ''
+    db.db.transaction(() => {
+      items.forEach((q, i) => {
+        const questionId = db.addQuizQuestion(quizId, {
+          question: q.question, order_num: i + 1, correct_answer: q.correct, explanation: q.explanation,
+        });
+        q.options.forEach((o, j) => db.addQuizOption(questionId, o, j + 1));
       });
-
-      // Insertar opciones
-      for (let j = 0; j < q.options.length; j++) {
-        db.addQuizOption(questionId, q.options[j], j + 1);
-      }
-    }
+    })();
 
     console.log(`[quiz-ai] Generated ${numQuestions} questions for quiz ${quizId} (difficulty: ${difficulty})`);
     return true;

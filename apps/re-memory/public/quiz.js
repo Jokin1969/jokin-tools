@@ -1,219 +1,163 @@
-// Quiz interaction logic
+// Cuestionario: carga las preguntas, recoge las respuestas y envía todo de una vez.
+const $ = id => document.getElementById(id);
+const token = new URLSearchParams(window.location.search).get('token');
 
-let quiz = null;
 let questions = [];
-let answers = {}; // { questionId: selectedAnswer }
-let currentQuestionIndex = 0;
+const answers = {}; // { questionId: textoElegido }
+let current = 0;
+
+async function api(path, opts) {
+  const r = await fetch(`/re-memory/api/quiz/${encodeURIComponent(token)}${path}`, opts);
+  const data = await r.json().catch(() => ({}));
+  if (!r.ok) throw new Error(data.error || `Error ${r.status}`);
+  return data;
+}
 
 async function loadQuiz() {
+  if (!token) return showError('Falta el código del cuestionario en el enlace.');
   try {
-    const token = new URLSearchParams(window.location.search).get('token');
-    if (!token) {
-      showError('Token de cuestionario no válido');
-      return;
-    }
+    const data = await api('');
+    if (data.status === 'completed') return showResults(data);
 
-    const resp = await fetch(`/re-memory/api/quiz/${token}`);
-    if (!resp.ok) throw new Error('Cuestionario no encontrado');
+    questions = data.questions || [];
+    if (!questions.length) return showError('Este cuestionario no tiene preguntas.');
 
-    quiz = await resp.json();
-    questions = quiz.questions || [];
-
-    if (questions.length === 0) {
-      showError('El cuestionario está vacío');
-      return;
-    }
-
-    // Initialize answers object
-    questions.forEach(q => {
-      answers[q.id] = null;
-    });
-
-    // Show quiz UI
-    document.getElementById('loading-state').style.display = 'none';
-    document.getElementById('quiz-header').style.display = 'block';
-    document.getElementById('nav-buttons').style.display = 'flex';
-
-    document.getElementById('quiz-topic').textContent = quiz.topic || 'Cuestionario';
-    document.getElementById('quiz-subtitle').textContent = `Tema: ${quiz.description.substring(0, 80)}...`;
-
+    $('loading-state').style.display = 'none';
+    $('quiz-header').style.display = 'block';
+    $('nav-buttons').style.display = 'flex';
+    $('quiz-topic').textContent = data.topic || 'Cuestionario';
+    const desc = data.description || '';
+    $('quiz-subtitle').textContent = desc.length > 90 ? desc.slice(0, 90) + '…' : desc;
+    $('total-questions').textContent = questions.length;
     renderQuestion(0);
-  } catch (error) {
-    showError('Error cargando cuestionario: ' + error.message);
+  } catch (err) {
+    showError('No se pudo cargar el cuestionario: ' + err.message);
   }
 }
 
 function renderQuestion(index) {
   if (index < 0 || index >= questions.length) return;
+  current = index;
+  const q = questions[index];
 
-  currentQuestionIndex = index;
-  const question = questions[index];
+  $('current-question').textContent = index + 1;
+  $('progress-bar').style.width = ((index + 1) / questions.length) * 100 + '%';
 
-  // Update progress
-  document.getElementById('current-question').textContent = index + 1;
-  const progress = ((index + 1) / questions.length) * 100;
-  document.getElementById('progress-bar').style.width = progress + '%';
+  const card = document.createElement('div');
+  card.className = 'question-card active';
+  card.innerHTML = `
+    <span class="question-number">Pregunta ${index + 1} de ${questions.length}</span>
+    <div class="question-text"></div>
+    <div class="options-group"></div>`;
+  card.querySelector('.question-text').textContent = q.question;
 
-  // Render question and options
-  const container = document.getElementById('quiz-questions');
-  container.innerHTML = `
-    <div class="question-card active">
-      <span class="question-number">Pregunta ${index + 1} de ${questions.length}</span>
-      <div class="question-text">${escapeHtml(question.question)}</div>
-      <div class="options-group">
-        ${question.options.map((opt, i) => `
-          <button class="option-btn ${answers[question.id] === opt.text ? 'selected' : ''}"
-                  onclick="selectAnswer(${question.id}, '${escapeAttr(opt.text)}')">
-            <div class="option-radio"></div>
-            <span>${escapeHtml(opt.text)}</span>
-          </button>
-        `).join('')}
-      </div>
-    </div>
-  `;
+  const group = card.querySelector('.options-group');
+  q.options.forEach(opt => {
+    const btn = document.createElement('button');
+    btn.type = 'button';
+    btn.className = 'option-btn' + (answers[q.id] === opt.text ? ' selected' : '');
+    btn.innerHTML = '<div class="option-radio"></div><span></span>';
+    btn.querySelector('span').textContent = opt.text;
+    btn.addEventListener('click', () => { answers[q.id] = opt.text; renderQuestion(current); });
+    group.appendChild(btn);
+  });
 
-  // Update navigation
-  document.getElementById('btn-prev').disabled = index === 0;
-  document.getElementById('btn-next').disabled = answers[question.id] === null;
-  document.getElementById('btn-next').textContent =
-    index === questions.length - 1 ? 'Enviar respuestas' : 'Siguiente →';
+  $('quiz-questions').replaceChildren(card);
+  $('btn-prev').disabled = index === 0;
+  $('btn-next').disabled = !answers[q.id];
+  $('btn-next').textContent = index === questions.length - 1 ? 'Enviar respuestas' : 'Siguiente →';
 }
 
-function selectAnswer(questionId, answer) {
-  answers[questionId] = answer;
-  renderQuestion(currentQuestionIndex);
-}
-
-document.getElementById('btn-prev')?.addEventListener('click', () => {
-  renderQuestion(currentQuestionIndex - 1);
-});
-
-document.getElementById('btn-next')?.addEventListener('click', async () => {
-  if (currentQuestionIndex === questions.length - 1) {
-    await submitQuiz();
-  } else {
-    renderQuestion(currentQuestionIndex + 1);
-  }
+$('btn-prev').addEventListener('click', () => renderQuestion(current - 1));
+$('btn-next').addEventListener('click', () => {
+  if (current < questions.length - 1) return renderQuestion(current + 1);
+  submitQuiz();
 });
 
 async function submitQuiz() {
-  const token = new URLSearchParams(window.location.search).get('token');
-
+  const btn = $('btn-next');
+  btn.disabled = true;
+  btn.textContent = 'Corrigiendo…';
   try {
-    // Submit all responses
-    for (const question of questions) {
-      const answer = answers[question.id];
-      if (answer) {
-        await fetch(`/re-memory/api/quiz/${token}/answer`, {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({
-            question_id: question.id,
-            answer: answer
-          })
-        });
-      }
-    }
-
-    // Get results
-    const resultResp = await fetch(`/re-memory/api/quiz/${token}/result`);
-    if (!resultResp.ok) throw new Error('Error obteniendo resultados');
-
-    const result = await resultResp.json();
+    const result = await api('/submit', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        answers: Object.entries(answers).map(([id, answer]) => ({ question_id: Number(id), answer })),
+      }),
+    });
     showResults(result);
-  } catch (error) {
-    showError('Error enviando respuestas: ' + error.message);
+  } catch (err) {
+    btn.disabled = false;
+    btn.textContent = 'Enviar respuestas';
+    alert('No se pudieron enviar las respuestas: ' + err.message);
   }
 }
 
-function showResults(result) {
-  // Hide quiz, show results
-  document.getElementById('quiz-header').style.display = 'none';
-  document.getElementById('quiz-questions').style.display = 'none';
-  document.getElementById('nav-buttons').style.display = 'none';
-  document.getElementById('results-screen').classList.add('active');
+function showResults(data) {
+  $('loading-state').style.display = 'none';
+  $('quiz-header').style.display = 'none';
+  $('quiz-questions').style.display = 'none';
+  $('nav-buttons').style.display = 'none';
+  $('results-screen').classList.add('active');
 
-  const score = result.score;
-  const scoreCircle = document.getElementById('score-circle');
-  const scoreMessage = document.getElementById('score-message');
-  const scoreFeedback = document.getElementById('score-feedback');
+  const score = data.score || 0;
+  const levels = [
+    [90, 'excellent', '¡Excelente!', 'Dominas este tema.'],
+    [70, 'good', '¡Muy bien!', 'Tienes un buen conocimiento del tema.'],
+    [50, 'poor', 'Aprobado', 'Te vendrá bien repasar algunos puntos.'],
+    [0, 'fail', 'Suspenso', 'Repasa la ficha: abajo tienes por qué cada respuesta era la buena.'],
+  ];
+  const [, cls, msg, fb] = levels.find(([min]) => score >= min);
+  $('score-circle').className = 'score-circle ' + cls;
+  $('score-circle').textContent = score + '%';
+  $('score-message').textContent = (data.topic ? data.topic + ' · ' : '') + msg;
+  $('score-feedback').textContent = fb;
 
-  // Set score circle color and message
-  if (score >= 90) {
-    scoreCircle.classList.add('excellent');
-    scoreMessage.textContent = '¡Excelente!';
-    scoreFeedback.textContent = 'Demuestras dominar muy bien este tema.';
-  } else if (score >= 70) {
-    scoreCircle.classList.add('good');
-    scoreMessage.textContent = '¡Muy bien!';
-    scoreFeedback.textContent = 'Tienes un buen conocimiento del tema.';
-  } else if (score >= 50) {
-    scoreCircle.classList.add('poor');
-    scoreMessage.textContent = 'Aprobado';
-    scoreFeedback.textContent = 'Podrías repasar algunos conceptos.';
-  } else {
-    scoreCircle.classList.add('fail');
-    scoreMessage.textContent = 'Reprobado';
-    scoreFeedback.textContent = 'Te recomendamos revisar la información y intentar de nuevo.';
-  }
+  const results = data.results || [];
+  const box = $('feedback-items');
+  box.replaceChildren();
 
-  scoreCircle.textContent = score + '%';
+  const ok = results.filter(r => r.is_correct).length;
+  box.appendChild(feedbackItem('correct', `✓ ${ok} de ${results.length} correctas`));
 
-  // Show feedback for incorrect answers
-  const feedbackContainer = document.getElementById('feedback-items');
-  feedbackContainer.innerHTML = '';
-
-  result.responses.forEach(response => {
-    if (!response.is_correct) {
-      const feedback = document.createElement('div');
-      feedback.className = 'feedback-item incorrect';
-      feedback.innerHTML = `
-        <div class="feedback-question">❌ ${escapeHtml(response.question)}</div>
-        <div class="feedback-answer">
-          <span class="feedback-label">Tu respuesta:</span>
-          ${escapeHtml(response.user_answer)}
-        </div>
-        <div class="feedback-answer">
-          <span class="feedback-label">Respuesta correcta:</span>
-          ${escapeHtml(response.correct_answer)}
-        </div>
-        <div class="feedback-explanation">
-          <strong>Explicación:</strong> ${escapeHtml(response.explanation || 'No hay explicación disponible')}
-        </div>
-      `;
-      feedbackContainer.appendChild(feedback);
-    }
+  results.filter(r => !r.is_correct).forEach(r => {
+    const item = feedbackItem('incorrect', '✗ ' + r.question);
+    addLine(item, 'Tu respuesta:', r.user_answer || 'sin contestar');
+    addLine(item, 'Respuesta correcta:', r.correct_answer);
+    const exp = document.createElement('div');
+    exp.className = 'feedback-explanation';
+    exp.innerHTML = '<strong>Por qué:</strong> ';
+    exp.append(r.explanation || 'Sin explicación.');
+    item.appendChild(exp);
+    box.appendChild(item);
   });
+}
 
-  // Show correct answers summary
-  const correctCount = result.responses.filter(r => r.is_correct).length;
-  if (correctCount > 0) {
-    const summary = document.createElement('div');
-    summary.className = 'feedback-item correct';
-    summary.innerHTML = `
-      <div class="feedback-question">✓ ${correctCount} respuestas correctas</div>
-      <div class="feedback-answer">Bien hecho en estas preguntas</div>
-    `;
-    feedbackContainer.insertBefore(summary, feedbackContainer.firstChild);
-  }
+function feedbackItem(kind, title) {
+  const el = document.createElement('div');
+  el.className = 'feedback-item ' + kind;
+  const t = document.createElement('div');
+  t.className = 'feedback-question';
+  t.textContent = title;
+  el.appendChild(t);
+  return el;
+}
+
+function addLine(item, label, value) {
+  const line = document.createElement('div');
+  line.className = 'feedback-answer';
+  const l = document.createElement('span');
+  l.className = 'feedback-label';
+  l.textContent = label + ' ';
+  line.append(l, value);
+  item.appendChild(line);
 }
 
 function showError(message) {
-  document.getElementById('loading-state').style.display = 'none';
-  const errorEl = document.getElementById('error-state');
-  errorEl.textContent = message;
-  errorEl.style.display = 'block';
+  $('loading-state').style.display = 'none';
+  $('error-state').textContent = message;
+  $('error-state').style.display = 'block';
 }
 
-function escapeHtml(text) {
-  const div = document.createElement('div');
-  div.textContent = text;
-  return div.innerHTML;
-}
-
-function escapeAttr(text) {
-  return text.replace(/'/g, "\\'").replace(/"/g, '&quot;');
-}
-
-// Load quiz on page load
-window.addEventListener('DOMContentLoaded', loadQuiz);
+loadQuiz();

@@ -579,44 +579,52 @@ function getQuizQuestions(quizId) {
   }));
 }
 
-function submitQuizResponse(quizId, questionId, userAnswer) {
-  const question = db.prepare('SELECT correct_answer FROM quiz_questions WHERE id = ?').get(questionId);
-  const isCorrect = question && question.correct_answer === userAnswer ? 1 : 0;
-
-  const stmt = db.prepare(`
-    INSERT INTO quiz_responses (quiz_id, question_id, user_answer, is_correct)
-    VALUES (?, ?, ?, ?)
-  `);
-  return stmt.run(quizId, questionId, userAnswer, isCorrect);
+// La IA escribe la respuesta correcta aparte de las opciones: «Paris» frente a «París»
+// no puede convertir un acierto en fallo.
+function normalizeAnswer(s) {
+  return String(s == null ? '' : s).normalize('NFD').replace(/[̀-ͯ]/g, '')
+    .replace(/\s+/g, ' ').trim().toLowerCase();
 }
 
-function getQuizResponses(quizId) {
+// Todas las respuestas de una vez. Sólo cuentan preguntas de ESTE cuestionario; la nota
+// es sobre el total de preguntas (una sin contestar es un fallo). Un cuestionario ya
+// terminado no se vuelve a puntuar ni a sumar a las estadísticas.
+function submitQuiz(quizId, answers) {
+  return db.transaction(() => {
+    const quiz = db.prepare(`
+      SELECT q.status, q.user_id, m.topic FROM quizzes q JOIN memories m ON m.id = q.memory_id WHERE q.id = ?
+    `).get(quizId);
+    if (!quiz || quiz.status === 'completed') return false;
+
+    const own = db.prepare('SELECT correct_answer FROM quiz_questions WHERE id = ? AND quiz_id = ?');
+    const del = db.prepare('DELETE FROM quiz_responses WHERE quiz_id = ? AND question_id = ?');
+    const ins = db.prepare('INSERT INTO quiz_responses (quiz_id, question_id, user_answer, is_correct) VALUES (?, ?, ?, ?)');
+    for (const a of Array.isArray(answers) ? answers : []) {
+      const q = a && own.get(a.question_id, quizId);
+      if (!q || typeof a.answer !== 'string' || !a.answer.trim()) continue;
+      del.run(quizId, a.question_id);
+      ins.run(quizId, a.question_id, a.answer, normalizeAnswer(a.answer) === normalizeAnswer(q.correct_answer) ? 1 : 0);
+    }
+
+    const { total } = db.prepare('SELECT COUNT(*) AS total FROM quiz_questions WHERE quiz_id = ?').get(quizId);
+    const { correct } = db.prepare('SELECT COUNT(*) AS correct FROM quiz_responses WHERE quiz_id = ? AND is_correct = 1').get(quizId);
+    const score = total ? Math.round((correct / total) * 100) : 0;
+    db.prepare("UPDATE quizzes SET score = ?, status = 'completed', completed_at = CURRENT_TIMESTAMP WHERE id = ?").run(score, quizId);
+    updateQuizStats(quiz.user_id, quiz.topic, score);
+    return true;
+  })();
+}
+
+// Cada pregunta con lo contestado (null si no se contestó), en el orden del cuestionario.
+function getQuizResult(quizId) {
   return db.prepare(`
-    SELECT qr.*, qq.question, qq.correct_answer, qq.explanation
-    FROM quiz_responses qr
-    JOIN quiz_questions qq ON qr.question_id = qq.id
-    WHERE qr.quiz_id = ?
-    ORDER BY qr.answered_at
-  `).all(quizId);
+    SELECT qq.question, qq.correct_answer, qq.explanation, qr.user_answer, COALESCE(qr.is_correct, 0) AS is_correct
+    FROM quiz_questions qq
+    LEFT JOIN quiz_responses qr ON qr.question_id = qq.id AND qr.quiz_id = qq.quiz_id
+    WHERE qq.quiz_id = ?
+    ORDER BY qq.order_num, qq.id
+  `).all(quizId).map(r => ({ ...r, is_correct: r.is_correct === 1 }));
 }
-
-function calculateQuizScore(quizId) {
-  const responses = db.prepare(`
-    SELECT is_correct FROM quiz_responses WHERE quiz_id = ?
-  `).all(quizId);
-
-  if (responses.length === 0) return 0;
-
-  const correct = responses.filter(r => r.is_correct).length;
-  const score = Math.round((correct / responses.length) * 100);
-
-  db.prepare('UPDATE quizzes SET score = ?, status = ?, completed_at = CURRENT_TIMESTAMP WHERE id = ?')
-    .run(score, 'completed', quizId);
-
-  return score;
-}
-
-// ─── Quiz Settings ────────────────────────────────────────────────────────────
 
 function getOrCreateQuizSettings(userId) {
   let settings = db.prepare('SELECT * FROM quiz_settings WHERE user_id = ?').get(userId);
@@ -757,9 +765,9 @@ module.exports = {
   addQuizOption,
   getQuizByToken,
   getQuizQuestions,
-  submitQuizResponse,
-  getQuizResponses,
-  calculateQuizScore,
+  submitQuiz,
+  normalizeAnswer,
+  getQuizResult,
   // Quiz settings and stats
   getOrCreateQuizSettings,
   updateQuizSettings,

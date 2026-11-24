@@ -378,12 +378,12 @@
   <!-- Quiz header -->
   <div class="quiz-header" id="quiz-header" style="display: none;">
     <h1 id="quiz-topic">Cuestionario</h1>
-    <p id="quiz-subtitle">Responde las 10 preguntas para evaluar tu conocimiento</p>
+    <p id="quiz-subtitle"></p>
     <div class="quiz-progress">
       <div class="progress-bar">
         <div class="progress-fill" id="progress-bar" style="width: 0%"></div>
       </div>
-      <div class="progress-text"><span id="current-question">1</span> / 10</div>
+      <div class="progress-text"><span id="current-question">1</span> / <span id="total-questions"></span></div>
     </div>
   </div>
 
@@ -406,10 +406,10 @@
 
     <div id="feedback-items"></div>
 
-    <button class="btn btn-primary" onclick="window.close()" style="margin-top: 20px;">Cerrar</button>
+    <a class="btn btn-primary" href="/re-memory" style="margin-top: 20px; display: inline-block; text-decoration: none;">Volver a Re-memory</a>
   </div>
 </div>
 
-<script src="/re-memory/quiz.js"></script>
+<script src="/re-memory/public/quiz.js?v=2"></script>
 </body>
 </html>
